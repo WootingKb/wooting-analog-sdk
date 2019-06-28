@@ -1,0 +1,13 @@
+[package]
+name = "analog-plugin"
+version = "0.1.0"
+authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+log = "0.4.6"
+analog-sdk = { path = "../analog-sdk"}
+hidapi = "0.5.2"
+
+[lib]
+crate-type = ["cdylib"]

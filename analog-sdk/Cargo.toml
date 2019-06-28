@@ -1,0 +1,19 @@
+[package]
+name = "analog-sdk"
+version = "0.1.0"
+authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+log = "0.4.6"
+libloading = "0.5.1"
+error-chain = "0.12.1"
+lazy_static = "*"
+ffi-support = "0.3.4"
+scancode = "0.1.2"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.7", features = ["winuser"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "analog-sdk-test": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
