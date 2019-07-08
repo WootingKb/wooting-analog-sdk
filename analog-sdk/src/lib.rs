@@ -75,7 +75,7 @@ pub extern "C" fn sdk_read_analog_sc(code: u8) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_set_disconnected_cb(cb: extern fn(*const c_char)) {
+pub extern "C" fn sdk_set_disconnected_cb(cb: extern fn(FfiStr)) {
     ANALOG_SDK.lock().unwrap().disconnected_callback = Some(cb);
 }
 
@@ -83,6 +83,17 @@ pub extern "C" fn sdk_set_disconnected_cb(cb: extern fn(*const c_char)) {
 pub extern "C" fn sdk_clear_disconnected_cb() {
     ANALOG_SDK.lock().unwrap().disconnected_callback = None;
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn sdk_device_info() -> *mut DeviceInfo {
+    let mut dev = ANALOG_SDK.lock().unwrap();
+    let mut info = Box::from_raw(dev.device_info);
+    info.val = info.val + 1;
+    dev.device_info = Box::into_raw(info);
+    
+    dev.device_info
+}
+
 
 /*#[no_mangle]
 pub extern "C" fn test_function(x: u32) -> u32 {

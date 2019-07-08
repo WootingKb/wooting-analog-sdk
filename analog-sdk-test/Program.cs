@@ -7,6 +7,12 @@ using System.Threading;
 namespace analog_sdk_test
 {
     class Native {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DeviceInfo {
+            public string name;
+            public uint val;
+        }
+
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void DisconnectedCb(string name);
 
@@ -39,6 +45,19 @@ namespace analog_sdk_test
 
         [DllImport(sdkLib)]
         public static extern void sdk_clear_disconnected_cb();
+
+        [DllImport(sdkLib)]
+        public static extern IntPtr sdk_device_info();
+
+        public static DeviceInfo? GetDeviceInfo(){
+            IntPtr ptr = sdk_device_info();
+            if (ptr != IntPtr.Zero){
+                return (DeviceInfo)Marshal.PtrToStructure(
+                           ptr,
+                           typeof(DeviceInfo));
+            }
+            return null;
+        }
 
         public static uint add(uint x, uint y){
             return x + y;
@@ -76,6 +95,10 @@ namespace analog_sdk_test
                 testSpeedN(sw, () => Native.add(9,10), $"Local", 4);
                 testSpeedN(sw, () => Native.sdk_read_analog_hid(4), $"Local read analog HID", 5);
                 testSpeedN(sw, () => Native.sdk_read_analog_sc(30), $"Local read analog SC", 5);
+                for (int i = 0; i < 5; i++){
+                    var info = Native.GetDeviceInfo();
+                    Console.WriteLine($"Device info has: {info?.name}, {info?.val}");
+                }
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, true), $"Local read analog VK (translate)", 5);
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;

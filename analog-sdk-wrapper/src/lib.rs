@@ -2,7 +2,15 @@
 use libloading as libl;
 use std::ops::Deref;
 use std::os::raw::c_char;
+use std::ffi::c_void;
+use std::ptr;
 
+
+struct Void(*mut c_void);
+
+impl Default for Void {
+    fn default() -> Self { Void(ptr::null_mut()) }
+}
 
 macro_rules! dynamic_extern {
     (@as_item $i:item) => {$i};
@@ -67,6 +75,7 @@ dynamic_extern! {
         fn sdk_read_analog_sc(code: u8) -> f32;
         fn sdk_set_disconnected_cb(cb: extern fn(*const c_char));
         fn sdk_clear_disconnected_cb();
+        fn sdk_device_info() -> Void;
     }
 }
 

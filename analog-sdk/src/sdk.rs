@@ -207,13 +207,26 @@ macro_rules! declare_plugin {
     };
 }
 
+#[repr(C)]
+pub struct DeviceInfo {
+    name: *const u8,
+    pub val: u32
+}
+
+unsafe impl Send for AnalogSDK{
+
+}
+
 pub struct AnalogSDK {
     pub initialised: bool,
-    pub disconnected_callback: Option<extern fn(*const c_char)>,
+    pub disconnected_callback: Option<extern fn(FfiStr)>,
 
     plugins: Vec<Box<Plugin>>,
     loaded_libraries: Vec<Library>,
+    pub device_info: *mut DeviceInfo
+
 }
+
 
 #[cfg(target_os = "macos")]
 static LIB_EXT: &str = "dylib";
@@ -231,7 +244,8 @@ impl AnalogSDK {
             plugins: Vec::new(),
             loaded_libraries: Vec::new(),
             initialised: false,
-            disconnected_callback: None
+            disconnected_callback: None,
+            device_info: Box::into_raw(Box::new(DeviceInfo { name: b"Device Yeet\0" as *const u8, val:20 }))
         }
     }
 
@@ -356,7 +370,7 @@ impl AnalogSDK {
         }
         //testing disconnected cb
         if let Some(cb) = self.disconnected_callback {
-            cb(CString::new("Yeet").unwrap().as_ptr());
+            cb(FfiStr::from_cstr(CString::new("Yeet").unwrap().as_c_str()));
         }
 
 
