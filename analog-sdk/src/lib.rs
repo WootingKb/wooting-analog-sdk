@@ -15,7 +15,8 @@ mod errors {
 use sdk::*;
 use std::sync::Mutex;
 use ffi_support::FfiStr;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_uint, c_float, c_int, c_void, c_ushort};
+use std::slice;
 
 lazy_static! {
     static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
@@ -85,13 +86,32 @@ pub extern "C" fn sdk_clear_disconnected_cb() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn sdk_device_info() -> *mut DeviceInfo {
-    let mut dev = ANALOG_SDK.lock().unwrap();
-    let mut info = Box::from_raw(dev.device_info);
-    info.val = info.val + 1;
-    dev.device_info = Box::into_raw(info);
-    
-    dev.device_info
+pub unsafe extern "C" fn sdk_device_info(buffer: *mut DeviceInfoPointer, len: c_uint ) -> c_int {
+    ANALOG_SDK.lock().unwrap().get_device_info(buffer, len)
+}
+
+pub unsafe extern "C" fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int {
+    sdk_read_full_buffer_device(code_buffer, analog_buffer, len, 0)
+}
+
+pub unsafe extern "C" fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device: DeviceID) -> c_int {
+    if !ANALOG_SDK.lock().unwrap().initialised {
+        return -1;
+    }
+
+    let codes = unsafe {
+        assert!(!code_buffer.is_null());
+
+        slice::from_raw_parts_mut(code_buffer, len as usize)
+    };
+
+    let analog = unsafe {
+        assert!(!analog_buffer.is_null());
+
+        slice::from_raw_parts_mut(analog_buffer, len as usize)
+    };
+
+    ANALOG_SDK.lock().unwrap().read_full_buffer(codes, analog, device)
 }
 
 

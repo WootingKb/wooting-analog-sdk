@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use crate::errors::*;
 //use libc::c_char;
 use std::ffi::{CString, OsStr};
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void, c_uint, c_int, c_float, c_ushort};
 use ffi_support::{FfiStr};
-//use std::collections::HashMap;
+use std::collections::HashMap;
 //use std::ops::Deref;
 use scancode::Scancode;
 
@@ -130,12 +130,15 @@ pub trait Plugin: Any + Send + Sync {
     fn initialise(&mut self) -> bool;
     
     fn is_initialised(&mut self) -> bool;
+
+    fn device_info(&mut self, buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int;
     /// A callback fired immediately before the plugin is unloaded. Use this if
     /// you need to do any cleanup.
     fn unload(&mut self) {}
 
     fn add(&mut self, x: u32, y: u32) -> Option<u32>;
-    fn read_analog_hid(&mut self, code: u8) -> Option<f32>;
+    fn read_analog(&mut self, code: u8) -> Option<f32>;
+    fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> Option<Vec<(c_ushort, c_float)>>;
     
 
     //fn neg(&mut self, x: u32, y: u32) -> Option<u32>;
@@ -157,6 +160,10 @@ impl CPlugin {
     lib_wrap_option!{
         //c_name has to be over here due to it not being part of the Plugin trait
         fn c_name() -> FfiStr<'static>;
+
+    }
+    lib_wrap!{
+        fn c_read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint) -> c_int;
     }
 }
 
@@ -172,15 +179,37 @@ impl Plugin for CPlugin {
         c_str.to_str().unwrap()*/
         self.c_name().map(|s| s.as_str())
     }
+
+    fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> Option<Vec<(c_ushort, c_float)>> {
+        let code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length as usize);
+        let analog_buffer: Vec<c_float> = Vec::with_capacity(max_length as usize);
+
+        let mut count: usize = self.c_read_full_buffer(code_buffer.as_ptr(), analog_buffer.as_ptr(), max_length as c_uint) as usize;
+        if count > max_length {
+            println!("What you playing at, this return too big");
+            count = max_length;
+        }
+        else if count < 0 {
+            return None;
+        }
+
+        let mut analog_data : Vec<(c_ushort, c_float)> = Vec::with_capacity(count);
+        for i in 0..count {
+            analog_data.push( (code_buffer[i], analog_buffer[i]) );
+        }
+
+        Some(analog_data)
+    }
+
     lib_wrap!{
         fn initialise() -> bool;
         fn is_initialised() -> bool;
         fn unload();
+        fn device_info(buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int;
     }
     lib_wrap_option! {
-        
         fn add(x: u32, y: u32) -> u32;
-        fn read_analog_hid(code: u8) -> f32;
+        fn read_analog(code: u8) -> f32;
         //fn neg(x: u32, y: u32) -> u32;
     }
 }
@@ -213,6 +242,10 @@ pub struct DeviceInfo {
     pub val: u32
 }
 
+pub type DeviceInfoPointer = *mut DeviceInfo;
+pub type DeviceID = u32;
+
+
 unsafe impl Send for AnalogSDK{
 
 }
@@ -223,7 +256,7 @@ pub struct AnalogSDK {
 
     plugins: Vec<Box<Plugin>>,
     loaded_libraries: Vec<Library>,
-    pub device_info: *mut DeviceInfo
+    //pub device_info: *mut DeviceInfo
 
 }
 
@@ -245,7 +278,7 @@ impl AnalogSDK {
             loaded_libraries: Vec::new(),
             initialised: false,
             disconnected_callback: None,
-            device_info: Box::into_raw(Box::new(DeviceInfo { name: b"Device Yeet\0" as *const u8, val:20 }))
+            //device_info: Box::into_raw(Box::new(DeviceInfo { name: b"Device Yeet\0" as *const u8, val:20 }))
         }
     }
 
@@ -384,7 +417,7 @@ impl AnalogSDK {
 
         let mut value: f32 = 0.0;
         for p in self.plugins.iter_mut() {
-            if let Some(x) = p.read_analog_hid(code) {
+            if let Some(x) = p.read_analog(code) {
                 value = value.max(x);
             }
         }
@@ -425,6 +458,69 @@ impl AnalogSDK {
             }
         }
 
+    }
+
+    pub fn get_device_info(&mut self, buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int {
+        if self.plugins.len() <= 0 {
+            return -1;
+        }
+        let mut count: u32 = 0;
+        let mut pointer = buffer;
+        for p in self.plugins.iter_mut() {
+            let num = p.device_info(pointer, len-count);
+            if num > 0 {
+                pointer = unsafe{ buffer.offset(count as isize) };
+                count = count + (num as u32);
+            }
+        }
+        count as c_int
+    }
+
+    pub fn read_full_buffer(&mut self, code_buffer: &mut [c_ushort], analog_buffer: &mut [c_float], device: DeviceID) -> c_int {
+        if self.plugins.len() <= 0 {
+            return -1;
+        }
+
+        let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(code_buffer.len());
+
+        //Read from all and add up
+        for p in self.plugins.iter_mut() {
+            let mut data = p.read_full_buffer(code_buffer.len(), 0);
+            if data == None{
+                continue;
+            }
+            let mut data = data.unwrap();
+
+            for (code, analog) in data.drain(1..){
+                let mut total_analog = analog;
+
+                //No point in checking if the value is already present if we are only looking for data from one device
+                if device == 0 {
+                    if let Some(val) = analog_data.get(&code) {
+                        total_analog = total_analog.max(*val);
+                    }
+                }
+                analog_data.insert(code, total_analog);
+            }
+
+            //If we are looking for a specific device, just break out when we find one that returns good
+            if device != 0 {
+                break;
+            }
+        }
+
+        //Fill up given slices
+        let mut count: usize = 0;
+        for (code, analog) in analog_data.drain() {
+            if count >= code_buffer.len() {
+                break;
+            }
+
+            code_buffer[count] = code;
+            analog_buffer[count] = analog;
+            count = count + 1;
+        }
+        count as c_int
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire 
