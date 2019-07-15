@@ -1,7 +1,7 @@
 #[macro_use] extern crate lazy_static;
 use libloading as libl;
 use std::ops::Deref;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_ushort, c_float, c_uint, c_int};
 use std::ffi::c_void;
 use std::ptr;
 
@@ -70,12 +70,12 @@ dynamic_extern! {
         fn sdk_is_initialised() -> bool;
         fn sdk_uninitialise() -> bool;
         fn sdk_add(x: u32, y: u32) -> u32;
-        fn sdk_read_analog_hid(code: u8) -> f32;
-        fn sdk_read_analog_vk(code: u8, translate: bool) -> f32;
-        fn sdk_read_analog_sc(code: u8) -> f32;
+        fn sdk_set_mode(mode: c_uint) -> c_int;
+        fn sdk_read_analog(code: c_ushort) -> f32;
         fn sdk_set_disconnected_cb(cb: extern fn(*const c_char));
         fn sdk_clear_disconnected_cb();
-        fn sdk_device_info() -> Void;
+        fn sdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
+        fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
     }
 }
 

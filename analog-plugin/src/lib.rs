@@ -7,7 +7,8 @@ extern crate hidapi;
 
 use hidapi::{HidApi, HidDevice, HidDeviceInfo};
 use std::str;
-use analog_sdk::sdk::{Plugin};
+use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo};
+use std::os::raw::{c_ushort, c_float, c_uint, c_int};
 
 const WOOTING_ONE_VID: u16 = 0x03EB;
 const WOOTING_ONE_PID: u16  = 0xFF01;
@@ -103,16 +104,34 @@ impl Plugin for TestPlugin {
         Some(x + y)
     }
 
-    fn read_analog_hid(&mut self, code: u8) -> Option<f32>{
+    fn read_analog(&mut self, code: u16) -> Option<f32>{
         if !self.refresh_buffer() {
             return None;
         }
-        match self.buffer.iter().position(|&x| x==code) {
+        match self.buffer.iter().position(|&x| x==code as u8) {
             Some(x) if x % 2 == 0 => {
                 Some(self.buffer[x as usize +1] as f32 /0xFF as f32)
             }
             _ => Some(0.0)
         }
+    }
+
+    fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> Option<Vec<(c_ushort, c_float)>> {
+        if !self.initialised {
+            return None;
+        }
+
+        if !self.refresh_buffer() {
+            return None;
+        }
+
+        Some(self.buffer.chunks_exact(2).filter(|&s| s[1] != 0).map(|s| (s[0] as u16, s[1] as f32/0xFF as f32)).collect())
+    }
+
+    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> c_int {
+        buffer[0] = Box::into_raw(Box::new(DeviceInfo { name: b"Plugin Device Yeet\0" as *const u8, val:20 }));
+
+        1
     }
 }
 

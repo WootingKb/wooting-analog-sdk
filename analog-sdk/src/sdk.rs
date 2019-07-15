@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 use crate::errors::*;
 //use libc::c_char;
 use std::ffi::{CString, OsStr};
-use std::os::raw::{c_char, c_void, c_uint, c_int, c_float, c_ushort};
+use std::os::raw::{c_uint, c_int, c_float, c_ushort};
 use ffi_support::{FfiStr};
 use std::collections::HashMap;
+use crate::keycode::*;
 //use std::ops::Deref;
-use scancode::Scancode;
 
 macro_rules! lib_wrap {
     //(@as_item $i:item) => {$i};
@@ -131,13 +131,13 @@ pub trait Plugin: Any + Send + Sync {
     
     fn is_initialised(&mut self) -> bool;
 
-    fn device_info(&mut self, buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int;
+    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> c_int;
     /// A callback fired immediately before the plugin is unloaded. Use this if
     /// you need to do any cleanup.
     fn unload(&mut self) {}
 
     fn add(&mut self, x: u32, y: u32) -> Option<u32>;
-    fn read_analog(&mut self, code: u8) -> Option<f32>;
+    fn read_analog(&mut self, code: u16) -> Option<f32>;
     fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> Option<Vec<(c_ushort, c_float)>>;
     
 
@@ -163,7 +163,8 @@ impl CPlugin {
 
     }
     lib_wrap!{
-        fn c_read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint) -> c_int;
+        fn c_read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
+        fn c_device_info(buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int;
     }
 }
 
@@ -181,17 +182,20 @@ impl Plugin for CPlugin {
     }
 
     fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> Option<Vec<(c_ushort, c_float)>> {
-        let code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length as usize);
-        let analog_buffer: Vec<c_float> = Vec::with_capacity(max_length as usize);
+        let code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length.into());
+        let analog_buffer: Vec<c_float> = Vec::with_capacity(max_length.into());
 
-        let mut count: usize = self.c_read_full_buffer(code_buffer.as_ptr(), analog_buffer.as_ptr(), max_length as c_uint) as usize;
-        if count > max_length {
-            println!("What you playing at, this return too big");
-            count = max_length;
-        }
-        else if count < 0 {
-            return None;
-        }
+        let count: usize = {
+            let mut ret = self.c_read_full_buffer(code_buffer.as_ptr(), analog_buffer.as_ptr(), max_length as c_uint, device);
+            if ret < 0{
+                return None;
+            }
+            else if ret > max_length as i32{
+                println!("What you playing at, this return too big");
+                ret = max_length as i32;
+            }
+            ret as usize
+        };
 
         let mut analog_data : Vec<(c_ushort, c_float)> = Vec::with_capacity(count);
         for i in 0..count {
@@ -201,15 +205,18 @@ impl Plugin for CPlugin {
         Some(analog_data)
     }
 
+    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> c_int {
+        self.c_device_info(buffer.as_mut_ptr(), buffer.len() as c_uint)
+    }
+
     lib_wrap!{
         fn initialise() -> bool;
         fn is_initialised() -> bool;
         fn unload();
-        fn device_info(buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int;
     }
     lib_wrap_option! {
         fn add(x: u32, y: u32) -> u32;
-        fn read_analog(code: u8) -> f32;
+        fn read_analog(code: u16) -> f32;
         //fn neg(x: u32, y: u32) -> u32;
     }
 }
@@ -238,7 +245,7 @@ macro_rules! declare_plugin {
 
 #[repr(C)]
 pub struct DeviceInfo {
-    name: *const u8,
+    pub name: *const u8,
     pub val: u32
 }
 
@@ -253,6 +260,7 @@ unsafe impl Send for AnalogSDK{
 pub struct AnalogSDK {
     pub initialised: bool,
     pub disconnected_callback: Option<extern fn(FfiStr)>,
+    pub keycode_mode: KeycodeType,
 
     plugins: Vec<Box<Plugin>>,
     loaded_libraries: Vec<Library>,
@@ -271,6 +279,8 @@ static LIB_EXT: &str = "dll";
 const ENV_PLUGIN_DIR_KEY: &str = "ANALOG_SDK_PATH";
 const DEFAULT_PLUGIN_DIR: &str = "~/.analog_plugins";
 
+
+
 impl AnalogSDK {
     pub fn new() -> AnalogSDK {
         AnalogSDK {
@@ -278,6 +288,7 @@ impl AnalogSDK {
             loaded_libraries: Vec::new(),
             initialised: false,
             disconnected_callback: None,
+            keycode_mode: KeycodeType::HID
             //device_info: Box::into_raw(Box::new(DeviceInfo { name: b"Device Yeet\0" as *const u8, val:20 }))
         }
     }
@@ -327,7 +338,6 @@ impl AnalogSDK {
         return self.initialised;
     }
 
-    
     fn load_plugins(&mut self, dir: &Path) -> Result<u32> {
         if dir.is_dir() {
             let mut i: u32 = 0;
@@ -410,67 +420,34 @@ impl AnalogSDK {
         results
     }
 
-    pub fn read_analog_hid(&mut self, code: u8) -> f32 {
+    pub fn read_analog(&mut self, code: u16) -> f32 {
         if self.plugins.len() <= 0 {
             return -1.0;
         }
-
-        let mut value: f32 = 0.0;
-        for p in self.plugins.iter_mut() {
-            if let Some(x) = p.read_analog(code) {
-                value = value.max(x);
+        let hid_code = code_to_hid(code, &self.keycode_mode);
+        if let Some(hid_code) = hid_code {
+            let mut value: f32 = 0.0;
+            for p in self.plugins.iter_mut() {
+                if let Some(x) = p.read_analog(hid_code) {
+                    value = value.max(x);
+                }
             }
+            return value;
         }
-        value
+        else{
+            return -1.0;
+        }
     }
 
-    pub fn read_analog_vk(&mut self, code: u8, translate: bool) -> f32 {
-        #[cfg(windows)]
-        unsafe {
-
-            use winapi::um::winuser::{GetForegroundWindow, GetWindowThreadProcessId, GetKeyboardLayout, MapVirtualKeyExA, MapVirtualKeyA};
-            let scancode: u32;
-            if translate {
-                let window_handle = GetForegroundWindow();
-                let thread = GetWindowThreadProcessId(window_handle, 0 as *mut u32);
-                let layout = GetKeyboardLayout(thread);
-                scancode = MapVirtualKeyExA(code.into(), 0, layout);
-                //println!("Window handle: {:?}, thread: {:?}, layout: {:?}, code: {} scancode: {}", window_handle, thread, layout, code, scancode);
-            }
-            else{
-                scancode = MapVirtualKeyA(code.into(), 0);
-            }
-
-            self.read_analog_sc(scancode as u8)
-        }
-
-        #[cfg(not(windows))]
-        -1.0
-    }
-
-    pub fn read_analog_sc(&mut self, code: u8) -> f32 {
-        match Scancode::new(code) {
-            Some(hid) => {
-                self.read_analog_hid(hid as u8)
-            },
-            None => {
-                -1.0
-            }
-        }
-
-    }
-
-    pub fn get_device_info(&mut self, buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int {
+    pub fn get_device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> c_int {
         if self.plugins.len() <= 0 {
             return -1;
         }
-        let mut count: u32 = 0;
-        let mut pointer = buffer;
+        let mut count: usize = 0;
         for p in self.plugins.iter_mut() {
-            let num = p.device_info(pointer, len-count);
+            let num = p.device_info(&mut buffer[count..]) as usize;
             if num > 0 {
-                pointer = unsafe{ buffer.offset(count as isize) };
-                count = count + (num as u32);
+                count = count + num
             }
         }
         count as c_int
@@ -485,27 +462,34 @@ impl AnalogSDK {
 
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            let mut data = p.read_full_buffer(code_buffer.len(), 0);
-            if data == None{
-                continue;
-            }
-            let mut data = data.unwrap();
+            let plugin_data = p.read_full_buffer(code_buffer.len(), 0);
+            if let Some(mut data) = plugin_data {
 
-            for (code, analog) in data.drain(1..){
-                let mut total_analog = analog;
+                for (hid_code, analog) in data.drain(0..){
+                    if analog == 0.0 {
+                        continue;
+                    }
+                    let code = hid_to_code(hid_code, &self.keycode_mode);
+                    if let Some(code) = code {
+                        let mut total_analog = analog;
 
-                //No point in checking if the value is already present if we are only looking for data from one device
-                if device == 0 {
-                    if let Some(val) = analog_data.get(&code) {
-                        total_analog = total_analog.max(*val);
+                        //No point in checking if the value is already present if we are only looking for data from one device
+                        if device == 0 {
+                            if let Some(val) = analog_data.get(&code) {
+                                total_analog = total_analog.max(*val);
+                            }
+                        }
+                        analog_data.insert(code, total_analog);
+                    }
+                    else{
+                        println!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
                     }
                 }
-                analog_data.insert(code, total_analog);
-            }
 
-            //If we are looking for a specific device, just break out when we find one that returns good
-            if device != 0 {
-                break;
+                //If we are looking for a specific device, just break out when we find one that returns good
+                if device != 0 {
+                    break;
+                }
             }
         }
 

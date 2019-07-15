@@ -1,22 +1,25 @@
 pub mod sdk;
+pub mod keycode;
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate error_chain;
 extern crate ffi_support;
 extern crate scancode;
+#[macro_use] extern crate enum_primitive;
 mod errors {
     // Create the Error, ErrorKind, ResultExt, and Result types
     error_chain!{}
 }
 #[macro_use] extern crate lazy_static;
 #[cfg(windows)] extern crate winapi;
-
+use enum_primitive::FromPrimitive;
 use sdk::*;
 use std::sync::Mutex;
 use ffi_support::FfiStr;
-use std::os::raw::{c_char, c_uint, c_float, c_int, c_void, c_ushort};
+use std::os::raw::{c_uint, c_float, c_int, c_ushort};
 use std::slice;
+use crate::keycode::KeycodeType;
 
 lazy_static! {
     static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
@@ -48,31 +51,26 @@ pub extern "C" fn sdk_add(x: u32, y: u32) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_read_analog_hid(code: u8) -> f32 {
+pub extern "C" fn sdk_set_mode(mode: u32) -> c_int {
     if !ANALOG_SDK.lock().unwrap().initialised {
-        return -1.0;
+        return -1;
     }
-
-    ANALOG_SDK.lock().unwrap().read_analog_hid(code)
+    if let Some(key_mode) = KeycodeType::from_u32(mode) {
+        ANALOG_SDK.lock().unwrap().keycode_mode = key_mode;
+        1
+    }
+    else {
+        -1
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_read_analog_vk(code: u8, translate: bool) -> f32 {
+pub extern "C" fn sdk_read_analog(code: c_ushort) -> f32 {
     if !ANALOG_SDK.lock().unwrap().initialised {
         return -1.0;
     }
 
-    ANALOG_SDK.lock().unwrap().read_analog_vk(code, translate)
-}
-
-
-#[no_mangle]
-pub extern "C" fn sdk_read_analog_sc(code: u8) -> f32 {
-    if !ANALOG_SDK.lock().unwrap().initialised {
-        return -1.0;
-    }
-
-    ANALOG_SDK.lock().unwrap().read_analog_sc(code)
+    ANALOG_SDK.lock().unwrap().read_analog(code)
 }
 
 #[no_mangle]
@@ -86,15 +84,23 @@ pub extern "C" fn sdk_clear_disconnected_cb() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn sdk_device_info(buffer: *mut DeviceInfoPointer, len: c_uint ) -> c_int {
-    ANALOG_SDK.lock().unwrap().get_device_info(buffer, len)
+pub extern "C" fn sdk_device_info(buffer: *mut DeviceInfoPointer, len: c_uint ) -> c_int {
+    let buff = unsafe {
+        assert!(!buffer.is_null());
+
+        slice::from_raw_parts_mut(buffer, len as usize)
+    };
+
+    ANALOG_SDK.lock().unwrap().get_device_info(buff)
 }
 
-pub unsafe extern "C" fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int {
+#[no_mangle]
+pub extern "C" fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int {
     sdk_read_full_buffer_device(code_buffer, analog_buffer, len, 0)
 }
 
-pub unsafe extern "C" fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device: DeviceID) -> c_int {
+#[no_mangle]
+pub extern "C" fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device: DeviceID) -> c_int {
     if !ANALOG_SDK.lock().unwrap().initialised {
         return -1;
     }

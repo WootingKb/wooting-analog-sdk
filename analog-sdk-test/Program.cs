@@ -3,10 +3,19 @@ using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Windows.Input;
 using System.Threading;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace analog_sdk_test
 {
     class Native {
+        public enum KeycodeType {
+            HID,
+            ScanCode1,
+            VirtualKey,
+            VirtualKeyTranslate
+        }
+        
         [StructLayout(LayoutKind.Sequential)]
         public struct DeviceInfo {
             public string name;
@@ -31,14 +40,10 @@ namespace analog_sdk_test
         public static extern uint sdk_add(uint x, uint y);
 
         [DllImport(sdkLib)]
-        public static extern float sdk_read_analog_hid(byte code);
-
+        public static extern float sdk_set_mode(KeycodeType mode);
+        
         [DllImport(sdkLib)]
-        public static extern float sdk_read_analog_sc(byte code);
-
-        [DllImport(sdkLib)]
-        public static extern float sdk_read_analog_vk(VirtualKeys code, bool translate = true);
-        //fn sdk_set_disconnected_cb(cb: extern fn(*const c_char)),
+        public static extern float sdk_read_analog(short code);
 
         [DllImport(sdkLib)]
         public static extern void sdk_set_disconnected_cb(DisconnectedCb cb);
@@ -46,17 +51,54 @@ namespace analog_sdk_test
         [DllImport(sdkLib)]
         public static extern void sdk_clear_disconnected_cb();
 
+        //fn sdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
+        //fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
+
+        [DllImport(sdkLib)]
+        public static extern int sdk_read_full_buffer([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] code_buffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analog_buffer, uint len);
+
+        public static List<(short, float)> ReadFullBuffer(uint length)
+        {
+            short[] code_buffer = new short[length];
+            float[] analog_buffer = new float[length];
+            int count = sdk_read_full_buffer(code_buffer, analog_buffer, length);
+
+            if (count < 0)
+                return null;
+
+            List<(short, float)> data = new List<(short, float)>();
+            for (int i = 0; i < count; i++)
+            {
+                data.Add( (code_buffer[i], analog_buffer[i]) );
+            }
+            data.Sort((u, v) => u.Item1.CompareTo(v.Item1));
+            return data;
+        }
+
+        [DllImport(sdkLib)]
+        public static extern int sdk_device_info([In][Out][MarshalAs(UnmanagedType.LPArray)] IntPtr[] buffer, uint len);
+
         [DllImport(sdkLib)]
         public static extern IntPtr sdk_device_info();
 
-        public static DeviceInfo? GetDeviceInfo(){
-            IntPtr ptr = sdk_device_info();
-            if (ptr != IntPtr.Zero){
-                return (DeviceInfo)Marshal.PtrToStructure(
-                           ptr,
-                           typeof(DeviceInfo));
+        public static List<DeviceInfo> GetDeviceInfo(){
+            IntPtr[] buffer = new IntPtr[40];
+            int count = sdk_device_info(buffer, (uint)buffer.Length);
+            if (count > 0)
+            {
+                return buffer.Select<IntPtr, DeviceInfo?>((ptr) =>
+                {
+                    if (ptr != IntPtr.Zero)
+                    {
+                        return (DeviceInfo)Marshal.PtrToStructure(
+                                   ptr,
+                                   typeof(DeviceInfo));
+                    }
+                    return null;
+                }).Where(s => s != null).Cast<DeviceInfo>().ToList();
             }
-            return null;
+            else
+                return new List<DeviceInfo>();
         }
 
         public static uint add(uint x, uint y){
@@ -70,19 +112,36 @@ namespace analog_sdk_test
             Console.WriteLine($"Disconnected cb called with: {str}");
         }
 
-        static void testSpeedN(Stopwatch sw, Func<double> call, string name, int n){
+        static void testSpeedN<T>(Stopwatch sw, Func<T> call, string name, int n){
             for (int i = 0; i < n; i++){
-                testSpeed(sw, call, $"Call {i} {name}");
+                testSpeed<T>(sw, call, $"Call {i} {name}");
             }
         }
-        static void testSpeed(Stopwatch sw, Func<double> call, string name){
+        static void testSpeed<T>(Stopwatch sw, Func<T> call, string name){
             sw.Reset();
             sw.Start();
             var r = call.Invoke();
             sw.Stop();
             Console.WriteLine($"{name} call time: {sw.ElapsedTicks} ticks, {sw.ElapsedMilliseconds}ms, result: {r}");
         }
+    
+        
+        static List<(Native.KeycodeType, short)> code_map = new List<(Native.KeycodeType,short)>()
+        {
+            (Native.KeycodeType.HID, 0x14),
+            (Native.KeycodeType.ScanCode1, 0x10),
+            //(Native.KeycodeType.VirtualKey, (short)VirtualKeys.Q),
+            //(Native.KeycodeType.VirtualKeyTranslate, (short)VirtualKeys.Q),
+        };
 
+        static int index = 0;
+        static void timer_cb(object state)
+        {
+            index = (index + 1) % code_map.Count;
+            var ret = Native.sdk_set_mode(code_map[index].Item1);
+            Console.WriteLine($"Switched to {code_map[index]}, ret: {ret}");
+        }
+        
         static void Main(string[] args)
         {
             Native.sdk_set_disconnected_cb(disconnected_cb);
@@ -93,21 +152,40 @@ namespace analog_sdk_test
                 Stopwatch sw = new Stopwatch();
                 testSpeedN(sw, () => Native.sdk_add(9,10), $"Library", 4);
                 testSpeedN(sw, () => Native.add(9,10), $"Local", 4);
-                testSpeedN(sw, () => Native.sdk_read_analog_hid(4), $"Local read analog HID", 5);
-                testSpeedN(sw, () => Native.sdk_read_analog_sc(30), $"Local read analog SC", 5);
+                testSpeedN(sw, () => Native.sdk_read_analog(4), $"read analog HID", 5);
+                testSpeedN(sw, () =>
+                {
+                    Native.sdk_set_mode(Native.KeycodeType.ScanCode1);
+                    return Native.sdk_read_analog(30);
+                }, $"read analog SC", 5);
+                testSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
                 for (int i = 0; i < 5; i++){
                     var info = Native.GetDeviceInfo();
-                    Console.WriteLine($"Device info has: {info?.name}, {info?.val}");
+                    Console.WriteLine($"Device info has: {info?.First().name}, {info?.First().val}");
                 }
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, true), $"Local read analog VK (translate)", 5);
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;
+                string output = "";
+                Native.sdk_set_mode(code_map[index].Item1);
+                Timer t = new Timer(timer_cb, index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
                 while (true){
+                    
                     //var ret = Native.sdk_read_analog_vk(VirtualKeys.A, false);
-                    var ret = Native.sdk_read_analog_hid(0x14);
+                    var ret = Native.sdk_read_analog(code_map[index].Item2);
                     if (val != ret){
                         val = ret;
                         Console.WriteLine($"Val is {val}");
+                    }
+
+                    var read = Native.ReadFullBuffer(20);
+                    string fresh_output = "";
+                    foreach (var analog in read){
+                        fresh_output += analog.ToString();
+                    }
+
+                    if (!fresh_output.Equals(output)){
+                        //Console.WriteLine(output = fresh_output);
                     }
                     //Thread.Sleep(250);
                 }
