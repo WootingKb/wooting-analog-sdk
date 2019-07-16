@@ -66,16 +66,17 @@ macro_rules! dynamic_extern {
 dynamic_extern! {
     #[link="libanalog_sdk"]
     extern "C" {
-        fn sdk_initialise() -> bool;
+        fn sdk_initialise() -> c_int;
         fn sdk_is_initialised() -> bool;
-        fn sdk_uninitialise() -> bool;
-        fn sdk_add(x: u32, y: u32) -> u32;
+        fn sdk_uninitialise() -> c_int;
         fn sdk_set_mode(mode: c_uint) -> c_int;
         fn sdk_read_analog(code: c_ushort) -> f32;
-        fn sdk_set_disconnected_cb(cb: extern fn(*const c_char));
-        fn sdk_clear_disconnected_cb();
+        fn sdk_read_analog_device(code: c_ushort, deviceID: u64) -> f32;
+        fn sdk_set_disconnected_cb(cb: extern fn(*const c_char)) -> c_int;
+        fn sdk_clear_disconnected_cb() -> c_int;
         fn sdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
         fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
+        fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, deviceID: u64) -> c_int;
     }
 }
 

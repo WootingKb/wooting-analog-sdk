@@ -17,6 +17,21 @@ namespace analog_sdk_test
             VirtualKeyTranslate
         }
         
+        public enum AnalogSDKError  {
+            Ok = 1,
+            UnInitialized = -2000,
+            NoDevices,
+            DeviceDisconnected,
+            //Generic Failure
+            Failure,
+            InvalidArgument,
+            NoPlugins,
+            FunctionNotFound,
+            //No Keycode mapping to HID was found for the given Keycode
+            NoMapping
+
+        }
+        
         [StructLayout(LayoutKind.Sequential)]
         public struct DeviceInfo {
             public readonly ushort vendor_id;
@@ -35,65 +50,78 @@ namespace analog_sdk_test
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void DisconnectedCb(IntPtr deviceInfo);
 
-        public const string sdkLib = "libanalog_sdk_wrapper";
+        public const string SdkLib = "libanalog_sdk_wrapper";
 
-        [DllImport(sdkLib)]
-        public static extern bool sdk_initialise();
+        [DllImport(SdkLib)]
+        public static extern AnalogSDKError sdk_initialise();
 
-        [DllImport(sdkLib)]
+        [DllImport(SdkLib)]
         public static extern bool sdk_is_initialised();
 
-        [DllImport(sdkLib)]
-        public static extern bool sdk_uninitialise();
+        [DllImport(SdkLib)]
+        public static extern AnalogSDKError sdk_uninitialise();
 
-        [DllImport(sdkLib)]
-        public static extern float sdk_set_mode(KeycodeType mode);
+        [DllImport(SdkLib)]
+        public static extern AnalogSDKError sdk_set_mode(KeycodeType mode);
         
-        [DllImport(sdkLib)]
-        public static extern float sdk_read_analog(short code);
+        [DllImport(SdkLib)]
+        public static extern float sdk_read_analog(ushort code);
+        
+        [DllImport(SdkLib)]
+        public static extern float sdk_read_analog_device(ushort code, ulong deviceId);
 
-        [DllImport(sdkLib)]
-        public static extern void sdk_set_disconnected_cb(DisconnectedCb cb);
+        public static (float, AnalogSDKError) ReadAnalog(ushort code, ulong deviceId = 0)
+        {
+            float res = sdk_read_analog_device(code, deviceId);
+            if (res >= 0)
+                return (res, AnalogSDKError.Ok);
+            else
+                return (-1.0f, (AnalogSDKError) (int) res);
+        }
 
-        [DllImport(sdkLib)]
-        public static extern void sdk_clear_disconnected_cb();
+        
+        [DllImport(SdkLib)]
+        public static extern AnalogSDKError sdk_set_disconnected_cb(DisconnectedCb cb);
+
+        [DllImport(SdkLib)]
+        public static extern AnalogSDKError sdk_clear_disconnected_cb();
 
         //fn sdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
         //fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
 
-        [DllImport(sdkLib)]
-        public static extern int sdk_read_full_buffer([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] code_buffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analog_buffer, uint len);
+        [DllImport(SdkLib)]
+        public static extern int sdk_read_full_buffer([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len);
+        
+        [DllImport(SdkLib)]
+        public static extern int sdk_read_full_buffer_device([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len, ulong deviceID);
 
-        public static List<(short, float)> ReadFullBuffer(uint length)
+        public static (List<(short, float)>, AnalogSDKError) ReadFullBuffer(uint length, ulong deviceID = 0)
         {
-            short[] code_buffer = new short[length];
-            float[] analog_buffer = new float[length];
-            int count = sdk_read_full_buffer(code_buffer, analog_buffer, length);
+            short[] codeBuffer = new short[length];
+            float[] analogBuffer = new float[length];
+            int count = sdk_read_full_buffer_device(codeBuffer, analogBuffer, length, deviceID);
 
             if (count < 0)
-                return null;
+                return (null, (AnalogSDKError)count);
 
             List<(short, float)> data = new List<(short, float)>();
             for (int i = 0; i < count; i++)
             {
-                data.Add( (code_buffer[i], analog_buffer[i]) );
+                data.Add( (codeBuffer[i], analogBuffer[i]) );
             }
             data.Sort((u, v) => u.Item1.CompareTo(v.Item1));
-            return data;
+            return (data, AnalogSDKError.Ok);
         }
 
-        [DllImport(sdkLib)]
+        [DllImport(SdkLib)]
         public static extern int sdk_device_info([In][Out][MarshalAs(UnmanagedType.LPArray)] IntPtr[] buffer, uint len);
 
-        [DllImport(sdkLib)]
-        public static extern IntPtr sdk_device_info();
-
-        public static List<DeviceInfo> GetDeviceInfo(){
+        public static (List<DeviceInfo>, AnalogSDKError) GetDeviceInfo(){
             IntPtr[] buffer = new IntPtr[40];
             int count = sdk_device_info(buffer, (uint)buffer.Length);
             if (count > 0)
             {
-                return buffer.Select<IntPtr, DeviceInfo?>((ptr) =>
+                return (buffer.Select<IntPtr, DeviceInfo?>((ptr) =>
                 {
                     if (ptr != IntPtr.Zero)
                     {
@@ -102,14 +130,10 @@ namespace analog_sdk_test
                                    typeof(DeviceInfo));
                     }
                     return null;
-                }).Where(s => s != null).Cast<DeviceInfo>().ToList();
+                }).Where(s => s != null).Cast<DeviceInfo>().ToList(), AnalogSDKError.Ok);
             }
             else
-                return new List<DeviceInfo>();
-        }
-
-        public static uint add(uint x, uint y){
-            return x + y;
+                return (new List<DeviceInfo>(), (AnalogSDKError)count);
         }
     }
 
@@ -122,12 +146,12 @@ namespace analog_sdk_test
             Console.WriteLine($"Disconnected cb called with: {dev}");
         }
 
-        static void testSpeedN<T>(Stopwatch sw, Func<T> call, string name, int n){
+        static void TestSpeedN<T>(Stopwatch sw, Func<T> call, string name, int n){
             for (int i = 0; i < n; i++){
-                testSpeed<T>(sw, call, $"Call {i} {name}");
+                TestSpeed<T>(sw, call, $"Call {i} {name}");
             }
         }
-        static void testSpeed<T>(Stopwatch sw, Func<T> call, string name){
+        static void TestSpeed<T>(Stopwatch sw, Func<T> call, string name){
             sw.Reset();
             sw.Start();
             var r = call.Invoke();
@@ -136,7 +160,7 @@ namespace analog_sdk_test
         }
     
         
-        static List<(Native.KeycodeType, short)> code_map = new List<(Native.KeycodeType,short)>()
+        static List<(Native.KeycodeType, ushort)> code_map = new List<(Native.KeycodeType,ushort)>()
         {
             (Native.KeycodeType.HID, 0x14),
             (Native.KeycodeType.ScanCode1, 0x10),
@@ -144,59 +168,68 @@ namespace analog_sdk_test
             //(Native.KeycodeType.VirtualKeyTranslate, (short)VirtualKeys.Q),
         };
 
-        static int index = 0;
+        static int _index = 0;
         static void timer_cb(object state)
         {
-            index = (index + 1) % code_map.Count;
-            var ret = Native.sdk_set_mode(code_map[index].Item1);
-            Console.WriteLine($"Switched to {code_map[index]}, ret: {ret}");
+            _index = (_index + 1) % code_map.Count;
+            var ret = Native.sdk_set_mode(code_map[_index].Item1);
+            Console.WriteLine($"Switched to {code_map[_index]}, ret: {ret}");
+            var (rets, error) = Native.ReadAnalog(code_map[_index].Item2);
+            Console.WriteLine($"{rets}, {error}");
         }
         
         static void Main(string[] args)
         {
-
-            if (Native.sdk_initialise()){
+            Native.AnalogSDKError err = Native.sdk_initialise();
+            if (err == Native.AnalogSDKError.Ok){
                 Console.WriteLine("SDK Successfully initialised!");
                 Native.sdk_set_disconnected_cb(disconnected_cb);
                 //Console.WriteLine($"Yo yo yo 9+10={Native.sdk_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
-                testSpeedN(sw, () => Native.sdk_read_analog(4), $"read analog HID", 5);
-                testSpeedN(sw, () =>
+                TestSpeedN(sw, () => Native.sdk_read_analog(4), $"read analog HID", 5);
+                TestSpeedN(sw, () =>
                 {
                     Native.sdk_set_mode(Native.KeycodeType.ScanCode1);
                     return Native.sdk_read_analog(30);
                 }, $"read analog SC", 5);
-                testSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
-                var info = Native.GetDeviceInfo();
-                Console.WriteLine($"Device info has: {info.FirstOrDefault()}");
+                TestSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
+                var (info, infoErr) = Native.GetDeviceInfo();
+                Console.WriteLine($"Device info has: {info.FirstOrDefault()}, {infoErr}");
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, true), $"Local read analog VK (translate)", 5);
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;
                 string output = "";
-                Native.sdk_set_mode(code_map[index].Item1);
-                Timer t = new Timer(timer_cb, index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
+                Native.sdk_set_mode(code_map[_index].Item1);
+                Timer t = new Timer(timer_cb, _index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
                 while (true)
                 {
                     //var ret = Native.sdk_read_analog_vk(VirtualKeys.A, false);
-                    var ret = Native.sdk_read_analog(code_map[index].Item2);
+                    var (ret, error) = Native.ReadAnalog(code_map[_index].Item2);
                     if (val != ret){
                         val = ret;
-                        Console.WriteLine($"Val is {val}");
+                        Console.WriteLine($"Val is {val}, e {error}");
                     }
 
-                    var read = Native.ReadFullBuffer(20);
-                    string fresh_output = "";
-                    foreach (var analog in read)
+                    var (read, readErr) = Native.ReadFullBuffer(20);
+                    string freshOutput = "";
+                    if (readErr == Native.AnalogSDKError.Ok)
                     {
-                        if (code_map[index].Item1 == Native.KeycodeType.VirtualKey ||
-                            code_map[index].Item1 == Native.KeycodeType.VirtualKeyTranslate)
-                            fresh_output += $"({(VirtualKeys) analog.Item1},{analog.Item2})";
-                        else
-                            fresh_output += $"(0x{analog.Item1.ToString("X4")},{analog.Item2})";
+                        foreach (var analog in read)
+                        {
+                            if (code_map[_index].Item1 == Native.KeycodeType.VirtualKey ||
+                                code_map[_index].Item1 == Native.KeycodeType.VirtualKeyTranslate)
+                                freshOutput += $"({(VirtualKeys) analog.Item1},{analog.Item2})";
+                            else
+                                freshOutput += $"(0x{analog.Item1.ToString("X4")},{analog.Item2})";
+                        }
+                    }
+                    else
+                    {
+                        freshOutput = $"Read failed with {readErr}";
                     }
 
-                    if (!fresh_output.Equals(output)){
-                        Console.WriteLine(output = fresh_output);
+                    if (!freshOutput.Equals(output)){
+                        Console.WriteLine(output = freshOutput);
                     }
                     //Thread.Sleep(250);
                 }
@@ -204,7 +237,7 @@ namespace analog_sdk_test
                 Native.sdk_uninitialise();
             }
             else{
-                Console.WriteLine("SDK couldn't be initialised!");
+                Console.WriteLine($"SDK couldn't be initialised, err {err}!");
             }
         }
     }

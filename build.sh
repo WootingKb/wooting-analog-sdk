@@ -5,4 +5,4 @@ cargo build --manifest-path analog-sdk-wrapper/Cargo.toml
 ./plugin.sh
 
 cd analog-sdk-test
-dotnet run
+RUST_LOG=trace dotnet run
