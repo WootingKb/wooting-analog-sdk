@@ -7,8 +7,11 @@ extern crate hidapi;
 
 use hidapi::{HidApi, HidDevice, HidDeviceInfo};
 use std::str;
-use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo};
-use std::os::raw::{c_ushort, c_float, c_uint, c_int};
+use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo, AnalogSDKError};
+use std::os::raw::{c_ushort, c_float, c_uint, c_int, c_char};
+use std::hash::Hasher;
+use std::ffi::CString;
+use std::borrow::Borrow;
 
 const WOOTING_ONE_VID: u16 = 0x03EB;
 const WOOTING_ONE_PID: u16  = 0xFF01;
@@ -20,7 +23,9 @@ const ANALOG_BUFFER_SIZE: usize = 32;
 pub struct TestPlugin {
     initialised: bool,
     device: Option<HidDevice>,
-    buffer: [u8; ANALOG_BUFFER_SIZE]
+    buffer: [u8; ANALOG_BUFFER_SIZE],
+    device_info: Option<DeviceInfoPointer>,
+    disconnected_cb: Option<extern fn(DeviceInfoPointer)>
 
 }
 
@@ -36,7 +41,19 @@ impl TestPlugin {
         match &self.device {
             Some(dev) => {
                 let res = dev.read_timeout(&mut self.buffer, 0);
-                res.is_ok()
+                if let Err(e) = res {
+                    println!("{}", e);
+                    if let Some(cb) = self.disconnected_cb {
+                        if let Some(ptr) = self.device_info.borrow() {
+                            cb(ptr.clone());
+                        }
+                    }
+                    self.device = None;
+                    self.initialised = false;
+                    self.device_info.take().map(|d| d.drop());
+                    return false;
+                }
+                return true;
             },
             None => false
         }
@@ -55,7 +72,6 @@ impl Plugin for TestPlugin {
                 let mut highest_dev: Option<&HidDeviceInfo> = None;
                 let mut interface_no: i32 = 0;
                 for device in api.devices() {
-                    //println!("{:#?}", device);
                     if device.vendor_id == WOOTING_ONE_VID && device.product_id == WOOTING_ONE_PID {
                         if device.interface_number > interface_no {
                             interface_no = device.interface_number;
@@ -64,10 +80,24 @@ impl Plugin for TestPlugin {
                     }
                 }
                 if let Some(device) = highest_dev {
+                    println!("{:#?}", device);
                     match device.open_device(&api){
                         Ok(dev) => {
-                            self.device = Some(dev);
-
+                            use std::ptr;
+                            use std::collections::hash_map::DefaultHasher;
+                            self.device = Some(dev);//name: b"Plugin Device Yeet\0" as *const u8
+                            self.device_info = Some(Box::into_raw(Box::new(DeviceInfo {
+                                vendor_id: device.vendor_id,
+                                product_id: device.product_id,
+                                manufacturer_name: device.manufacturer_string.as_ref().cloned().map_or(ptr::null(), |str| CString::new(str).unwrap().into_raw()),//b"\0" as *const u8
+                                device_name: device.product_string.as_ref().cloned().map_or(ptr::null(), |str| CString::new(str).unwrap().into_raw()),
+                                device_id: device.serial_number.as_ref().cloned().map_or(0, |str| {
+                                    let mut s = DefaultHasher::new();
+                                    s.write_u16(device.vendor_id);
+                                    s.write_u16(device.product_id);
+                                    s.write(str.as_bytes());
+                                    s.finish()})
+                            })).into());
                             println!("Found and opened the Wooting One successfully!");
                             self.initialised = true;
                         },
@@ -96,21 +126,41 @@ impl Plugin for TestPlugin {
         self.initialised
     }
 
+
     fn unload(&mut self) {
         println!("TestPlugin unloaded");
+        if self.device_info.is_some() {
+            let dev = self.device_info.take();
+            dev.unwrap().drop();
+        }
     }
 
-    fn add(&mut self, x: u32, y: u32) -> Option<u32> {
-        Some(x + y)
+    fn set_disconnected_cb(&mut self, cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError {
+        if !self.initialised {
+            return AnalogSDKError::UNINITIALIZED;
+        }
+        println!("disconnected cb set");
+        self.disconnected_cb = Some(cb);
+        AnalogSDKError::OK
+    }
+
+    fn clear_disconnected_cb(&mut self) -> AnalogSDKError {
+        if !self.initialised {
+            return AnalogSDKError::UNINITIALIZED;
+        }
+
+        println!("disconnected cb cleared");
+        self.disconnected_cb = None;
+        AnalogSDKError::OK
     }
 
     fn read_analog(&mut self, code: u16) -> Option<f32>{
         if !self.refresh_buffer() {
             return None;
         }
-        match self.buffer.iter().position(|&x| x==code as u8) {
-            Some(x) if x % 2 == 0 => {
-                Some(self.buffer[x as usize +1] as f32 /0xFF as f32)
+        match self.buffer.chunks_exact(3).find(|x| (((x[0] as u16) << 8) | x[1] as u16)==code) {
+            Some(x) => {
+                Some(x[2] as f32 /0xFF as f32)
             }
             _ => Some(0.0)
         }
@@ -125,13 +175,16 @@ impl Plugin for TestPlugin {
             return None;
         }
 
-        Some(self.buffer.chunks_exact(2).filter(|&s| s[1] != 0).map(|s| (s[0] as u16, s[1] as f32/0xFF as f32)).collect())
+        Some(self.buffer.chunks_exact(3).filter(|&s| s[2] != 0).map(|s| (((s[0] as u16) << 8) | s[1] as u16, s[2] as f32/0xFF as f32)).collect())
     }
 
     fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> c_int {
-        buffer[0] = Box::into_raw(Box::new(DeviceInfo { name: b"Plugin Device Yeet\0" as *const u8, val:20 }));
-
-        1
+        if let Some(ptr) = self.device_info.borrow() {
+            buffer[0] = ptr.clone();
+            1
+        }else{
+            0
+        }
     }
 }
 

@@ -26,7 +26,7 @@ lazy_static! {
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_initialise() -> bool {
+pub extern "C" fn sdk_initialise() -> AnalogSDKError {
     ANALOG_SDK.lock().unwrap().initialise()
 }
 
@@ -36,31 +36,22 @@ pub extern "C" fn sdk_is_initialised() -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_uninitialise() -> bool {
+pub extern "C" fn sdk_uninitialise() -> AnalogSDKError {
     ANALOG_SDK.lock().unwrap().unload();
-    true
+    AnalogSDKError::OK
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_add(x: u32, y: u32) -> u32 {
+pub extern "C" fn sdk_set_mode(mode: u32) -> AnalogSDKError {
     if !ANALOG_SDK.lock().unwrap().initialised {
-        return Default::default();
-    }
-
-    ANALOG_SDK.lock().unwrap().add(x, y).pop().unwrap_or(0)
-}
-
-#[no_mangle]
-pub extern "C" fn sdk_set_mode(mode: u32) -> c_int {
-    if !ANALOG_SDK.lock().unwrap().initialised {
-        return -1;
+        return AnalogSDKError::UNINITIALIZED;
     }
     if let Some(key_mode) = KeycodeType::from_u32(mode) {
         ANALOG_SDK.lock().unwrap().keycode_mode = key_mode;
-        1
+        AnalogSDKError::OK
     }
     else {
-        -1
+        AnalogSDKError::INVALID_ARGUMENT
     }
 }
 
@@ -74,13 +65,13 @@ pub extern "C" fn sdk_read_analog(code: c_ushort) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_set_disconnected_cb(cb: extern fn(FfiStr)) {
-    ANALOG_SDK.lock().unwrap().disconnected_callback = Some(cb);
+pub extern "C" fn sdk_set_disconnected_cb(cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError {
+    ANALOG_SDK.lock().unwrap().set_disconnected_cb(cb)
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_clear_disconnected_cb() {
-    ANALOG_SDK.lock().unwrap().disconnected_callback = None;
+pub extern "C" fn sdk_clear_disconnected_cb() -> AnalogSDKError {
+    ANALOG_SDK.lock().unwrap().clear_disconnected_cb()
 }
 
 #[no_mangle]

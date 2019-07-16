@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Threading;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace analog_sdk_test
 {
@@ -18,12 +19,21 @@ namespace analog_sdk_test
         
         [StructLayout(LayoutKind.Sequential)]
         public struct DeviceInfo {
-            public string name;
-            public uint val;
+            public readonly ushort vendor_id;
+            public readonly ushort product_id;
+            public readonly string manufacturer_name;
+            public readonly string device_name;
+            public readonly ulong device_id;
+
+            public override string ToString()
+            {
+                return JsonConvert.SerializeObject(
+                    this, Formatting.Indented);
+            }
         }
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate void DisconnectedCb(string name);
+        public delegate void DisconnectedCb(IntPtr deviceInfo);
 
         public const string sdkLib = "libanalog_sdk_wrapper";
 
@@ -35,9 +45,6 @@ namespace analog_sdk_test
 
         [DllImport(sdkLib)]
         public static extern bool sdk_uninitialise();
-
-        [DllImport(sdkLib)]
-        public static extern uint sdk_add(uint x, uint y);
 
         [DllImport(sdkLib)]
         public static extern float sdk_set_mode(KeycodeType mode);
@@ -108,8 +115,11 @@ namespace analog_sdk_test
 
     class Program
     {
-        static void disconnected_cb(string str) {
-            Console.WriteLine($"Disconnected cb called with: {str}");
+        static void disconnected_cb(IntPtr deviceInfo) {
+            var dev = (Native.DeviceInfo)Marshal.PtrToStructure(
+                deviceInfo,
+                typeof(Native.DeviceInfo));
+            Console.WriteLine($"Disconnected cb called with: {dev}");
         }
 
         static void testSpeedN<T>(Stopwatch sw, Func<T> call, string name, int n){
@@ -144,14 +154,12 @@ namespace analog_sdk_test
         
         static void Main(string[] args)
         {
-            Native.sdk_set_disconnected_cb(disconnected_cb);
 
             if (Native.sdk_initialise()){
                 Console.WriteLine("SDK Successfully initialised!");
+                Native.sdk_set_disconnected_cb(disconnected_cb);
                 //Console.WriteLine($"Yo yo yo 9+10={Native.sdk_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
-                testSpeedN(sw, () => Native.sdk_add(9,10), $"Library", 4);
-                testSpeedN(sw, () => Native.add(9,10), $"Local", 4);
                 testSpeedN(sw, () => Native.sdk_read_analog(4), $"read analog HID", 5);
                 testSpeedN(sw, () =>
                 {
@@ -159,18 +167,16 @@ namespace analog_sdk_test
                     return Native.sdk_read_analog(30);
                 }, $"read analog SC", 5);
                 testSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
-                for (int i = 0; i < 5; i++){
-                    var info = Native.GetDeviceInfo();
-                    Console.WriteLine($"Device info has: {info?.First().name}, {info?.First().val}");
-                }
+                var info = Native.GetDeviceInfo();
+                Console.WriteLine($"Device info has: {info.FirstOrDefault()}");
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, true), $"Local read analog VK (translate)", 5);
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;
                 string output = "";
                 Native.sdk_set_mode(code_map[index].Item1);
                 Timer t = new Timer(timer_cb, index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
-                while (true){
-                    
+                while (true)
+                {
                     //var ret = Native.sdk_read_analog_vk(VirtualKeys.A, false);
                     var ret = Native.sdk_read_analog(code_map[index].Item2);
                     if (val != ret){
@@ -180,15 +186,22 @@ namespace analog_sdk_test
 
                     var read = Native.ReadFullBuffer(20);
                     string fresh_output = "";
-                    foreach (var analog in read){
-                        fresh_output += analog.ToString();
+                    foreach (var analog in read)
+                    {
+                        if (code_map[index].Item1 == Native.KeycodeType.VirtualKey ||
+                            code_map[index].Item1 == Native.KeycodeType.VirtualKeyTranslate)
+                            fresh_output += $"({(VirtualKeys) analog.Item1},{analog.Item2})";
+                        else
+                            fresh_output += $"(0x{analog.Item1.ToString("X4")},{analog.Item2})";
                     }
 
                     if (!fresh_output.Equals(output)){
-                        //Console.WriteLine(output = fresh_output);
+                        Console.WriteLine(output = fresh_output);
                     }
                     //Thread.Sleep(250);
                 }
+
+                Native.sdk_uninitialise();
             }
             else{
                 Console.WriteLine("SDK couldn't be initialised!");

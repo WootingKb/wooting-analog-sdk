@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::errors::*;
 //use libc::c_char;
 use std::ffi::{CString, OsStr};
-use std::os::raw::{c_uint, c_int, c_float, c_ushort};
+use std::os::raw::{c_uint, c_int, c_float, c_ushort, c_char};
 use ffi_support::{FfiStr};
 use std::collections::HashMap;
 use crate::keycode::*;
@@ -131,12 +131,14 @@ pub trait Plugin: Any + Send + Sync {
     
     fn is_initialised(&mut self) -> bool;
 
+    fn set_disconnected_cb(&mut self, cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError;
+    fn clear_disconnected_cb(&mut self) -> AnalogSDKError;
+
     fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> c_int;
     /// A callback fired immediately before the plugin is unloaded. Use this if
     /// you need to do any cleanup.
     fn unload(&mut self) {}
 
-    fn add(&mut self, x: u32, y: u32) -> Option<u32>;
     fn read_analog(&mut self, code: u16) -> Option<f32>;
     fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> Option<Vec<(c_ushort, c_float)>>;
     
@@ -213,9 +215,10 @@ impl Plugin for CPlugin {
         fn initialise() -> bool;
         fn is_initialised() -> bool;
         fn unload();
+        fn set_disconnected_cb(cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError;
+        fn clear_disconnected_cb() -> AnalogSDKError;
     }
     lib_wrap_option! {
-        fn add(x: u32, y: u32) -> u32;
         fn read_analog(code: u16) -> f32;
         //fn neg(x: u32, y: u32) -> u32;
     }
@@ -245,13 +248,73 @@ macro_rules! declare_plugin {
 
 #[repr(C)]
 pub struct DeviceInfo {
-    pub name: *const u8,
-    pub val: u32
+    /*uint16_t vendor_id;
+    uint16_t product_id;
+    const char* manufacturer_name;
+    const char* device_name;
+    tbc device_id;*/
+    pub vendor_id: u16,
+    pub product_id: u16,
+    pub manufacturer_name: *const c_char,
+    pub device_name: *const c_char,
+    pub device_id: DeviceID
 }
 
-pub type DeviceInfoPointer = *mut DeviceInfo;
-pub type DeviceID = u32;
+#[derive(Clone)]
+pub struct DeviceInfoPointer(pub *mut DeviceInfo);
 
+impl From<*mut DeviceInfo> for DeviceInfoPointer {
+    fn from(ptr: *mut DeviceInfo) -> Self {
+        DeviceInfoPointer(ptr)
+    }
+}
+
+impl Into<*mut DeviceInfo> for DeviceInfoPointer {
+    fn into(self) -> *mut DeviceInfo{
+        self.0
+    }
+}
+
+impl DeviceInfoPointer {
+    pub fn drop(self) {
+        println!("Dropping DeviceInfoPointer");
+        unsafe {
+            let dev: Box<DeviceInfo> = Box::from_raw(self.into());
+            if !dev.device_name.is_null() {
+                CString::from_raw(dev.device_name as *mut c_char);
+            }
+            if !dev.manufacturer_name.is_null() {
+                CString::from_raw(dev.manufacturer_name as *mut c_char);
+            }
+        }
+    }
+}
+
+
+pub type DeviceID = u64;
+
+enum_from_primitive! {
+    #[derive(Debug, PartialEq)]
+    pub enum AnalogSDKError  {
+        OK = 1,
+        UNINITIALIZED = -2000,
+        NO_DEVICES,
+        DEVICE_DISCONNECTED,
+        FAILURE,
+        INVALID_ARGUMENT,
+        NO_PLUGINS,
+        FUNCTION_NO_FOUND
+
+    }
+}
+
+impl Default for AnalogSDKError {
+    fn default() -> Self {
+        AnalogSDKError::FUNCTION_NO_FOUND
+    }
+}
+
+type SDKResult<T> = std::result::Result<T, AnalogSDKError>;
 
 unsafe impl Send for AnalogSDK{
 
@@ -259,7 +322,7 @@ unsafe impl Send for AnalogSDK{
 
 pub struct AnalogSDK {
     pub initialised: bool,
-    pub disconnected_callback: Option<extern fn(FfiStr)>,
+    //pub disconnected_callback: Option<extern fn(FfiStr)>,
     pub keycode_mode: KeycodeType,
 
     plugins: Vec<Box<Plugin>>,
@@ -287,13 +350,13 @@ impl AnalogSDK {
             plugins: Vec::new(),
             loaded_libraries: Vec::new(),
             initialised: false,
-            disconnected_callback: None,
+            //disconnected_callback: None,
             keycode_mode: KeycodeType::HID
             //device_info: Box::into_raw(Box::new(DeviceInfo { name: b"Device Yeet\0" as *const u8, val:20 }))
         }
     }
 
-    pub fn initialise(&mut self) -> bool {
+    pub fn initialise(&mut self) -> AnalogSDKError {
         if self.initialised {
             self.unload();
         }
@@ -313,6 +376,7 @@ impl AnalogSDK {
             Ok(0) => { 
                 println!("Failed to load any plugins!");
                 self.initialised = false;
+                return AnalogSDKError::NO_PLUGINS;
             },
             Ok(i) => {
                 println!("Loaded {} plugins", i);
@@ -333,9 +397,7 @@ impl AnalogSDK {
             }
         }
 
-
-
-        return self.initialised;
+        return AnalogSDKError::OK;
     }
 
     fn load_plugins(&mut self, dir: &Path) -> Result<u32> {
@@ -401,23 +463,34 @@ impl AnalogSDK {
         Ok(())
     }
 
-    pub fn add(&mut self, x: u32, y: u32) -> Vec<u32> {
-        if self.plugins.len() <= 0 {
-            return Vec::new();
+    pub fn set_disconnected_cb(&mut self, cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError {
+        if self.plugins.len() <= 0 || !self.initialised {
+            return AnalogSDKError::UNINITIALIZED;
         }
-        let mut results: Vec<u32> = Vec::new();
+
+        let mut result = AnalogSDKError::OK;
         for p in self.plugins.iter_mut() {
-            if let Some(x) = p.add(x, y) {
-                results.push(x);
+            let ret =  p.set_disconnected_cb(cb);
+            if ret != AnalogSDKError::OK {
+                result = ret;
             }
         }
-        //testing disconnected cb
-        if let Some(cb) = self.disconnected_callback {
-            cb(FfiStr::from_cstr(CString::new("Yeet").unwrap().as_c_str()));
+        result
+    }
+
+    pub fn clear_disconnected_cb(&mut self) -> AnalogSDKError {
+        if self.plugins.len() <= 0 || !self.initialised {
+            return AnalogSDKError::UNINITIALIZED;
         }
 
-
-        results
+        let mut result = AnalogSDKError::OK;
+        for p in self.plugins.iter_mut() {
+            let ret =  p.clear_disconnected_cb();
+            if ret != AnalogSDKError::OK {
+                result = ret;
+            }
+        }
+        result
     }
 
     pub fn read_analog(&mut self, code: u16) -> f32 {
@@ -482,7 +555,7 @@ impl AnalogSDK {
                         analog_data.insert(code, total_analog);
                     }
                     else{
-                        println!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
+                        //println!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
                     }
                 }
 
