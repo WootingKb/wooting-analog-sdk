@@ -73,13 +73,13 @@ pub extern "C" fn sdk_read_analog_device(code: c_ushort, deviceID: DeviceID) -> 
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_set_disconnected_cb(cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError {
-    ANALOG_SDK.lock().unwrap().set_disconnected_cb(cb)
+pub extern "C" fn sdk_set_device_event_cb(cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKError {
+    ANALOG_SDK.lock().unwrap().set_device_event_cb(cb)
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_clear_disconnected_cb() -> AnalogSDKError {
-    ANALOG_SDK.lock().unwrap().clear_disconnected_cb()
+pub extern "C" fn sdk_clear_device_event_cb() -> AnalogSDKError {
+    ANALOG_SDK.lock().unwrap().clear_device_event_cb()
 }
 
 #[no_mangle]

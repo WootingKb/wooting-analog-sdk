@@ -7,7 +7,7 @@ extern crate hidapi;
 
 use hidapi::{HidApi, HidDevice, HidDeviceInfo};
 use std::str;
-use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo, AnalogSDKError, SDKResult, AnalogSDK};
+use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo, AnalogSDKError, SDKResult, DeviceEventType};
 use std::os::raw::{c_ushort, c_float, c_uint, c_int, c_char};
 use std::hash::Hasher;
 use std::ffi::CString;
@@ -29,7 +29,7 @@ pub struct TestPlugin {
     buffer: [u8; ANALOG_BUFFER_SIZE],
     device_info: Option<DeviceInfoPointer>,
     device_id: DeviceID,
-    disconnected_cb: Option<extern fn(DeviceInfoPointer)>
+    disconnected_cb: Option<extern fn(DeviceEventType, DeviceInfoPointer)>
 
 }
 
@@ -39,45 +39,17 @@ unsafe impl Sync for TestPlugin {}
 const PLUGIN_NAME: &'static str = "Test Plugin";
 impl TestPlugin {
 
-    fn refresh_buffer(&mut self) -> AnalogSDKError {
-        if !self.initialised {
-            return AnalogSDKError::UnInitialized;
-        }
-
-        if self.device.is_none() {
-            self.initialise();
-        }
-
-        match &self.device {
-            Some(dev) => {
-                let res = dev.read_timeout(&mut self.buffer, 0);
-                if let Err(e) = res {
-                    error!("Failed to read buffer: {}", e);
-                    if let Some(cb) = self.disconnected_cb {
-                        if let Some(ptr) = self.device_info.borrow() {
-                            cb(ptr.clone());
-                        }
-                    }
-                    self.device = None;
-                    self.device_info.take().map(|d| d.drop());
-                    return AnalogSDKError::DeviceDisconnected;
-                }
-                AnalogSDKError::Ok
-            },
-            None => AnalogSDKError::DeviceDisconnected
+    fn call_cb(&self, eventType: DeviceEventType) {
+        if let Some(cb) = self.disconnected_cb {
+            let ptr =  match self.device_info.borrow() {
+                Some(ptr) => ptr.clone(),
+                None => Default::default()
+            };
+            cb(eventType, ptr);
         }
     }
-}
 
-impl Plugin for TestPlugin {
-
-    fn name(&mut self) -> SDKResult<&'static str>  {
-        Ok(PLUGIN_NAME).into()
-    }
-
-    fn initialise(&mut self) -> AnalogSDKError {
-        env_logger::init();
-        info!("{} initialised", PLUGIN_NAME);
+    fn init_device(&mut self) -> AnalogSDKError {
         match HidApi::new() {
             Ok(api) => {
                 let mut highest_dev: Option<&HidDeviceInfo> = None;
@@ -113,7 +85,7 @@ impl Plugin for TestPlugin {
                                 })
                             })).into());
                             info!("Found and opened the Wooting One successfully!");
-                            self.initialised = true;
+                            self.call_cb(DeviceEventType::Connected);
                         },
                         Err(e) => {
                             error!("Error opening HID Device: {}", e);
@@ -129,13 +101,57 @@ impl Plugin for TestPlugin {
             },
             Err(e) => {
                 error!("Error: {}", e);
-                self.initialised = false;
                 return AnalogSDKError::Failure;
             },
         }
-        self.initialised = true;
         AnalogSDKError::Ok
     }
+
+    fn refresh_buffer(&mut self) -> AnalogSDKError {
+        if !self.initialised {
+            return AnalogSDKError::UnInitialized;
+        }
+
+        if self.device.is_none() {
+            self.init_device();
+        }
+
+        match &self.device {
+            Some(dev) => {
+                let res = dev.read_timeout(&mut self.buffer, 0);
+                if let Err(e) = res {
+                    error!("Failed to read buffer: {}", e);
+
+                    self.call_cb(DeviceEventType::Disconnected);
+
+                    self.device = None;
+                    self.device_info.take().map(|d| d.drop());
+                    return AnalogSDKError::DeviceDisconnected;
+                }
+                AnalogSDKError::Ok
+            },
+            None => AnalogSDKError::DeviceDisconnected
+        }
+    }
+
+
+}
+
+impl Plugin for TestPlugin {
+
+    fn name(&mut self) -> SDKResult<&'static str>  {
+        Ok(PLUGIN_NAME).into()
+    }
+
+    fn initialise(&mut self) -> AnalogSDKError {
+        env_logger::init();
+        info!("{} initialised", PLUGIN_NAME);
+        let ret = self.init_device();
+        self.initialised = ret.is_ok();
+        AnalogSDKError::Ok
+    }
+
+
 
     fn is_initialised(&mut self) -> bool {
         self.initialised
@@ -150,7 +166,7 @@ impl Plugin for TestPlugin {
         }
     }
 
-    fn set_disconnected_cb(&mut self, cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError {
+    fn set_device_event_cb(&mut self, cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKError {
         if !self.initialised {
             return AnalogSDKError::UnInitialized;
         }
@@ -159,7 +175,7 @@ impl Plugin for TestPlugin {
         AnalogSDKError::Ok
     }
 
-    fn clear_disconnected_cb(&mut self) -> AnalogSDKError {
+    fn clear_device_event_cb(&mut self) -> AnalogSDKError {
         if !self.initialised {
             return AnalogSDKError::UnInitialized;
         }

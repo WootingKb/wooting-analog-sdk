@@ -32,6 +32,11 @@ namespace analog_sdk_test
 
         }
         
+        public enum DeviceEventType  {
+            Connected = 1,
+            Disconnected
+        }
+        
         [StructLayout(LayoutKind.Sequential)]
         public struct DeviceInfo {
             public readonly ushort vendor_id;
@@ -48,7 +53,7 @@ namespace analog_sdk_test
         }
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate void DisconnectedCb(IntPtr deviceInfo);
+        public delegate void DeviceEventCb(DeviceEventType eventType, IntPtr deviceInfo);
 
         public const string SdkLib = "libanalog_sdk_wrapper";
 
@@ -81,10 +86,10 @@ namespace analog_sdk_test
 
         
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError sdk_set_disconnected_cb(DisconnectedCb cb);
+        public static extern AnalogSDKError sdk_set_device_event_cb(DeviceEventCb cb);
 
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError sdk_clear_disconnected_cb();
+        public static extern AnalogSDKError sdk_clear_device_event_cb();
 
         //fn sdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
         //fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
@@ -139,11 +144,11 @@ namespace analog_sdk_test
 
     class Program
     {
-        static void disconnected_cb(IntPtr deviceInfo) {
+        static void device_event_cb(Native.DeviceEventType eventType, IntPtr deviceInfo) {
             var dev = (Native.DeviceInfo)Marshal.PtrToStructure(
                 deviceInfo,
                 typeof(Native.DeviceInfo));
-            Console.WriteLine($"Disconnected cb called with: {dev}");
+            Console.WriteLine($"Device event cb called with: {eventType} {dev}");
         }
 
         static void TestSpeedN<T>(Stopwatch sw, Func<T> call, string name, int n){
@@ -183,7 +188,7 @@ namespace analog_sdk_test
             Native.AnalogSDKError err = Native.sdk_initialise();
             if (err == Native.AnalogSDKError.Ok){
                 Console.WriteLine("SDK Successfully initialised!");
-                Native.sdk_set_disconnected_cb(disconnected_cb);
+                Native.sdk_set_device_event_cb(device_event_cb);
                 //Console.WriteLine($"Yo yo yo 9+10={Native.sdk_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
                 TestSpeedN(sw, () => Native.sdk_read_analog(4), $"read analog HID", 5);
@@ -204,13 +209,21 @@ namespace analog_sdk_test
                 while (true)
                 {
                     //var ret = Native.sdk_read_analog_vk(VirtualKeys.A, false);
+                    sw.Restart();
                     var (ret, error) = Native.ReadAnalog(code_map[_index].Item2);
+                    sw.Stop();
+                    if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
+                        Console.WriteLine($"Warning: ReadAnalog {sw.ElapsedMilliseconds}ms");
                     if (val != ret){
                         val = ret;
                         Console.WriteLine($"Val is {val}, e {error}");
                     }
 
+                    sw.Restart();
                     var (read, readErr) = Native.ReadFullBuffer(20);
+                    sw.Stop();
+                    if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
+                        Console.WriteLine($"Warning: ReadFullBuffer {sw.ElapsedMilliseconds}ms");
                     string freshOutput = "";
                     if (readErr == Native.AnalogSDKError.Ok)
                     {

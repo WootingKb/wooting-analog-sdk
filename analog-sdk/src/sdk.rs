@@ -133,8 +133,8 @@ pub trait Plugin: Any + Send + Sync {
     
     fn is_initialised(&mut self) -> bool;
 
-    fn set_disconnected_cb(&mut self, cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError;
-    fn clear_disconnected_cb(&mut self) -> AnalogSDKError;
+    fn set_device_event_cb(&mut self, cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKError;
+    fn clear_device_event_cb(&mut self) -> AnalogSDKError;
 
     fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<c_int>;
     /// A callback fired immediately before the plugin is unloaded. Use this if
@@ -214,8 +214,8 @@ impl Plugin for CPlugin {
         fn initialise() -> AnalogSDKError;
         fn is_initialised() -> bool;
         fn unload();
-        fn set_disconnected_cb(cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError;
-        fn clear_disconnected_cb() -> AnalogSDKError;
+        fn set_device_event_cb(cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKError;
+        fn clear_device_event_cb() -> AnalogSDKError;
     }
     lib_wrap_option! {
         fn read_analog(code: u16, device: DeviceID) -> f32;
@@ -262,6 +262,12 @@ pub struct DeviceInfo {
 #[derive(Clone)]
 pub struct DeviceInfoPointer(pub *mut DeviceInfo);
 
+impl Default for DeviceInfoPointer {
+    fn default() -> Self {
+        DeviceInfoPointer(std::ptr::null_mut())
+    }
+}
+
 impl From<*mut DeviceInfo> for DeviceInfoPointer {
     fn from(ptr: *mut DeviceInfo) -> Self {
         DeviceInfoPointer(ptr)
@@ -277,6 +283,12 @@ impl Into<*mut DeviceInfo> for DeviceInfoPointer {
 impl DeviceInfoPointer {
     pub fn drop(self) {
         debug!("Dropping DeviceInfoPointer");
+
+        if self.0.is_null() {
+            debug!("DeviceInfoPointer is null, ignoring");
+            return;
+        }
+
         unsafe {
             let dev: Box<DeviceInfo> = Box::from_raw(self.into());
             if !dev.device_name.is_null() {
@@ -291,6 +303,15 @@ impl DeviceInfoPointer {
 
 
 pub type DeviceID = u64;
+
+enum_from_primitive! {
+    #[derive(Debug, PartialEq)]
+    pub enum DeviceEventType  {
+        Connected = 1,
+        Disconnected
+    }
+}
+
 
 enum_from_primitive! {
     #[derive(Debug, PartialEq)]
@@ -548,14 +569,14 @@ impl AnalogSDK {
         Ok(())
     }
 
-    pub fn set_disconnected_cb(&mut self, cb: extern fn(DeviceInfoPointer)) -> AnalogSDKError {
+    pub fn set_device_event_cb(&mut self, cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKError {
         if self.plugins.len() <= 0 || !self.initialised {
             return AnalogSDKError::UnInitialized;
         }
 
         let mut result = AnalogSDKError::Ok;
         for p in self.plugins.iter_mut() {
-            let ret =  p.set_disconnected_cb(cb);
+            let ret =  p.set_device_event_cb(cb);
             if ret != AnalogSDKError::Ok {
                 result = ret;
             }
@@ -563,14 +584,14 @@ impl AnalogSDK {
         result
     }
 
-    pub fn clear_disconnected_cb(&mut self) -> AnalogSDKError {
+    pub fn clear_device_event_cb(&mut self) -> AnalogSDKError {
         if self.plugins.len() <= 0 || !self.initialised {
             return AnalogSDKError::UnInitialized;
         }
 
         let mut result = AnalogSDKError::Ok;
         for p in self.plugins.iter_mut() {
-            let ret =  p.clear_disconnected_cb();
+            let ret =  p.clear_device_event_cb();
             if ret != AnalogSDKError::Ok {
                 result = ret;
             }
