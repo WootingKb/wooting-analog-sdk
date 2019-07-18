@@ -12,6 +12,7 @@ use crate::keycode::*;
 //use std::ops::Deref;
 use enum_primitive::FromPrimitive;
 use log::{info, warn, error};
+use std::ops::Deref;
 
 macro_rules! lib_wrap {
     //(@as_item $i:item) => {$i};
@@ -142,7 +143,7 @@ pub trait Plugin: Any + Send + Sync {
     fn unload(&mut self) {}
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32>;
-    fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> SDKResult<Vec<(c_ushort, c_float)>>;
+    fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> SDKResult<HashMap<c_ushort, c_float>>;
     
 
     //fn neg(&mut self, x: u32, y: u32) -> Option<u32>;
@@ -185,7 +186,7 @@ impl Plugin for CPlugin {
         self.c_name().0.map(|s| s.as_str()).into()
     }
 
-    fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> SDKResult<Vec<(c_ushort, c_float)>> {
+    fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> SDKResult<HashMap<c_ushort, c_float>> {
         let code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length.into());
         let analog_buffer: Vec<c_float> = Vec::with_capacity(max_length.into());
 
@@ -198,9 +199,9 @@ impl Plugin for CPlugin {
             max_length.min(ret as usize)
         };
 
-        let mut analog_data : Vec<(c_ushort, c_float)> = Vec::with_capacity(count);
+        let mut analog_data : HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
         for i in 0..count {
-            analog_data.push( (code_buffer[i], analog_buffer[i]) );
+            analog_data.insert( code_buffer[i], analog_buffer[i] );
         }
 
         Ok(analog_data).into()
@@ -345,6 +346,14 @@ impl Default for AnalogSDKError {
 
 #[derive(Debug)]
 pub struct SDKResult<T>(pub std::result::Result<T, AnalogSDKError>);
+
+impl<T> Deref for SDKResult<T> {
+    type Target = std::result::Result<T, AnalogSDKError>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<T> From<std::result::Result<T, AnalogSDKError>> for SDKResult<T> {
     fn from(ptr: std::result::Result<T, AnalogSDKError>) -> Self {
@@ -650,10 +659,10 @@ impl AnalogSDK {
 
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            let plugin_data = p.read_full_buffer(code_buffer.len(), 0).0;
+            let plugin_data = p.read_full_buffer(code_buffer.len(), 0).into();
             match plugin_data {
                 Ok(mut data) => {
-                    for (hid_code, analog) in data.drain(0..){
+                    for (hid_code, analog) in data.drain() {
                         if analog == 0.0 {
                             continue;
                         }

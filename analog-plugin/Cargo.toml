@@ -9,6 +9,7 @@ log = "0.4.7"
 analog-sdk = { path = "../analog-sdk"}
 hidapi = "0.5.2"
 env_logger = "0.6.2"
+objekt = "0.1.2"
 
 [lib]
 crate-type = ["cdylib"]
