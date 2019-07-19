@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Windows.Input;
@@ -198,8 +198,12 @@ namespace analog_sdk_test
                     return Native.sdk_read_analog(30);
                 }, $"read analog SC", 5);
                 TestSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
-                var (info, infoErr) = Native.GetDeviceInfo();
-                Console.WriteLine($"Device info has: {info.FirstOrDefault()}, {infoErr}");
+                var (devices, infoErr) = Native.GetDeviceInfo();
+                foreach (Native.DeviceInfo dev in devices)
+                {
+                    Console.WriteLine($"Device info has: {dev}, {infoErr}");
+
+                }
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, true), $"Local read analog VK (translate)", 5);
                 //testSpeedN(sw, () => Native.sdk_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;

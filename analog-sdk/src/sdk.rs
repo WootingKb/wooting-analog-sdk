@@ -614,7 +614,8 @@ impl AnalogSDK {
         }
         let hid_code = code_to_hid(code, &self.keycode_mode);
         if let Some(hid_code) = hid_code {
-            let mut value: f32 = 0.0;
+            let mut value: f32 = -1.0;
+            let mut err = AnalogSDKError::Ok;
             for p in self.plugins.iter_mut() {
                 match p.read_analog(hid_code, deviceID).into() {
                     Ok(x) => {
@@ -625,10 +626,15 @@ impl AnalogSDK {
                         }
                     },
                     Err(e) => {
-                        return e.into()
+                        //TODO: Improve collating of multiple errors
+                        err = e.into()
                     }
                 }
             }
+            if value < 0.0 {
+                return err.into()
+            }
+
             return value.into();
         }
         else{
