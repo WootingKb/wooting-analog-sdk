@@ -505,6 +505,9 @@ impl AnalogSDK {
                 info!("{} plugins successfully initialised", x);
 
                 self.initialised = x > 0;
+                if !self.initialised {
+                    return AnalogSDKError::UnInitialized;
+                }
             },
             Err(e) => {
                 error!("Error: {}", e);
@@ -512,7 +515,12 @@ impl AnalogSDK {
             }
         }
 
-        return AnalogSDKError::Ok;
+        if self.initialised {
+            AnalogSDKError::Ok
+        }
+        else {
+            AnalogSDKError::Failure
+        }
     }
 
     fn load_plugins(&mut self, dir: &Path) -> Result<u32> {
@@ -534,7 +542,6 @@ impl AnalogSDK {
             return Ok(i);
         }
         Err("Path is not a dir!".into())
-        //Err(io::Error::new(io::ErrorKind::Other, format!("Path \"{}\" is not a directory", dir.display())))
     }
 
     unsafe fn load_plugin(&mut self, filename: &Path) -> Result<()> {
@@ -579,8 +586,8 @@ impl AnalogSDK {
     }
 
     pub fn set_device_event_cb(&mut self, cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKError {
-        if self.plugins.len() <= 0 || !self.initialised {
-            return AnalogSDKError::UnInitialized;
+        if !self.initialised {
+            return AnalogSDKError::UnInitialized.into();
         }
 
         let mut result = AnalogSDKError::Ok;
@@ -594,8 +601,8 @@ impl AnalogSDK {
     }
 
     pub fn clear_device_event_cb(&mut self) -> AnalogSDKError {
-        if self.plugins.len() <= 0 || !self.initialised {
-            return AnalogSDKError::UnInitialized;
+        if !self.initialised {
+            return AnalogSDKError::UnInitialized.into();
         }
 
         let mut result = AnalogSDKError::Ok;
@@ -608,42 +615,8 @@ impl AnalogSDK {
         result
     }
 
-    pub fn read_analog(&mut self, code: u16, deviceID: DeviceID) -> SDKResult<f32> {
-        if self.plugins.len() <= 0 || !self.initialised {
-            return AnalogSDKError::UnInitialized.into();
-        }
-        let hid_code = code_to_hid(code, &self.keycode_mode);
-        if let Some(hid_code) = hid_code {
-            let mut value: f32 = -1.0;
-            let mut err = AnalogSDKError::Ok;
-            for p in self.plugins.iter_mut() {
-                match p.read_analog(hid_code, deviceID).into() {
-                    Ok(x) => {
-                        value = value.max(x);
-                        //If we were looking to read from a specific device, we've found that read, so no need to continue
-                        if deviceID != 0 {
-                            break;
-                        }
-                    },
-                    Err(e) => {
-                        //TODO: Improve collating of multiple errors
-                        err = e.into()
-                    }
-                }
-            }
-            if value < 0.0 {
-                return err.into()
-            }
-
-            return value.into();
-        }
-        else{
-            return AnalogSDKError::NoMapping.into();
-        }
-    }
-
     pub fn get_device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<c_int> {
-        if self.plugins.len() <= 0 || !self.initialised {
+        if !self.initialised {
             return AnalogSDKError::UnInitialized.into();
         }
         let mut count: usize = 0;
@@ -656,8 +629,44 @@ impl AnalogSDK {
         (count as c_int).into()
     }
 
-    pub fn read_full_buffer(&mut self, code_buffer: &mut [c_ushort], analog_buffer: &mut [c_float], deviceID: DeviceID) -> SDKResult<c_int> {
-        if self.plugins.len() <= 0 {
+    pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
+        if !self.initialised {
+            return AnalogSDKError::UnInitialized.into();
+        }
+
+        let hid_code = code_to_hid(code, &self.keycode_mode);
+        if let Some(hid_code) = hid_code {
+            let mut value: f32 = -1.0;
+            let mut err = AnalogSDKError::Ok;
+            for p in self.plugins.iter_mut() {
+                match p.read_analog(hid_code, device_id).into() {
+                    Ok(x) => {
+                        value = value.max(x);
+                        //If we were looking to read from a specific device, we've found that read, so no need to continue
+                        if device_id != 0 {
+                            break;
+                        }
+                    },
+                    Err(e) => {
+                        //TODO: Improve collating of multiple errors
+                        err = e.into()
+                    }
+                }
+            }
+
+            if value < 0.0 {
+                return err.into()
+            }
+
+            return value.into();
+        }
+        else{
+            return AnalogSDKError::NoMapping.into();
+        }
+    }
+
+    pub fn read_full_buffer(&mut self, code_buffer: &mut [c_ushort], analog_buffer: &mut [c_float], device_id: DeviceID) -> SDKResult<c_int> {
+        if !self.initialised {
             return AnalogSDKError::UnInitialized.into();
         }
 
@@ -677,7 +686,7 @@ impl AnalogSDK {
                             let mut total_analog = analog;
 
                             //No point in checking if the value is already present if we are only looking for data from one device
-                            if deviceID == 0 {
+                            if device_id == 0 {
                                 if let Some(val) = analog_data.get(&code) {
                                     total_analog = total_analog.max(*val);
                                 }
@@ -696,7 +705,7 @@ impl AnalogSDK {
                 }
             }
             //If we are looking for a specific device, just break out when we find one that returns good
-            if deviceID != 0 {
+            if device_id != 0 {
                 break;
             }
         }

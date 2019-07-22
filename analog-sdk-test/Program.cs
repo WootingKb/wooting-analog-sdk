@@ -191,11 +191,11 @@ namespace analog_sdk_test
                 Native.sdk_set_device_event_cb(device_event_cb);
                 //Console.WriteLine($"Yo yo yo 9+10={Native.sdk_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
-                TestSpeedN(sw, () => Native.sdk_read_analog(4), $"read analog HID", 5);
+                TestSpeedN(sw, () => Native.ReadAnalog(4), $"read analog HID", 5);
                 TestSpeedN(sw, () =>
                 {
                     Native.sdk_set_mode(Native.KeycodeType.ScanCode1);
-                    return Native.sdk_read_analog(30);
+                    return Native.ReadAnalog(30);
                 }, $"read analog SC", 5);
                 TestSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
                 var (devices, infoErr) = Native.GetDeviceInfo();
@@ -214,11 +214,11 @@ namespace analog_sdk_test
                 {
                     //var ret = Native.sdk_read_analog_vk(VirtualKeys.A, false);
                     sw.Restart();
-                    var (ret, error) = Native.ReadAnalog(code_map[_index].Item2);
+                    var (ret, error) = Native.ReadAnalog(code_map[_index].Item2, devices.First().device_id);
                     sw.Stop();
                     if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
                         Console.WriteLine($"Warning: ReadAnalog {sw.ElapsedMilliseconds}ms");
-                    if (val != ret){
+                    if (!val.Equals(ret)){
                         val = ret;
                         Console.WriteLine($"Val is {val}, e {error}");
                     }

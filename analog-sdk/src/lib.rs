@@ -46,9 +46,6 @@ pub extern "C" fn sdk_uninitialise() -> AnalogSDKError {
 
 #[no_mangle]
 pub extern "C" fn sdk_set_mode(mode: u32) -> AnalogSDKError {
-    if !ANALOG_SDK.lock().unwrap().initialised {
-        return AnalogSDKError::UnInitialized;
-    }
     if let Some(key_mode) = KeycodeType::from_u32(mode) {
         ANALOG_SDK.lock().unwrap().keycode_mode = key_mode;
         AnalogSDKError::Ok
@@ -64,12 +61,8 @@ pub extern "C" fn sdk_read_analog(code: c_ushort) -> f32 {
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_read_analog_device(code: c_ushort, deviceID: DeviceID) -> f32 {
-    if !ANALOG_SDK.lock().unwrap().initialised {
-        return AnalogSDKError::UnInitialized.into();
-    }
-
-    ANALOG_SDK.lock().unwrap().read_analog(code, deviceID).into()
+pub extern "C" fn sdk_read_analog_device(code: c_ushort, device_id: DeviceID) -> f32 {
+    ANALOG_SDK.lock().unwrap().read_analog(code, device_id).into()
 }
 
 #[no_mangle]
@@ -99,11 +92,7 @@ pub extern "C" fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer
 }
 
 #[no_mangle]
-pub extern "C" fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, deviceID: DeviceID) -> c_int {
-    if !ANALOG_SDK.lock().unwrap().initialised {
-        return AnalogSDKError::UnInitialized.into();
-    }
-
+pub extern "C" fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device_id: DeviceID) -> c_int {
     let codes = unsafe {
         assert!(!code_buffer.is_null());
 
@@ -116,7 +105,7 @@ pub extern "C" fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    ANALOG_SDK.lock().unwrap().read_full_buffer(codes, analog, deviceID).into()
+    ANALOG_SDK.lock().unwrap().read_full_buffer(codes, analog, device_id).into()
 }
 
 

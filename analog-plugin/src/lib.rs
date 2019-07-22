@@ -46,7 +46,7 @@ trait DeviceImplementation: objekt::Clone {
             return AnalogSDKError::DeviceDisconnected.into();
         }
         //println!("{:?}", buffer);
-        let ret: HashMap<c_ushort, c_float> = buffer.chunks_exact(3).filter(|&s| s[2] != 0).map(|s| (((s[0] as u16) << 8) | s[1] as u16, s[2] as f32/0xFF as f32)).collect();
+        let ret: HashMap<c_ushort, c_float> = buffer.chunks_exact(3).take(max_length).filter(|&s| s[2] != 0).map(|s| (((s[0] as u16) << 8) | s[1] as u16, s[2] as f32/0xFF as f32)).collect();
         Ok(ret).into()
     }
 
@@ -224,7 +224,6 @@ impl Plugin for TestPlugin {
 
     fn initialise(&mut self) -> AnalogSDKError {
         env_logger::init();
-        info!("{} initialised", PLUGIN_NAME);
         match HidApi::new() {
             Ok(api) => {
                 self.hid_api = Some(api);
@@ -236,7 +235,10 @@ impl Plugin for TestPlugin {
         }
         let ret = self.init_device();
         self.initialised = ret.is_ok();
-        AnalogSDKError::Ok
+        if self .initialised {
+            info!("{} initialised", PLUGIN_NAME);
+        }
+        ret
     }
 
     fn is_initialised(&mut self) -> bool {
