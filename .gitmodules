@@ -1,0 +1,3 @@
+[submodule "analog-plugin-c/includes/hidapi"]
+	path = analog-plugin-c/includes/hidapi
+	url = https://github.com/libusb/hidapi.git

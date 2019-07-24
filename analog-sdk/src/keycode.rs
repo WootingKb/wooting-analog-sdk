@@ -309,15 +309,15 @@ mod tests {
     #[test]
     fn t_code_to_hid() {
         #[cfg(windows)]
-        let keycodeTypes = [KeycodeType::HID, KeycodeType::ScanCode1,KeycodeType::VirtualKey,KeycodeType::VirtualKeyTranslate];
+        let keycode_types = [KeycodeType::HID, KeycodeType::ScanCode1,KeycodeType::VirtualKey,KeycodeType::VirtualKeyTranslate];
         #[cfg(not(windows))]
-        let keycodeTypes = [KeycodeType::HID, KeycodeType::ScanCode1];
+        let keycode_types = [KeycodeType::HID, KeycodeType::ScanCode1];
         for code in 0..0xFFFF {
             let prefix = (code & 0xFF00) >> 8;
             match prefix {
                 //Initial range
                 0x00 => {
-                    for keycode in keycodeTypes.iter() {
+                    for keycode in keycode_types.iter() {
                         if *keycode == KeycodeType::ScanCode1 {
                             let val = hid_to_code(code, keycode).unwrap_or(0);
                             assert!(val < 0x100 || (val & 0xFF00) == 0xE000);
@@ -329,7 +329,7 @@ mod tests {
 
                 //ScanCode protected
                 0x01 | 0xE0 => {
-                    for keycode in keycodeTypes.iter() {
+                    for keycode in keycode_types.iter() {
                         if *keycode == KeycodeType::ScanCode1 {
                             continue;
                         }
@@ -340,9 +340,9 @@ mod tests {
                 },
 
                 //Custom keys
-                x => {
+                _x => {
                     //Ensure custom codes are unchanged in all keycode types
-                    for keycode in keycodeTypes.iter() {
+                    for keycode in keycode_types.iter() {
                         assert_eq!(code_to_hid(code, keycode).unwrap(), code);
                         assert_eq!(hid_to_code(code, keycode).unwrap(), code);
                     }

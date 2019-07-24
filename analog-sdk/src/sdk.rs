@@ -187,12 +187,14 @@ impl Plugin for CPlugin {
     }
 
     fn read_full_buffer(&mut self, max_length: usize, device: DeviceID) -> SDKResult<HashMap<c_ushort, c_float>> {
-        let code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length.into());
-        let analog_buffer: Vec<c_float> = Vec::with_capacity(max_length.into());
-
+        let mut code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length.into());
+        let mut analog_buffer: Vec<c_float> = Vec::with_capacity(max_length.into());
+        code_buffer.resize(max_length, 0);
+        analog_buffer.resize(max_length, 0.0);
         let count: usize = {
             let ret = self.c_read_full_buffer(code_buffer.as_ptr(), analog_buffer.as_ptr(), max_length as c_uint, device).0;
             if let Err(e) = ret {
+                debug!("Error got: {:?}",e);
                 return Err(e).into();
             }
             let ret = ret.unwrap();
@@ -200,6 +202,7 @@ impl Plugin for CPlugin {
         };
 
         let mut analog_data : HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
+        //println!("Count was {}", count);
         for i in 0..count {
             analog_data.insert( code_buffer[i], analog_buffer[i] );
         }
@@ -475,51 +478,56 @@ impl AnalogSDK {
         if self.initialised {
             self.unload();
         }
-
-        let plugin_dir = std::env::var(ENV_PLUGIN_DIR_KEY).map(|path| PathBuf::from(path));
-        let plugin_dir = match plugin_dir {
+        let plugin_dir: std::result::Result<Vec<PathBuf>, std::env::VarError> = std::env::var(ENV_PLUGIN_DIR_KEY).map(|var| var.split(';').filter_map(|path| {
+            if path.is_empty() {
+                None
+            } else {
+                Some(PathBuf::from(path))
+            }
+        }).collect() );
+        let mut plugin_dir = match plugin_dir {
             Ok(v) => {
                 info!("Found ${}, loading plugins from {:?}", ENV_PLUGIN_DIR_KEY, v);
                 v
             },
             Err(e) => {
                 warn!("{} is not set, defaulting to {}.\nError: {}", ENV_PLUGIN_DIR_KEY, DEFAULT_PLUGIN_DIR, e);
-                PathBuf::from(String::from(DEFAULT_PLUGIN_DIR))
+                vec![PathBuf::from(String::from(DEFAULT_PLUGIN_DIR))]
             } 
         };
-        match self.load_plugins(&plugin_dir) {
-            Ok(0) => { 
-                error!("Failed to load any plugins!");
-                self.initialised = false;
-                return AnalogSDKError::NoPlugins;
-            },
-            Ok(i) => {
-                info!("Loaded {} plugins", i);
+        for dir in plugin_dir.drain(..) {
+            match self.load_plugins(&dir) {
+                Ok(0) => {
+                    warn!("Failed to load any plugins from {:?}!", dir);
+                    self.initialised = false;
+                    //AnalogSDKError::NoPlugins
+                },
+                Ok(i) => {
+                    info!("Loaded {} plugins from {:?}", i, dir);
+                    //AnalogSDKError::Ok
+                },
+                Err(e) => {
+                    error!("Error: {:?}", e);
+                    self.initialised = false;
 
-                let mut x = 0;
-                for p in self.plugins.iter_mut() {
-                    if p.initialise().is_ok() {
-                        x = x + 1;
-                    }
                 }
-                info!("{} plugins successfully initialised", x);
-
-                self.initialised = x > 0;
-                if !self.initialised {
-                    return AnalogSDKError::UnInitialized;
-                }
-            },
-            Err(e) => {
-                error!("Error: {}", e);
-                self.initialised = false;
             }
         }
 
-        if self.initialised {
-            AnalogSDKError::Ok
+        let mut plugins_initialised = 0;
+        for p in self.plugins.iter_mut() {
+            if p.initialise().is_ok() {
+                plugins_initialised = plugins_initialised + 1;
+            }
+        }
+        info!("{} plugins successfully initialised", plugins_initialised);
+
+        self.initialised = plugins_initialised > 0;
+        if !self.initialised {
+            AnalogSDKError::NoPlugins
         }
         else {
-            AnalogSDKError::Failure
+            AnalogSDKError::Ok
         }
     }
 
@@ -528,12 +536,12 @@ impl AnalogSDK {
             let mut i: u32 = 0;
             for entry in fs::read_dir(dir).chain_err(|| format!("Unable to load dir \"{}\"", dir.display()))? {
                 let path = entry.chain_err(|| "Err with entry")?.path();
-                
+
                 if let Some(ext) = path.extension().and_then(OsStr::to_str) {
                     if ext == LIB_EXT {
                         info!("Attempting to load plugin: \"{}\"", path.display());
                         unsafe {
-                            self.load_plugin(&path)?;
+                            self.load_plugin(&path)?;//.map_err(|e| error!("{:?}", e));
                         }
                         i = i+1;
                     }
@@ -541,7 +549,8 @@ impl AnalogSDK {
             }
             return Ok(i);
         }
-        Err("Path is not a dir!".into())
+
+        bail!("Path: {:?} is not a dir!", dir)
     }
 
     unsafe fn load_plugin(&mut self, filename: &Path) -> Result<()> {
@@ -672,6 +681,8 @@ impl AnalogSDK {
 
         let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(code_buffer.len());
 
+        let mut err = AnalogSDKError::Ok;
+        let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
             let plugin_data = p.read_full_buffer(code_buffer.len(), 0).into();
@@ -698,16 +709,20 @@ impl AnalogSDK {
                         }
                     }
 
-
+                    any_success = true;
                 },
                 Err(e) => {
-                    return e.into();
+                    //TODO: Improve collating of multiple errors
+                    err = e.into()
                 }
             }
             //If we are looking for a specific device, just break out when we find one that returns good
             if device_id != 0 {
                 break;
             }
+        }
+        if !any_success {
+            return err.into();
         }
 
         //Fill up given slices
@@ -745,5 +760,94 @@ impl Drop for AnalogSDK {
         if !self.plugins.is_empty() || !self.loaded_libraries.is_empty() {
             self.unload();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn shared_init() {
+        use env_logger::Env;
+        let env = Env::new().default_filter_or("trace");
+        env_logger::try_init_from_env(env);
+    }
+
+    #[test]
+    fn initialise_no_plugins() {
+        shared_init();
+
+        let dir = "./test_np";
+        ::std::fs::create_dir(dir);
+        ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
+
+        let mut sdk = AnalogSDK::new();
+        assert_eq!(sdk.initialise(), AnalogSDKError::NoPlugins);
+        assert!(!sdk.initialised);
+    }
+
+    #[test]
+    fn initialise_no_dir() {
+        shared_init();
+
+        let dir = "./test_n";
+        ::std::fs::remove_dir(dir);
+        ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
+
+        let mut sdk = AnalogSDK::new();
+        assert_eq!(sdk.initialise(), AnalogSDKError::NoPlugins);
+        assert!(!sdk.initialised)
+    }
+
+    #[test]
+    fn initialise_multiple_dir() {
+        shared_init();
+
+        let dir = "./test;./test1";
+        ::std::fs::create_dir("./test_m1");
+        ::std::fs::create_dir("./test_m2");
+        ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
+
+        let mut sdk = AnalogSDK::new();
+        assert_eq!(sdk.initialise(), AnalogSDKError::NoPlugins);
+        assert!(!sdk.initialised)
+    }
+
+    #[test]
+    fn unitialised_sdk_functions_new() {
+        shared_init();
+
+        let mut sdk = AnalogSDK::new();
+        uninitialised_sdk_functions(&mut sdk);
+    }
+
+    #[test]
+    fn unitialised_sdk_functions_failed_init() {
+        shared_init();
+
+        let mut sdk = AnalogSDK::new();
+        let dir = "./test_n";
+        ::std::fs::remove_dir(dir);
+        ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
+
+        assert_eq!(sdk.initialise(), AnalogSDKError::NoPlugins);
+        assert!(!sdk.initialised);
+
+        uninitialised_sdk_functions(&mut sdk);
+    }
+
+    extern "C" fn cb(_: DeviceEventType, __: DeviceInfoPointer) {}
+
+    fn uninitialised_sdk_functions(sdk: &mut AnalogSDK) {
+
+        assert_eq!(sdk.set_device_event_cb(cb), AnalogSDKError::UnInitialized);
+        assert_eq!(sdk.clear_device_event_cb(), AnalogSDKError::UnInitialized);
+        assert_eq!(sdk.read_analog(0,0).0, Err(AnalogSDKError::UnInitialized));
+        let mut buf = vec![];
+        assert_eq!(sdk.get_device_info(buf.as_mut()).0, Err(AnalogSDKError::UnInitialized));
+
+        let mut buf = vec![];
+        let mut buf2 = vec![];
+        assert_eq!(sdk.read_full_buffer(buf.as_mut(), buf2.as_mut(), 0).0, Err(AnalogSDKError::UnInitialized));
     }
 }

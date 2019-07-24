@@ -1,3 +1,7 @@
 .vscode/
 .idea/
 analog-plugins/
+
+analog-plugin-c/cmake-build-debug/
+
+*.cbp

@@ -8,7 +8,7 @@ extern crate objekt;
 
 use hidapi::{HidApi, HidDevice, HidDeviceInfo};
 use std::str;
-use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo, AnalogSDKError, SDKResult, DeviceEventType};
+use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo, AnalogSDKError, SDKResult, DeviceEventType, AnalogSDK};
 use std::os::raw::{c_ushort, c_float, c_int};
 use std::hash::Hasher;
 use std::ffi::CString;
@@ -38,6 +38,10 @@ trait DeviceImplementation: objekt::Clone {
                 {(hid.interface_n.eq(&device.interface_number))}
     }
 
+    fn analog_value_to_float(&self, value: u8) -> f32 {
+        (((value as f32)*1.2) /0xFF as f32).min(1.0)
+    }
+
     fn refresh_buffer(&self, buffer: &mut [u8], device: &HidDevice, max_length: usize) -> SDKResult<HashMap<c_ushort, c_float>> {
         let res = device.read_timeout(buffer, 0);
         if let Err(e) = res {
@@ -46,7 +50,7 @@ trait DeviceImplementation: objekt::Clone {
             return AnalogSDKError::DeviceDisconnected.into();
         }
         //println!("{:?}", buffer);
-        let ret: HashMap<c_ushort, c_float> = buffer.chunks_exact(3).take(max_length).filter(|&s| s[2] != 0).map(|s| (((s[0] as u16) << 8) | s[1] as u16, s[2] as f32/0xFF as f32)).collect();
+        let ret: HashMap<c_ushort, c_float> = buffer.chunks_exact(3).take(max_length).filter(|&s| s[2] != 0).map(|s| (((s[0] as u16) << 8) | s[1] as u16, self.analog_value_to_float(s[2]))).collect();
         Ok(ret).into()
     }
 
@@ -147,7 +151,6 @@ pub struct TestPlugin {
     devices: HashMap<DeviceID, Device>,
     device_impls: Vec<Box<dyn DeviceImplementation>>,
     hid_api: Option<HidApi>
-
 }
 
 unsafe impl Send for TestPlugin {}
@@ -302,7 +305,7 @@ impl Plugin for TestPlugin {
                     Err(e) => {
                         error = e;
 
-                    },
+                    }
                 }
             };
             for dev in dc.drain(..) {
