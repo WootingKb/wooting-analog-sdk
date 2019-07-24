@@ -99,6 +99,7 @@ else()
 endif()
 
 add_library(hidapi STATIC "${HIDAPI_ROOT}/hidapi/hidapi.h" ${_source})
+target_compile_options(hidapi PRIVATE -fPIC)
 target_include_directories(hidapi PUBLIC "${HIDAPI_ROOT}/hidapi")
 
 if(_libs)

@@ -194,7 +194,7 @@ impl Plugin for CPlugin {
         let count: usize = {
             let ret = self.c_read_full_buffer(code_buffer.as_ptr(), analog_buffer.as_ptr(), max_length as c_uint, device).0;
             if let Err(e) = ret {
-                debug!("Error got: {:?}",e);
+                //debug!("Error got: {:?}",e);
                 return Err(e).into();
             }
             let ret = ret.unwrap();

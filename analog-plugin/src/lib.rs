@@ -92,7 +92,7 @@ impl DeviceImplementation for WootingTwo {
         DeviceHardwareID {
             vid: 0x03EB,
             pid: 0xFF02,
-            usage_page: 0x1338,
+            usage_page: 0,
             interface_n: 6
         }
     }
@@ -226,6 +226,8 @@ impl Plugin for TestPlugin {
     }
 
     fn initialise(&mut self) -> AnalogSDKError {
+        //return AnalogSDKError::Failure;
+
         env_logger::init();
         match HidApi::new() {
             Ok(api) => {

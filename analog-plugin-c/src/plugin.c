@@ -48,6 +48,7 @@ static bool wooting_find_keyboard() {
     struct hid_device_info* hid_info_walker = hid_info;
     uint8_t interfaceNr = 0;
     while (hid_info_walker) {
+        //printf("%d\n", hid_info_walker->interface_number);
         if (hid_info_walker->interface_number > interfaceNr) {
             interfaceNr = hid_info_walker->interface_number;
         }
@@ -72,12 +73,12 @@ static bool wooting_find_keyboard() {
     if (keyboard_found) {
         dev_info.vendor_id = hid_info->vendor_id;
         dev_info.product_id = hid_info->product_id;
-        sprintf(device_name, "%s", hid_info->product_string );
+        sprintf(device_name, "%ls", hid_info->product_string );
         dev_info.device_name = device_name;
-        sprintf(manufacturer_name, "%s", hid_info->manufacturer_string );
+        sprintf(manufacturer_name, "%ls", hid_info->manufacturer_string );
         dev_info.manufacturer_name = manufacturer_name;
         //TODO: Hash a proper device id, also figure out how to keep consistency across plugins for device ids
-        dev_info.device_id = hid_info->interface_number;
+        dev_info.device_id = interfaceNr;
     }
 
     hid_free_enumeration(hid_info);
