@@ -193,7 +193,7 @@ impl TestPlugin {
                                 },
                                 Err(e) => {
                                     error!("Error opening HID Device: {}", e);
-                                    return AnalogSDKError::Failure.into();
+                                    //return AnalogSDKError::Failure.into();
                                 }
                             }
                         }
