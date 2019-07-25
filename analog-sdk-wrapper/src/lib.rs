@@ -71,12 +71,12 @@ dynamic_extern! {
         fn sdk_uninitialise() -> c_int;
         fn sdk_set_mode(mode: c_uint) -> c_int;
         fn sdk_read_analog(code: c_ushort) -> f32;
-        fn sdk_read_analog_device(code: c_ushort, deviceID: u64) -> f32;
+        fn sdk_read_analog_device(code: c_ushort, device_id: u64) -> f32;
         fn sdk_set_device_event_cb(cb: extern fn(c_int, *const c_char)) -> c_int;
         fn sdk_clear_device_event_cb() -> c_int;
         fn sdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
         fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
-        fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, deviceID: u64) -> c_int;
+        fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device_id: u64) -> c_int;
     }
 }
 

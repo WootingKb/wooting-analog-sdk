@@ -5,3 +5,7 @@ analog-plugins/
 analog-plugin-c/cmake-build-debug/
 
 *.cbp
+
+target/
+
+analog-plugin-c/win-out/

@@ -570,7 +570,7 @@ impl AnalogSDK {
         let lib = self.loaded_libraries.last().unwrap();
 
         let constructor: Option<Symbol<PluginCreate>> = lib.get(b"_plugin_create").map_err(|e| {
-            error!("{}", e);
+            error!("Find constructor error: {}", e);
         }).ok();
         //    .chain_err(|| "The `_plugin_create` symbol wasn't found.");
 
@@ -784,6 +784,7 @@ mod tests {
         let mut sdk = AnalogSDK::new();
         assert_eq!(sdk.initialise(), AnalogSDKError::NoPlugins);
         assert!(!sdk.initialised);
+        ::std::fs::remove_dir(dir);
     }
 
     #[test]
@@ -810,7 +811,10 @@ mod tests {
 
         let mut sdk = AnalogSDK::new();
         assert_eq!(sdk.initialise(), AnalogSDKError::NoPlugins);
-        assert!(!sdk.initialised)
+        assert!(!sdk.initialised);
+
+        ::std::fs::remove_dir("./test_m1");
+        ::std::fs::remove_dir("./test_m2");
     }
 
     #[test]

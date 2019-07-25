@@ -202,6 +202,10 @@ pub fn vk_to_scancode(code: u16, translate: bool) -> Option<u16> {
             scancode = MapVirtualKeyA(code.into(), 0);
         }
 
+        if scancode == 0 {
+            return None;
+        }
+
         return Some(scancode as u16);
     }
 
@@ -225,6 +229,10 @@ pub fn scancode_to_vk(code: u16, translate: bool) -> Option<u16> {
         }
         else{
             scancode = MapVirtualKeyA(code.into(), 3);
+        }
+
+        if scancode == 0 {
+            return None;
         }
 
         return Some(scancode as u16);

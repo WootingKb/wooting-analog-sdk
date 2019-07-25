@@ -8,7 +8,7 @@ extern crate objekt;
 
 use hidapi::{HidApi, HidDevice, HidDeviceInfo};
 use std::str;
-use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo, AnalogSDKError, SDKResult, DeviceEventType, AnalogSDK};
+use analog_sdk::sdk::{Plugin, DeviceID, DeviceInfoPointer, DeviceInfo, AnalogSDKError, SDKResult, DeviceEventType};
 use std::os::raw::{c_ushort, c_float, c_int};
 use std::hash::Hasher;
 use std::ffi::CString;
@@ -78,7 +78,7 @@ impl DeviceImplementation for WootingOne {
         DeviceHardwareID {
             vid: 0x03EB,
             pid: 0xFF01,
-            usage_page: 0x1338,
+            usage_page: 0,
             interface_n: 6
         }
     }
@@ -182,7 +182,7 @@ impl TestPlugin {
             Some(api) => {
                 for device_info in api.devices() {
                     for device_impl in self.device_impls.iter() {
-                        debug!("{:#?}", device_info);
+                        //debug!("{:#?}", device_info);
                         if device_impl.matches(device_info) && !self.devices.contains_key(&device_impl.get_device_id(device_info)) {
                             match device_info.open_device(&api){
                                 Ok(dev) => {
