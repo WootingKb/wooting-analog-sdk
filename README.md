@@ -28,3 +28,19 @@ To run the test application:
 ```
 cargo make test-app
 ```
+
+### Outputs
+All build outputs can be found under `target/debug`, with generated headers coming under the `includes` and `includes-cpp` directories.
+
+#### Outputted Headers
+* `analog-sdk-wrapper.h`: This is the header which includes everything that you need to use the SDK. (This uses `analog-sdk-common.h` which defines all relevant enums & structs)
+* `analog-sdk-common.h`: This defines all common enums, headers & structs which are needed by plugins & SDK users
+* `analog-sdk-common-plugin.h`: This includes `analog-sdk-common.h` & additional functions which are obtained from statically linking to the analog-sdk-common library. (FOR USE WITH PLUGINS)
+* `plugin.h`: This is the header which plugins should use to define all functions that need to be exported for a plugin to work
+
+## Related Repositories
+
+* [wooting-analog-sdk-plugin](https://github.com/simon-wh/wooting-analog-sdk-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
+* [analog-sdk-plugin-examples](https://github.com/simon-wh/analog-sdk-plugin-examples): This repo contains all plugin examples that have been collected
+
+TODO: Repo for example application using the SDK
