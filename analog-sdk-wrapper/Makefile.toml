@@ -1,0 +1,39 @@
+[env]
+HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
+HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
+HEADER_PATH="${HEADER_OUTPUT_DIR}/analog-sdk-wrapper.h"
+HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/analog-sdk-wrapper.h"
+HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/analog-sdk-wrapper.h"
+
+
+[tasks.header-cpp]
+env = { RUSTUP_TOOLCHAIN="nightly", HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
+command = "cbindgen"
+args = ["-l", "c++", "-o", "${HEADER_PATH}"]
+
+[tasks.header-c]
+env = { RUSTUP_TOOLCHAIN="nightly", HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
+command = "cbindgen"
+args = ["-l", "c", "-o", "${HEADER_PATH}"]
+
+[tasks.cbindgen]
+#TODO: Check the rustup_component_name arg to see if it is the correct name
+install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
+dependencies=["header-cpp", "header-c"]
+
+[tasks.clean-headers]
+#env = { HEADER_POSTFIX="*" }
+script_runner = "@shell"
+script = [
+'''
+rm -vf ${HEADER_PATH_CLEAN}
+rm -vf ${HEADER_PATH_CLEAN_CPP}
+'''
+]
+
+
+[tasks.post-build]
+dependencies=["cbindgen"]
+
+[tasks.clean]
+dependencies=["clean-headers"]

@@ -9,3 +9,5 @@ analog-plugin-c/cmake-build-debug/
 target/
 
 analog-plugin-c/win-out/
+
+\.vs/

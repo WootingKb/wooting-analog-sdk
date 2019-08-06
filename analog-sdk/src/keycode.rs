@@ -1,7 +1,9 @@
 //use scancode::Scancode;
+use analog_sdk_common::KeycodeType;
 use bimap::BiMap;
 
 lazy_static! {
+    //<HID code, Scancode>
     static ref SCANCODE_MAP: BiMap<u8, u16> = {
         let mut bimap: BiMap<u8, u16> = BiMap::new();
         bimap.insert(0x04, 0x001e); //US_A
@@ -172,33 +174,45 @@ lazy_static! {
         bimap
     };
 
-}
+                                            //VirtualKey, Scancode
+     static ref VIRTUALKEY_OVERRIDE: BiMap<u8, u16> = {
+        let mut bimap: BiMap<u8, u16> = BiMap::new();
+        bimap.insert(0x60, 0x0052); //NUMPAD0
+        bimap.insert(0x61, 0x004f); //NUMPAD1
+        bimap.insert(0x62, 0x0050); //NUMPAD2
+        bimap.insert(0x63, 0x0051); //NUMPAD3
+        bimap.insert(0x64, 0x004b); //NUMPAD4
+        bimap.insert(0x65, 0x004c); //NUMPAD5
+        bimap.insert(0x66, 0x004d); //NUMPAD6
+        bimap.insert(0x67, 0x0047); //NUMPAD7
+        bimap.insert(0x68, 0x0048); //NUMPAD8
+        bimap.insert(0x69, 0x0049); //NUMPAD9
+        bimap.insert(0x6E, 0x0053); //NUMPAD_DECIMAL
+        bimap
+    };
 
-enum_from_primitive! {
-    #[derive(Debug, PartialEq)]
-    pub enum KeycodeType {
-        HID,
-        ScanCode1,
-        VirtualKey,
-        VirtualKeyTranslate
-    }
 }
 
 #[allow(unused)]
 pub fn vk_to_scancode(code: u16, translate: bool) -> Option<u16> {
     #[cfg(windows)]
-        unsafe {
+    unsafe {
+        if let Some(&code) = VIRTUALKEY_OVERRIDE.get_by_left(&(code as u8)) {
+            return Some(code);
+        }
 
-        use winapi::um::winuser::{GetForegroundWindow, GetWindowThreadProcessId, GetKeyboardLayout, MapVirtualKeyExA, MapVirtualKeyA};
+        use winapi::um::winuser::{
+            GetForegroundWindow, GetKeyboardLayout, GetWindowThreadProcessId, MapVirtualKeyA,
+            MapVirtualKeyExA,
+        };
         let scancode: u32;
         if translate {
             let window_handle = GetForegroundWindow();
             let thread = GetWindowThreadProcessId(window_handle, 0 as *mut u32);
             let layout = GetKeyboardLayout(thread);
-            scancode = MapVirtualKeyExA(code.into(), 0, layout);
-            //println!("Window handle: {:?}, thread: {:?}, layout: {:?}, code: {} scancode: {}", window_handle, thread, layout, code, scancode);
-        }
-        else{
+            scancode = MapVirtualKeyExA(code.into(), 4, layout);
+        //println!("Window handle: {:?}, thread: {:?}, layout: {:?}, code: {} scancode: {}", window_handle, thread, layout, code, scancode);
+        } else {
             scancode = MapVirtualKeyA(code.into(), 0);
         }
 
@@ -210,24 +224,29 @@ pub fn vk_to_scancode(code: u16, translate: bool) -> Option<u16> {
     }
 
     #[cfg(not(windows))]
-        None
+    None
 }
 
 #[allow(unused)]
 pub fn scancode_to_vk(code: u16, translate: bool) -> Option<u16> {
     #[cfg(windows)]
-        unsafe {
+    unsafe {
+        if let Some(&code) = VIRTUALKEY_OVERRIDE.get_by_right(&code) {
+            return Some(code as u16);
+        }
 
-        use winapi::um::winuser::{GetForegroundWindow, GetWindowThreadProcessId, GetKeyboardLayout, MapVirtualKeyExA, MapVirtualKeyA};
+        use winapi::um::winuser::{
+            GetForegroundWindow, GetKeyboardLayout, GetWindowThreadProcessId, MapVirtualKeyA,
+            MapVirtualKeyExA,
+        };
         let scancode: u32;
         if translate {
             let window_handle = GetForegroundWindow();
             let thread = GetWindowThreadProcessId(window_handle, 0 as *mut u32);
             let layout = GetKeyboardLayout(thread);
             scancode = MapVirtualKeyExA(code.into(), 3, layout);
-            //println!("Window handle: {:?}, thread: {:?}, layout: {:?}, code: {} scancode: {}", window_handle, thread, layout, code, scancode);
-        }
-        else{
+        //println!("Window handle: {:?}, thread: {:?}, layout: {:?}, code: {} scancode: {}", window_handle, thread, layout, code, scancode);
+        } else {
             scancode = MapVirtualKeyA(code.into(), 3);
         }
 
@@ -239,22 +258,22 @@ pub fn scancode_to_vk(code: u16, translate: bool) -> Option<u16> {
     }
 
     #[cfg(not(windows))]
-        None
+    None
 }
 
 pub fn hid_to_scancode(code: u16) -> Option<u16> {
-    SCANCODE_MAP.get_by_left(&(code as u8)).map(|&c| c)
+    SCANCODE_MAP.get_by_left(&(code as u8)).copied()
 }
 
 pub fn scancode_to_hid(code: u16) -> Option<u16> {
     let sc = {
-      if (code & 0xFF00) == 0x100 {
-          0xE000 | (code & 0xFF)
-      } else {
-          code
-      }
+        if (code & 0xFF00) == 0x100 {
+            0xE000 | (code & 0xFF)
+        } else {
+            code
+        }
     };
-    SCANCODE_MAP.get_by_right(&sc).map(|&c| c as u16)
+    SCANCODE_MAP.get_by_right(&sc).map(|&c| u16::from(c))
     /*match Scancode::new(code as u8) {
         Some(hid) => {
             Some(hid as u16)
@@ -263,7 +282,6 @@ pub fn scancode_to_hid(code: u16) -> Option<u16> {
             None
         }
     }*/
-
 }
 
 pub fn code_to_hid(code: u16, mode: &KeycodeType) -> Option<u16> {
@@ -280,11 +298,10 @@ pub fn code_to_hid(code: u16, mode: &KeycodeType) -> Option<u16> {
             } else {
                 Some(code)
             }
-        },
+        }
         KeycodeType::ScanCode1 => scancode_to_hid(code),
-        KeycodeType::VirtualKey => vk_to_scancode(code, false).and_then( scancode_to_hid),
-        KeycodeType::VirtualKeyTranslate => vk_to_scancode(code, true).and_then( scancode_to_hid),
-
+        KeycodeType::VirtualKey => vk_to_scancode(code, false).and_then(scancode_to_hid),
+        KeycodeType::VirtualKeyTranslate => vk_to_scancode(code, true).and_then(scancode_to_hid),
     }
 }
 
@@ -302,11 +319,14 @@ pub fn hid_to_code(code: u16, mode: &KeycodeType) -> Option<u16> {
             } else {
                 Some(code)
             }
-        },
+        }
         KeycodeType::ScanCode1 => hid_to_scancode(code),
-        KeycodeType::VirtualKey => hid_to_scancode(code).and_then(|code| scancode_to_vk(code, false)),
-        KeycodeType::VirtualKeyTranslate => hid_to_scancode(code).and_then(|code| scancode_to_vk(code, true))
-
+        KeycodeType::VirtualKey => {
+            hid_to_scancode(code).and_then(|code| scancode_to_vk(code, false))
+        }
+        KeycodeType::VirtualKeyTranslate => {
+            hid_to_scancode(code).and_then(|code| scancode_to_vk(code, true))
+        }
     }
 }
 
@@ -317,7 +337,12 @@ mod tests {
     #[test]
     fn t_code_to_hid() {
         #[cfg(windows)]
-        let keycode_types = [KeycodeType::HID, KeycodeType::ScanCode1,KeycodeType::VirtualKey,KeycodeType::VirtualKeyTranslate];
+        let keycode_types = [
+            KeycodeType::HID,
+            KeycodeType::ScanCode1,
+            KeycodeType::VirtualKey,
+            KeycodeType::VirtualKeyTranslate,
+        ];
         #[cfg(not(windows))]
         let keycode_types = [KeycodeType::HID, KeycodeType::ScanCode1];
         for code in 0..0xFFFF {
@@ -333,7 +358,7 @@ mod tests {
                             assert!(hid_to_code(code, keycode).unwrap_or(0) < 0x100);
                         }
                     }
-                },
+                }
 
                 //ScanCode protected
                 0x01 | 0xE0 => {
@@ -345,7 +370,7 @@ mod tests {
                         assert!(code_to_hid(code, keycode).is_none());
                         assert!(hid_to_code(code, keycode).is_none());
                     }
-                },
+                }
 
                 //Custom keys
                 _x => {

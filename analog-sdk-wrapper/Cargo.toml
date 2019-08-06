@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 lazy_static = "*"
 libloading = "0.5.1"
-
+analog-sdk-common = { path = "../analog-sdk-common"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -1,7 +1,7 @@
 [package]
 name = "analog-sdk"
 version = "0.1.0"
-authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
+authors = ["simon-wh <simon@wooting.io>"]
 edition = "2018"
 
 [dependencies]
@@ -10,10 +10,11 @@ env_logger = "0.6.2"
 libloading = "0.5.1"
 error-chain = "0.12.1"
 lazy_static = "*"
-ffi-support = "0.3.4"
+ffi-support = "0.3.5"
 scancode = "0.1.2"
 bimap = "0.3"
 enum_primitive = "*"
+analog-sdk-common = { path = "../analog-sdk-common"}
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.7", features = ["winuser"] }

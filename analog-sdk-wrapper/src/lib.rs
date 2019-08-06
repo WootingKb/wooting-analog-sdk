@@ -1,16 +1,21 @@
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate lazy_static;
+extern crate analog_sdk_common;
 use libloading as libl;
+//use std::ffi::c_void;
 use std::ops::Deref;
-use std::os::raw::{c_char, c_ushort, c_float, c_uint, c_int};
-use std::ffi::c_void;
-use std::ptr;
+use std::os::raw::{c_float, c_int, c_uint, c_ushort};
+//use std::ptr;
+pub use analog_sdk_common::{AnalogSDKResult, DeviceEventType, DeviceID, DeviceInfo, KeycodeType};
 
-
-struct Void(*mut c_void);
+/*pub struct Void(*mut c_void);
 
 impl Default for Void {
-    fn default() -> Self { Void(ptr::null_mut()) }
+    fn default() -> Self {
+        Void(ptr::null_mut())
+    }
 }
+*/
 
 macro_rules! dynamic_extern {
     (@as_item $i:item) => {$i};
@@ -40,9 +45,9 @@ macro_rules! dynamic_extern {
             dynamic_extern! {
                 @as_item
                 #[no_mangle]
-                unsafe extern fn $fn_names($($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
+                pub unsafe extern fn $fn_names($($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     type FnPtr = unsafe extern $cconv fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
-                    
+
                     lazy_static! {
                         static ref FUNC: Option<libl::Symbol<'static, FnPtr>> = {
                             LIB.as_ref().and_then(|lib| unsafe {
@@ -66,17 +71,17 @@ macro_rules! dynamic_extern {
 dynamic_extern! {
     #[link="libanalog_sdk"]
     extern "C" {
-        fn sdk_initialise() -> c_int;
+        fn sdk_initialise() -> AnalogSDKResult;
         fn sdk_is_initialised() -> bool;
-        fn sdk_uninitialise() -> c_int;
-        fn sdk_set_mode(mode: c_uint) -> c_int;
+        fn sdk_uninitialise() -> AnalogSDKResult;
+        fn sdk_set_mode(mode: KeycodeType) -> AnalogSDKResult;
         fn sdk_read_analog(code: c_ushort) -> f32;
-        fn sdk_read_analog_device(code: c_ushort, device_id: u64) -> f32;
-        fn sdk_set_device_event_cb(cb: extern fn(c_int, *const c_char)) -> c_int;
-        fn sdk_clear_device_event_cb() -> c_int;
-        fn sdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
+        fn sdk_read_analog_device(code: c_ushort, device_id: DeviceID) -> f32;
+        fn sdk_set_device_event_cb(cb: extern fn(DeviceEventType, *mut DeviceInfo)) -> AnalogSDKResult;
+        fn sdk_clear_device_event_cb() -> AnalogSDKResult;
+        fn sdk_device_info(buffer: *mut *mut DeviceInfo, len: c_uint) -> c_int;
         fn sdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
-        fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device_id: u64) -> c_int;
+        fn sdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device_id: DeviceID) -> c_int;
     }
 }
 
