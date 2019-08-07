@@ -311,6 +311,9 @@ pub fn hid_to_code(code: u16, mode: &KeycodeType) -> Option<u16> {
     if code >= 0x200 && prefix != 0xE0 {
         return Some(code);
     }
+    else if (prefix != 0) {
+        return None;
+    }
 
     match &mode {
         KeycodeType::HID => {
