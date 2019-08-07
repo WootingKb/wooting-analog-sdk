@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/simon-wh/Analog-SDK.svg?token=cXSit4fro9HcRkW9M9xk&branch=master)](https://travis-ci.com/simon-wh/Analog-SDK)
+
 # Analog SDK
 
 This repo contains all the core components of the Analog SDK.
