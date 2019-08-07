@@ -14,10 +14,10 @@ NOTE: Use the `ANALOG_SDK_PLUGINS_PATH` environment variable to tell the SDK whe
 
 ## Building 
 ### Build Dependencies
-* [rust]()
+* [rust](https://www.rust-lang.org/)
 * [cargo-make](https://github.com/sagiegurari/cargo-make)
 * [cbindgen](https://github.com/eqrion/cbindgen) (Should be installed automatically through cargo make if necessary)
-* [dotnet-core]() If you want to use `analog-sdk-test`
+* [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `analog-sdk-test`
 
 
 ### How to Build
