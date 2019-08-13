@@ -55,7 +55,7 @@ namespace analog_sdk_test
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void DeviceEventCb(DeviceEventType eventType, IntPtr deviceInfo);
 
-        public const string SdkLib = "libanalog_sdk_wrapper";
+        public const string SdkLib = "analog_sdk_wrapper";
 
         [DllImport(SdkLib)]
         public static extern AnalogSDKError sdk_initialise();

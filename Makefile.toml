@@ -6,7 +6,7 @@ workspace = false
 
 [tasks.test-app]
 workspace = false
-env = { LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
+env = { PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
 command = "dotnet"
 args = [ "run", "--project", "analog-sdk-test" ]
-dependencies = [ "default" ]
+dependencies = [ "build" ]

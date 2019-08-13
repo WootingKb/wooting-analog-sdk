@@ -31,7 +31,9 @@ macro_rules! dynamic_extern {
         lazy_static! {
             static ref LIB : Option<libl::Library> = {
                 #[cfg(unix)]
-                let lib_path = concat!($lib, ".so");
+                let lib_path = concat!("lib", $lib, ".so");
+                #[cfg(macos)]
+                let lib_path = concat!("lib", $lib);
                 #[cfg(windows)]
                 let lib_path = $lib;
 
@@ -69,7 +71,7 @@ macro_rules! dynamic_extern {
 }
 
 dynamic_extern! {
-    #[link="libanalog_sdk"]
+    #[link="analog_sdk"]
     extern "C" {
         fn sdk_initialise() -> AnalogSDKResult;
         fn sdk_is_initialised() -> bool;
