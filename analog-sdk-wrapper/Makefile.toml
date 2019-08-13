@@ -14,10 +14,14 @@ toolchain = "nightly"
 command = "cbindgen"
 args = ["-l", "c", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 
+[tasks.cbindgen-install]
+install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
+command = "cbindgen"
+args = ["--version"]
+
 [tasks.cbindgen]
 #TODO: Check the rustup_component_name arg to see if it is the correct name
-install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
-dependencies=["header-c", "header-cpp"]
+dependencies=["cbindgen-install", "header-c", "header-cpp"]
 
 [tasks.clean-headers]
 #env = { HEADER_POSTFIX="*" }
