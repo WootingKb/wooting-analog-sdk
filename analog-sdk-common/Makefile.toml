@@ -1,35 +1,34 @@
 [env]
 HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
 HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
-HEADER_PATH="${HEADER_OUTPUT_DIR}/analog-sdk-common.h"
-HEADER_PLUGIN_PATH="${HEADER_OUTPUT_DIR}/analog-sdk-common-plugin.h"
+
+HEADER_NAME="analog-sdk-common.h"
+HEADER_PLUGIN_NAME="analog-sdk-common-plugin.h"
+
 HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/analog-sdk-common*"
 HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/analog-sdk-common*"
+
 PLUGIN_GEN_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/cbindgen-plugin.toml"
 
 [tasks.plugin-header-cpp]
 toolchain = "nightly"
-env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
 command = "cbindgen"
-args = ["-l", "c++", "-o", "${HEADER_PLUGIN_PATH}", "-c", "${PLUGIN_GEN_PATH}"]
+args = ["-l", "c++", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_PLUGIN_NAME}", "-c", "${PLUGIN_GEN_PATH}"]
 
 [tasks.plugin-header-c]
 toolchain = "nightly"
-env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
 command = "cbindgen"
-args = ["-l", "c", "-o", "${HEADER_PLUGIN_PATH}", "-c", "${PLUGIN_GEN_PATH}"]
+args = ["-l", "c", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_PLUGIN_NAME}", "-c", "${PLUGIN_GEN_PATH}"]
 
 [tasks.header-cpp]
 toolchain = "nightly"
-env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
 command = "cbindgen"
-args = ["-l", "c++", "-o", "${HEADER_PATH}"]
+args = ["-l", "c++", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
 
 [tasks.header-c]
 toolchain = "nightly"
-env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
 command = "cbindgen"
-args = ["-l", "c", "-o", "${HEADER_PATH}"]
+args = ["-l", "c", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 
 [tasks.cbindgen]
 #TODO: Check the rustup_component_name arg to see if it is the correct name
@@ -41,8 +40,8 @@ dependencies=["header-cpp", "header-c", "plugin-header-c", "plugin-header-cpp"]
 script_runner = "@shell"
 script = [
 '''
-rm -vf ${HEADER_PATH_CLEAN}
-rm -vf ${HEADER_PATH_CLEAN_CPP}
+rm ${HEADER_PATH_CLEAN}
+rm ${HEADER_PATH_CLEAN_CPP}
 '''
 ]
 

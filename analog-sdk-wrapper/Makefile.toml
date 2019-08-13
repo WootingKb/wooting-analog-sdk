@@ -1,35 +1,31 @@
 [env]
+HEADER_NAME="analog-sdk-wrapper.h"
 HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
 HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
-HEADER_PATH="${HEADER_OUTPUT_DIR}/analog-sdk-wrapper.h"
-HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/analog-sdk-wrapper.h"
-HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/analog-sdk-wrapper.h"
-
 
 [tasks.header-cpp]
 toolchain = "nightly"
-env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
 command = "cbindgen"
-args = ["-l", "c++", "-o", "${HEADER_PATH}"]
+args = ["-l", "c++", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
+#Include clean on the second header gen as otherwise it'll strangely fail on windows and mac
 
 [tasks.header-c]
 toolchain = "nightly"
-env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
 command = "cbindgen"
-args = ["-l", "c", "-o", "${HEADER_PATH}"]
+args = ["-l", "c", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 
 [tasks.cbindgen]
 #TODO: Check the rustup_component_name arg to see if it is the correct name
 install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
-dependencies=["header-cpp", "header-c"]
+dependencies=["header-c", "header-cpp"]
 
 [tasks.clean-headers]
 #env = { HEADER_POSTFIX="*" }
 script_runner = "@shell"
 script = [
 '''
-rm -vf ${HEADER_PATH_CLEAN}
-rm -vf ${HEADER_PATH_CLEAN_CPP}
+rm ${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}
+rm ${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}
 '''
 ]
 
