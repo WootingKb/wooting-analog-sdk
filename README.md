@@ -26,6 +26,12 @@ Everything can be built using this command. All the outputs will be under `targe
 cargo make
 ```
 
+The current build process is setup to verify the existing generated headers in the test phase. If you decide to make changes which effect these outputs, you can update the headers by running:
+```
+cargo make gen-headers
+```
+
+
 To run the test application:
 ```
 cargo make test-app
