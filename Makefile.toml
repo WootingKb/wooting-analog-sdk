@@ -10,3 +10,5 @@ env = { PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_
 command = "dotnet"
 args = [ "run", "--project", "analog-sdk-test" ]
 dependencies = [ "build" ]
+
+[tasks.gen-headers]

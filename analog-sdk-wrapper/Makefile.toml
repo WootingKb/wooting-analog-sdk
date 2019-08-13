@@ -6,13 +6,14 @@ HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
 [tasks.header-cpp]
 toolchain = "nightly"
 command = "cbindgen"
-args = ["-l", "c++", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
+args = ["-l", "c++", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
 #Include clean on the second header gen as otherwise it'll strangely fail on windows and mac
 
 [tasks.header-c]
 toolchain = "nightly"
 command = "cbindgen"
-args = ["-l", "c", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
+args = ["-l", "c", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
+#Have had to throw in clean as well as there's some weird cases where cbindgen will fail when generating all headers
 
 [tasks.cbindgen-install]
 install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
@@ -22,6 +23,14 @@ args = ["--version"]
 [tasks.cbindgen]
 #TODO: Check the rustup_component_name arg to see if it is the correct name
 dependencies=["cbindgen-install", "header-c", "header-cpp"]
+
+[tasks.gen-headers]
+env = { CBINDGEN_ARGS="-v" }
+run_task = "cbindgen"
+
+[tasks.verify-headers]
+env = { CBINDGEN_ARGS="--verify" }
+run_task = "cbindgen"
 
 [tasks.clean-headers]
 #env = { HEADER_POSTFIX="*" }
@@ -34,8 +43,12 @@ rm ${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}
 ]
 
 
+
+[tasks.post-test]
+dependencies=["verify-headers"]
+
 [tasks.post-build]
-dependencies=["cbindgen"]
+#dependencies=["gen-headers"]
 
 [tasks.clean]
 dependencies=["clean-headers"]
