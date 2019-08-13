@@ -8,22 +8,26 @@ HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/analog-sdk-common*"
 PLUGIN_GEN_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/cbindgen-plugin.toml"
 
 [tasks.plugin-header-cpp]
-env = { RUSTUP_TOOLCHAIN="nightly", HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
+toolchain = "nightly"
+env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
 command = "cbindgen"
 args = ["-l", "c++", "-o", "${HEADER_PLUGIN_PATH}", "-c", "${PLUGIN_GEN_PATH}"]
 
 [tasks.plugin-header-c]
-env = { RUSTUP_TOOLCHAIN="nightly", HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
+toolchain = "nightly"
+env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
 command = "cbindgen"
 args = ["-l", "c", "-o", "${HEADER_PLUGIN_PATH}", "-c", "${PLUGIN_GEN_PATH}"]
 
 [tasks.header-cpp]
-env = { RUSTUP_TOOLCHAIN="nightly", HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
+toolchain = "nightly"
+env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_CPP}" }
 command = "cbindgen"
 args = ["-l", "c++", "-o", "${HEADER_PATH}"]
 
 [tasks.header-c]
-env = { RUSTUP_TOOLCHAIN="nightly", HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
+toolchain = "nightly"
+env = { HEADER_OUTPUT_DIR="${HEADER_OUTPUT_DIR_C}" }
 command = "cbindgen"
 args = ["-l", "c", "-o", "${HEADER_PATH}"]
 
