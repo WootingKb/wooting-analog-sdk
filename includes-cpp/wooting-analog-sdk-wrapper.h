@@ -6,13 +6,13 @@
 #include <cstdint>
 #include <cstdlib>
 #include <new>
-#include "analog-sdk-common.h"
+#include "wooting-analog-sdk-common.h"
 
 extern "C" {
 
 AnalogSDKResult sdk_clear_device_event_cb();
 
-int sdk_device_info(ASDK_DeviceInfo **buffer, unsigned int len);
+int sdk_device_info(WASDK_DeviceInfo **buffer, unsigned int len);
 
 AnalogSDKResult sdk_initialise();
 
@@ -20,18 +20,18 @@ bool sdk_is_initialised();
 
 float sdk_read_analog(unsigned short code);
 
-float sdk_read_analog_device(unsigned short code, ASDK_DeviceID device_id);
+float sdk_read_analog_device(unsigned short code, WASDK_DeviceID device_id);
 
 int sdk_read_full_buffer(unsigned short *code_buffer, float *analog_buffer, unsigned int len);
 
 int sdk_read_full_buffer_device(unsigned short *code_buffer,
                                 float *analog_buffer,
                                 unsigned int len,
-                                ASDK_DeviceID device_id);
+                                WASDK_DeviceID device_id);
 
-AnalogSDKResult sdk_set_device_event_cb(void (*cb)(ASDK_DeviceEventType, ASDK_DeviceInfo*));
+AnalogSDKResult sdk_set_device_event_cb(void (*cb)(WASDK_DeviceEventType, WASDK_DeviceInfo*));
 
-AnalogSDKResult sdk_set_mode(ASDK_KeycodeType mode);
+AnalogSDKResult sdk_set_mode(WASDK_KeycodeType mode);
 
 AnalogSDKResult sdk_uninitialise();
 

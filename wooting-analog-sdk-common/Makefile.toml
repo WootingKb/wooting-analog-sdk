@@ -2,11 +2,11 @@
 HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
 HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
 
-HEADER_NAME="analog-sdk-common.h"
-HEADER_PLUGIN_NAME="analog-sdk-common-plugin.h"
+HEADER_NAME="wooting-analog-sdk-common.h"
+HEADER_PLUGIN_NAME="wooting-analog-sdk-common-plugin.h"
 
-HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/analog-sdk-common*"
-HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/analog-sdk-common*"
+HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/wooting-analog-sdk-common*"
+HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/wooting-analog-sdk-common*"
 
 PLUGIN_GEN_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/cbindgen-plugin.toml"
 

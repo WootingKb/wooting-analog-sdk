@@ -20,18 +20,18 @@ typedef enum {
 } AnalogSDKResult;
 
 typedef enum {
-  ASDK_DeviceEventType_Connected = 1,
-  ASDK_DeviceEventType_Disconnected,
-} ASDK_DeviceEventType;
+  WASDK_DeviceEventType_Connected = 1,
+  WASDK_DeviceEventType_Disconnected,
+} WASDK_DeviceEventType;
 
 typedef enum {
-  ASDK_KeycodeType_HID,
-  ASDK_KeycodeType_ScanCode1,
-  ASDK_KeycodeType_VirtualKey,
-  ASDK_KeycodeType_VirtualKeyTranslate,
-} ASDK_KeycodeType;
+  WASDK_KeycodeType_HID,
+  WASDK_KeycodeType_ScanCode1,
+  WASDK_KeycodeType_VirtualKey,
+  WASDK_KeycodeType_VirtualKeyTranslate,
+} WASDK_KeycodeType;
 
-typedef uint64_t ASDK_DeviceID;
+typedef uint64_t WASDK_DeviceID;
 
 /**
  * The core `DeviceInfo` struct which contains all the interesting information
@@ -57,5 +57,5 @@ typedef struct {
   /**
    * Unique device ID, which should be generated using `generate_device_id`
    */
-  ASDK_DeviceID device_id;
-} ASDK_DeviceInfo;
+  WASDK_DeviceID device_id;
+} WASDK_DeviceInfo;

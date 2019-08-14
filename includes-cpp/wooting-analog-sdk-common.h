@@ -19,23 +19,23 @@ enum class AnalogSDKResult {
   AnalogSDKResult_NoMapping,
 };
 
-enum class ASDK_DeviceEventType {
-  ASDK_DeviceEventType_Connected = 1,
-  ASDK_DeviceEventType_Disconnected,
+enum class WASDK_DeviceEventType {
+  WASDK_DeviceEventType_Connected = 1,
+  WASDK_DeviceEventType_Disconnected,
 };
 
-enum class ASDK_KeycodeType {
-  ASDK_KeycodeType_HID,
-  ASDK_KeycodeType_ScanCode1,
-  ASDK_KeycodeType_VirtualKey,
-  ASDK_KeycodeType_VirtualKeyTranslate,
+enum class WASDK_KeycodeType {
+  WASDK_KeycodeType_HID,
+  WASDK_KeycodeType_ScanCode1,
+  WASDK_KeycodeType_VirtualKey,
+  WASDK_KeycodeType_VirtualKeyTranslate,
 };
 
-using ASDK_DeviceID = uint64_t;
+using WASDK_DeviceID = uint64_t;
 
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device
-struct ASDK_DeviceInfo {
+struct WASDK_DeviceInfo {
   /// Device Vendor ID `vid`
   uint16_t vendor_id;
   /// Device Product ID `pid`
@@ -45,5 +45,5 @@ struct ASDK_DeviceInfo {
   /// Device name
   const char *device_name;
   /// Unique device ID, which should be generated using `generate_device_id`
-  ASDK_DeviceID device_id;
+  WASDK_DeviceID device_id;
 };

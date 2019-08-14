@@ -1,5 +1,5 @@
 [env]
-HEADER_NAME="analog-sdk-wrapper.h"
+HEADER_NAME="wooting-analog-sdk-wrapper.h"
 HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
 HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
 

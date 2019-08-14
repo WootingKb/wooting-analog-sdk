@@ -6,7 +6,9 @@ use libloading as libl;
 use std::ops::Deref;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 //use std::ptr;
-pub use wooting_analog_sdk_common::{AnalogSDKResult, DeviceEventType, DeviceID, DeviceInfo, KeycodeType};
+pub use wooting_analog_sdk_common::{
+    AnalogSDKResult, DeviceEventType, DeviceID, DeviceInfo, KeycodeType,
+};
 
 /*pub struct Void(*mut c_void);
 

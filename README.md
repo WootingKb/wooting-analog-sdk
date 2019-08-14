@@ -4,13 +4,13 @@
 
 This repo contains all the core components of the Analog SDK.
 
-NOTE: Use the `ANALOG_SDK_PLUGINS_PATH` environment variable to tell the SDK where to search for plugins.
+NOTE: Use the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to tell the SDK where to search for plugins.
 
 ## Components
-* `analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed systemwide and is updated separately
-* `analog-sdk-common`: This library contains all common Analog SDK code, this is used by plugins and the SDK itself
-* `analog-sdk-wrapper`: This is the SDK wrapper which is what Applications should use to communicate with the SDK. The linked dll should be shipped with the application using it.
-* `analog-sdk-test`: This is a C# test application which can be used to test the SDK through the wrapper.
+* `wooting-analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed systemwide and is updated separately
+* `wooting-analog-sdk-common`: This library contains all common Analog SDK code, this is used by plugins and the SDK itself
+* `wooting-analog-sdk-wrapper`: This is the SDK wrapper which is what Applications should use to communicate with the SDK. The linked dll should be shipped with the application using it.
+* `wooting-analog-sdk-test`: This is a C# test application which can be used to test the SDK through the wrapper.
 
 ## Building 
 ### Build Dependencies
@@ -41,9 +41,9 @@ cargo make test-app
 All build outputs can be found under `target/debug`, with generated headers coming under the `includes` and `includes-cpp` directories.
 
 #### Outputted Headers
-* `analog-sdk-wrapper.h`: This is the header which includes everything that you need to use the SDK. (This uses `analog-sdk-common.h` which defines all relevant enums & structs)
-* `analog-sdk-common.h`: This defines all common enums, headers & structs which are needed by plugins & SDK users
-* `analog-sdk-common-plugin.h`: This includes `analog-sdk-common.h` & additional functions which are obtained from statically linking to the analog-sdk-common library. (FOR USE WITH PLUGINS)
+* `wooting-analog-sdk-wrapper.h`: This is the header which includes everything that you need to use the SDK. (This uses `wooting-analog-sdk-common.h` which defines all relevant enums & structs)
+* `wooting-analog-sdk-common.h`: This defines all common enums, headers & structs which are needed by plugins & SDK users
+* `wooting-analog-sdk-common-plugin.h`: This includes `wooting-analog-sdk-common.h` & additional functions which are obtained from statically linking to the analog-sdk-common library. (FOR USE WITH PLUGINS)
 * `plugin.h`: This is the header which plugins should use to define all functions that need to be exported for a plugin to work
 
 ## Related Repositories

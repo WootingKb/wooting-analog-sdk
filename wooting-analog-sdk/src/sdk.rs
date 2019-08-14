@@ -177,7 +177,7 @@ static LIB_EXT: &str = "so";
 #[cfg(target_os = "windows")]
 static LIB_EXT: &str = "dll";
 
-const ENV_PLUGIN_DIR_KEY: &str = "ANALOG_SDK_PLUGINS_PATH";
+const ENV_PLUGIN_DIR_KEY: &str = "WOOTING_ANALOG_SDK_PLUGINS_PATH";
 const DEFAULT_PLUGIN_DIR: &str = "~/.analog_plugins";
 
 impl AnalogSDK {
