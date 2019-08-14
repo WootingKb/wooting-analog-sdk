@@ -305,7 +305,7 @@ impl AnalogSDK {
         let constructor: Option<Symbol<PluginCreate>> = lib
             .get(b"_plugin_create")
             .map_err(|e| {
-                error!("Find constructor error: {}", e);
+                warn!("Find constructor error: {}", e);
             })
             .ok();
         //    .chain_err(|| "The `_plugin_create` symbol wasn't found.");

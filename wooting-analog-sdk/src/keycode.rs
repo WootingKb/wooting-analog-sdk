@@ -289,7 +289,7 @@ pub fn code_to_hid(code: u16, mode: &KeycodeType) -> Option<u16> {
     //Check if the code is a custom key, if it is, just straight return it. Additionally checking it isn't prefixed with the ScanCode 1 escape code
     if code >= 0x200 && prefix != 0xE0 {
         return Some(code);
-    } else if (prefix != 0) {
+    } else if prefix != 0 {
         return None;
     }
 
@@ -312,7 +312,7 @@ pub fn hid_to_code(code: u16, mode: &KeycodeType) -> Option<u16> {
     //Check if the code is a custom key, if it is, just straight return it. Additionally checking it isn't prefixed with the ScanCode 1 escape code
     if code >= 0x200 && prefix != 0xE0 {
         return Some(code);
-    } else if (prefix != 0) {
+    } else if prefix != 0 {
         return None;
     }
 
