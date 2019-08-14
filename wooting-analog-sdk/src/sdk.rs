@@ -197,7 +197,7 @@ impl AnalogSDK {
         }
         let plugin_dir: std::result::Result<Vec<PathBuf>, std::env::VarError> =
             std::env::var(ENV_PLUGIN_DIR_KEY).map(|var| {
-                var.split(':')
+                var.split(';')
                     .filter_map(|path| {
                         if path.is_empty() {
                             None
@@ -551,7 +551,7 @@ mod tests {
     fn initialise_multiple_dir() {
         shared_init();
 
-        let dir = "./test:./test1";
+        let dir = "./test;./test1";
         ::std::fs::create_dir("./test_m1");
         ::std::fs::create_dir("./test_m2");
         ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
