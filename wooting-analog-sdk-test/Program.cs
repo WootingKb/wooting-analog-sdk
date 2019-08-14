@@ -55,7 +55,7 @@ namespace analog_sdk_test
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void DeviceEventCb(DeviceEventType eventType, IntPtr deviceInfo);
 
-        public const string SdkLib = "analog_sdk_wrapper";
+        public const string SdkLib = "wooting_analog_sdk_wrapper";
 
         [DllImport(SdkLib)]
         public static extern AnalogSDKError sdk_initialise();
@@ -144,6 +144,17 @@ namespace analog_sdk_test
 
     class Program
     {
+        [DllImport("user32.dll")]
+        static extern uint MapVirtualKeyEx(uint uCode, uint uMapType, IntPtr dwhkl);
+        [DllImport("user32.dll")]
+        static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+        const uint MAPVK_VK_TO_VSC = 0x00;
+        const uint MAPVK_VSC_TO_VK = 0x01;
+        const uint MAPVK_VK_TO_CHAR = 0x02;
+        const uint MAPVK_VSC_TO_VK_EX = 0x03;
+        const uint MAPVK_VK_TO_VSC_EX = 0x04;
+
         static void device_event_cb(Native.DeviceEventType eventType, IntPtr deviceInfo) {
             var dev = (Native.DeviceInfo)Marshal.PtrToStructure(
                 deviceInfo,
@@ -168,9 +179,9 @@ namespace analog_sdk_test
         static List<(Native.KeycodeType, ushort)> code_map = new List<(Native.KeycodeType,ushort)>()
         {
             (Native.KeycodeType.HID, 0x14),
-            (Native.KeycodeType.ScanCode1, 0x10),
-            //(Native.KeycodeType.VirtualKey, (short)VirtualKeys.Q),
-            //(Native.KeycodeType.VirtualKeyTranslate, (short)VirtualKeys.Q),
+            (Native.KeycodeType.ScanCode1, 0x50),
+            //(Native.KeycodeType.VirtualKey, (ushort)VirtualKeys.Numpad7),
+            //(Native.KeycodeType.VirtualKeyTranslate, (ushort)VirtualKeys.Down),
         };
 
         static int _index = 0;
@@ -214,10 +225,10 @@ namespace analog_sdk_test
                 {
                     //var ret = Native.sdk_read_analog_vk(VirtualKeys.A, false);
                     sw.Restart();
-                    var (ret, error) = Native.ReadAnalog(code_map[_index].Item2, devices.First().device_id);
+                    var (ret, error) = Native.ReadAnalog(code_map[_index].Item2);//, devices.First().device_id);
                     sw.Stop();
-                    if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
-                        Console.WriteLine($"Warning: ReadAnalog {sw.ElapsedMilliseconds}ms");
+                    //if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
+                    //    Console.WriteLine($"Warning: ReadAnalog {sw.ElapsedMilliseconds}ms");
                     if (!val.Equals(ret)){
                         val = ret;
                         Console.WriteLine($"Val is {val}, e {error}");
@@ -226,18 +237,22 @@ namespace analog_sdk_test
                     sw.Restart();
                     var (read, readErr) = Native.ReadFullBuffer(20);
                     sw.Stop();
-                    if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
-                        Console.WriteLine($"Warning: ReadFullBuffer {sw.ElapsedMilliseconds}ms");
+                    //if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
+                    //    Console.WriteLine($"Warning: ReadFullBuffer {sw.ElapsedMilliseconds}ms");
                     string freshOutput = "";
                     if (readErr == Native.AnalogSDKError.Ok)
                     {
                         foreach (var analog in read)
                         {
+                            //VirtualKeys vk = (VirtualKeys)MapVirtualKey((uint)analog.Item1, MAPVK_VSC_TO_VK_EX);
+                            //uint scan = MapVirtualKey((uint)VirtualKeys.RightControl, MAPVK_VK_TO_VSC_EX);
+
                             if (code_map[_index].Item1 == Native.KeycodeType.VirtualKey ||
                                 code_map[_index].Item1 == Native.KeycodeType.VirtualKeyTranslate)
                                 freshOutput += $"({(VirtualKeys) analog.Item1},{analog.Item2})";
                             else
                                 freshOutput += $"(0x{analog.Item1.ToString("X4")},{analog.Item2})";
+                                //freshOutput += $"(0x{analog.Item1.ToString("X4")},{vk},{analog.Item2}) - {scan.ToString("X4")}";
                         }
                     }
                     else

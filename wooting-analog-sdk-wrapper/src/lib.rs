@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate lazy_static;
-extern crate analog_sdk_common;
+extern crate wooting_analog_sdk_common;
 use libloading as libl;
 //use std::ffi::c_void;
 use std::ops::Deref;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 //use std::ptr;
-pub use analog_sdk_common::{AnalogSDKResult, DeviceEventType, DeviceID, DeviceInfo, KeycodeType};
+pub use wooting_analog_sdk_common::{AnalogSDKResult, DeviceEventType, DeviceID, DeviceInfo, KeycodeType};
 
 /*pub struct Void(*mut c_void);
 
@@ -71,7 +71,7 @@ macro_rules! dynamic_extern {
 }
 
 dynamic_extern! {
-    #[link="analog_sdk"]
+    #[link="wooting_analog_sdk"]
     extern "C" {
         fn sdk_initialise() -> AnalogSDKResult;
         fn sdk_is_initialised() -> bool;

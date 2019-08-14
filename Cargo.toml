@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "analog-sdk",
-    "analog-sdk-common",
-    "analog-sdk-wrapper"
+    "wooting-analog-sdk",
+    "wooting-analog-sdk-common",
+    "wooting-analog-sdk-wrapper"
 ]

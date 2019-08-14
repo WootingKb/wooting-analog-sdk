@@ -1,5 +1,5 @@
 [package]
-name = "analog-sdk-common"
+name = "wooting-analog-sdk-common"
 version = "0.1.0"
 authors = ["simon-wh <simon@wooting.io>"]
 edition = "2018"

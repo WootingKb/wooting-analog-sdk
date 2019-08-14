@@ -2,9 +2,9 @@ use crate::sdk::*;
 use enum_primitive::FromPrimitive;
 use std::sync::Mutex;
 //use ffi_support::FfiStr;
-use analog_sdk_common::*;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::slice;
+use wooting_analog_sdk_common::*;
 
 lazy_static! {
     static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());

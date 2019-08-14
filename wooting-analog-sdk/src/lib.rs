@@ -13,10 +13,10 @@ mod errors {
 }
 #[macro_use]
 extern crate lazy_static;
-extern crate analog_sdk_common;
 extern crate env_logger;
 #[cfg(windows)]
 extern crate winapi;
+extern crate wooting_analog_sdk_common;
 
 //library modules
 pub mod ffi;

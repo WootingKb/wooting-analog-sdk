@@ -15,7 +15,7 @@ item_types = ["enums", "structs", "typedefs"]
 "DeviceEventType" = "ASDK_DeviceEventType"
 
 [parse]
-expand = ["analog-sdk-common"]
+expand = ["wooting-analog-sdk-common"]
 
 [enum]
 prefix_with_name=true

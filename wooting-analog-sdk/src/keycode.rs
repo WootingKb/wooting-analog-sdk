@@ -1,6 +1,6 @@
 //use scancode::Scancode;
-use analog_sdk_common::KeycodeType;
 use bimap::BiMap;
+use wooting_analog_sdk_common::KeycodeType;
 
 lazy_static! {
     //<HID code, Scancode>

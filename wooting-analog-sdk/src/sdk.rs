@@ -1,6 +1,5 @@
 use crate::errors::*;
 use crate::keycode::*;
-use analog_sdk_common::*;
 use ffi_support::FfiStr;
 use libloading::{Library, Symbol};
 use log::{error, info, warn};
@@ -9,6 +8,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::path::{Path, PathBuf};
+use wooting_analog_sdk_common::*;
 
 macro_rules! lib_wrap {
     //(@as_item $i:item) => {$i};

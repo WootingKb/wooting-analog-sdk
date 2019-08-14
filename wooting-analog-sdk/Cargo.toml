@@ -1,5 +1,5 @@
 [package]
-name = "analog-sdk"
+name = "wooting-analog-sdk"
 version = "0.1.0"
 authors = ["simon-wh <simon@wooting.io>"]
 edition = "2018"
@@ -14,7 +14,7 @@ ffi-support = "0.3.5"
 scancode = "0.1.2"
 bimap = "0.3"
 enum_primitive = "*"
-analog-sdk-common = { path = "../analog-sdk-common"}
+wooting-analog-sdk-common = { path = "../wooting-analog-sdk-common"}
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.7", features = ["winuser"] }
