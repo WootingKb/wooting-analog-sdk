@@ -18,7 +18,7 @@ Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK 
 ### Build Dependencies
 * [rust](https://www.rust-lang.org/)
 * [cargo-make](https://github.com/sagiegurari/cargo-make)
-* [cbindgen](https://github.com/eqrion/cbindgen) (Should be installed automatically through cargo make if necessary)
+* [cbindgen](https://github.com/eqrion/cbindgen) (Should be installed automatically if necessary)
 * [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `analog-sdk-test`
 
 
@@ -41,6 +41,8 @@ cargo make test-app
 
 ### Outputs
 All build outputs can be found under `target/debug`, with generated headers coming under the `includes` and `includes-cpp` directories.
+
+Currently the headers have to be manually generated and kept in the repo. When intentional changes are made, the testing phase verifies that the pre-generated headers match what would be generated now to ensure that accidental changes aren't made to the output of the header generation.
 
 #### Outputted Headers
 * `wooting-analog-sdk-wrapper.h`: This is the header which includes everything that you need to use the SDK. (This uses `wooting-analog-sdk-common.h` which defines all relevant enums & structs)
