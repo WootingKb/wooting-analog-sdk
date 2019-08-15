@@ -6,7 +6,7 @@ This repo contains all the core components of the Analog SDK.
 
 NOTE: Use the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to tell the SDK where to search for plugins.
 
-Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK and the [Plugin introduction](PLUGINS.md) for information on creating plugins.
+Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK and the [Plugin introduction](PLUGINS.md) for information on creating plugins.
 
 ## Components
 * `wooting-analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed systemwide and is updated separately
@@ -54,5 +54,12 @@ Currently the headers have to be manually generated and kept in the repo. When i
 
 * [wooting-analog-sdk-plugin](https://github.com/simon-wh/wooting-analog-sdk-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
 * [analog-sdk-plugin-examples](https://github.com/simon-wh/analog-sdk-plugin-examples): This repo contains all plugin examples that have been collected
+* [wooting-analog-sdk-wrappers](https://github.com/simon-wh/analog-sdk-wrappers): Official language wrappers for the Wooting Analog SDK
 
-TODO: Repo for example application using the SDK
+
+
+## TODO
+
+- [ ] Analog SDK Self-updater
+- [ ] Example Application using the SDK
+- [ ] Push `wooting-analog-sdk-common` to crates.io
