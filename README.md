@@ -6,6 +6,8 @@ This repo contains all the core components of the Analog SDK.
 
 NOTE: Use the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to tell the SDK where to search for plugins.
 
+Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK and the [Plugin introduction](PLUGINS.md) for information on creating plugins.
+
 ## Components
 * `wooting-analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed systemwide and is updated separately
 * `wooting-analog-sdk-common`: This library contains all common Analog SDK code, this is used by plugins and the SDK itself

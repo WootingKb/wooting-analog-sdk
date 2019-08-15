@@ -81,7 +81,7 @@ dynamic_extern! {
         /// of the SDK can be called
         /// 
         /// # Notes
-        /// The SDK will use the semi-colon separated list of directories in the environment variable `WOOTING_ANALOG_wasdk_PLUGINS_PATH` to search for Plugins.
+        /// The SDK will use the semi-colon separated list of directories in the environment variable `WOOTING_ANALOG_SDK_PLUGINS_PATH` to search for Plugins.
         /// Plugins must have the extension `.dll` on Windows, `.so` on Linux and `.dylib` on MacOS
         /// 
         /// # Expected Returns
@@ -112,7 +112,7 @@ dynamic_extern! {
         /// * `InvalidArgument`: The given `KeycodeType` is not one supported by the SDK
         /// * `NotAvailable`: The given `KeycodeType` is present, but not supported on the current platform
         /// * `UnInitialized`: The SDK is not initialised
-        fn wasdk_set_mode(mode: KeycodeType) -> AnalogSDKResult;
+        fn wasdk_set_keycode_mode(mode: KeycodeType) -> AnalogSDKResult;
         
         /// Reads the Analog value of the key with identifier `code` from any connected device. The set of key identifiers that is used
         /// depends on the Keycode mode set using `wasdk_set_mode`.
@@ -180,7 +180,7 @@ dynamic_extern! {
         /// Similar to wasdk_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type AnalogSDKResult
         /// * `ret>=0`: The number of connected devices that have been filled into the buffer
         /// * `AnalogSDKResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-        fn wasdk_device_info(buffer: *mut *mut DeviceInfo, len: c_uint) -> c_int;
+        fn wasdk_get_connected_devices_info(buffer: *mut *mut DeviceInfo, len: c_uint) -> c_int;
         
         /// Reads all the analog values for pressed keys for all devices and combines their values, filling up `code_buffer` with the
         /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
@@ -212,9 +212,9 @@ dynamic_extern! {
         /// # Expected Returns
         /// Similar to other functions like `wasdk_device_info`, the return value encodes both errors and the return value we want.
         /// Where >=0 is the actual return, and <0 should be cast as AnalogSDKResult to find the error.
-        /// .* `>=0` means the value indicates how many keys & analog values have been read into the buffers
-        /// .* `AnalogSDKResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-        /// .* `AnalogSDKResult::NoDevices`: Indicates the device with id `device_id` is not connected
+        /// * `>=0` means the value indicates how many keys & analog values have been read into the buffers
+        /// * `AnalogSDKResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+        /// * `AnalogSDKResult::NoDevices`: Indicates the device with id `device_id` is not connected
         fn wasdk_read_full_buffer_device(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device_id: DeviceID) -> c_int;
     }
 }

@@ -57,7 +57,7 @@ pub extern "C" fn wasdk_uninitialise() -> AnalogSDKResult {
 /// * `NotAvailable`: The given `KeycodeType` is present, but not supported on the current platform
 /// * `UnInitialized`: The SDK is not initialised
 #[no_mangle]
-pub extern "C" fn wasdk_set_mode(mode: u32) -> AnalogSDKResult {
+pub extern "C" fn wasdk_set_keycode_mode(mode: u32) -> AnalogSDKResult {
     if !ANALOG_SDK.lock().unwrap().initialised {
         return AnalogSDKResult::UnInitialized;
     }
@@ -164,7 +164,7 @@ pub extern "C" fn wasdk_clear_device_event_cb() -> AnalogSDKResult {
 /// * `ret>=0`: The number of connected devices that have been filled into the buffer
 /// * `AnalogSDKResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
 #[no_mangle]
-pub unsafe extern "C" fn wasdk_device_info(buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int {
+pub unsafe extern "C" fn wasdk_get_connected_devices_info(buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int {
     let buff = {
         assert!(!buffer.is_null());
 

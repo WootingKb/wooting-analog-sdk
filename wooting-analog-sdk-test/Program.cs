@@ -67,7 +67,7 @@ namespace analog_sdk_test
         public static extern AnalogSDKError wasdk_uninitialise();
 
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError wasdk_set_mode(KeycodeType mode);
+        public static extern AnalogSDKError wasdk_set_keycode_mode(KeycodeType mode);
         
         [DllImport(SdkLib)]
         public static extern float wasdk_read_analog(ushort code);
@@ -119,11 +119,11 @@ namespace analog_sdk_test
         }
 
         [DllImport(SdkLib)]
-        public static extern int wasdk_device_info([In][Out][MarshalAs(UnmanagedType.LPArray)] IntPtr[] buffer, uint len);
+        public static extern int wasdk_get_connected_devices_info([In][Out][MarshalAs(UnmanagedType.LPArray)] IntPtr[] buffer, uint len);
 
-        public static (List<DeviceInfo>, AnalogSDKError) GetDeviceInfo(){
+        public static (List<DeviceInfo>, AnalogSDKError) GetConnectedDevicesInfo(){
             IntPtr[] buffer = new IntPtr[40];
-            int count = wasdk_device_info(buffer, (uint)buffer.Length);
+            int count = wasdk_get_connected_devices_info(buffer, (uint)buffer.Length);
             if (count > 0)
             {
                 return (buffer.Select<IntPtr, DeviceInfo?>((ptr) =>
@@ -188,7 +188,7 @@ namespace analog_sdk_test
         static void timer_cb(object state)
         {
             _index = (_index + 1) % code_map.Count;
-            var ret = Native.wasdk_set_mode(code_map[_index].Item1);
+            var ret = Native.wasdk_set_keycode_mode(code_map[_index].Item1);
             Console.WriteLine($"Switched to {code_map[_index]}, ret: {ret}");
             var (rets, error) = Native.ReadAnalog(code_map[_index].Item2);
             Console.WriteLine($"{rets}, {error}");
@@ -205,11 +205,11 @@ namespace analog_sdk_test
                 TestSpeedN(sw, () => Native.ReadAnalog(4), $"read analog HID", 5);
                 TestSpeedN(sw, () =>
                 {
-                    Native.wasdk_set_mode(Native.KeycodeType.ScanCode1);
+                    Native.wasdk_set_keycode_mode(Native.KeycodeType.ScanCode1);
                     return Native.ReadAnalog(30);
                 }, $"read analog SC", 5);
                 TestSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
-                var (devices, infoErr) = Native.GetDeviceInfo();
+                var (devices, infoErr) = Native.GetConnectedDevicesInfo();
                 foreach (Native.DeviceInfo dev in devices)
                 {
                     Console.WriteLine($"Device info has: {dev}, {infoErr}");
@@ -219,7 +219,7 @@ namespace analog_sdk_test
                 //testSpeedN(sw, () => Native.wasdk_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;
                 string output = "";
-                Native.wasdk_set_mode(code_map[_index].Item1);
+                Native.wasdk_set_keycode_mode(code_map[_index].Item1);
                 Timer t = new Timer(timer_cb, _index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
                 while (true)
                 {

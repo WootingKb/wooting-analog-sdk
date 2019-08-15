@@ -23,13 +23,13 @@ AnalogSDKResult wasdk_clear_device_event_cb();
 /// Similar to wasdk_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type AnalogSDKResult
 ///  `ret>=0`: The number of connected devices that have been filled into the buffer
 ///  `AnalogSDKResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-int wasdk_device_info(WASDK_DeviceInfo **buffer,
-                      unsigned int len);
+int wasdk_get_connected_devices_info(WASDK_DeviceInfo **buffer,
+                                     unsigned int len);
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
 /// # Notes
-/// The SDK will use the semi-colon separated list of directories in the environment variable `WOOTING_ANALOG_wasdk_PLUGINS_PATH` to search for Plugins.
+/// The SDK will use the semi-colon separated list of directories in the environment variable `WOOTING_ANALOG_SDK_PLUGINS_PATH` to search for Plugins.
 /// Plugins must have the extension `.dll` on Windows, `.so` on Linux and `.dylib` on MacOS
 /// # Expected Returns
 ///  `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
@@ -100,9 +100,9 @@ int wasdk_read_full_buffer(unsigned short *code_buffer,
 /// # Expected Returns
 /// Similar to other functions like `wasdk_device_info`, the return value encodes both errors and the return value we want.
 /// Where >=0 is the actual return, and <0 should be cast as AnalogSDKResult to find the error.
-/// .* `>=0` means the value indicates how many keys & analog values have been read into the buffers
-/// .* `AnalogSDKResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-/// .* `AnalogSDKResult::NoDevices`: Indicates the device with id `device_id` is not connected
+///  `>=0` means the value indicates how many keys & analog values have been read into the buffers
+///  `AnalogSDKResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+///  `AnalogSDKResult::NoDevices`: Indicates the device with id `device_id` is not connected
 int wasdk_read_full_buffer_device(unsigned short *code_buffer,
                                   float *analog_buffer,
                                   unsigned int len,
@@ -129,7 +129,7 @@ AnalogSDKResult wasdk_set_device_event_cb(void (*cb)(WASDK_DeviceEventType, WASD
 ///  `InvalidArgument`: The given `KeycodeType` is not one supported by the SDK
 ///  `NotAvailable`: The given `KeycodeType` is present, but not supported on the current platform
 ///  `UnInitialized`: The SDK is not initialised
-AnalogSDKResult wasdk_set_mode(WASDK_KeycodeType mode);
+AnalogSDKResult wasdk_set_keycode_mode(WASDK_KeycodeType mode);
 
 /// Uninitialises the SDK, returning it to an empty state, similar to how it would be before first initialisation
 /// # Expected Returns
