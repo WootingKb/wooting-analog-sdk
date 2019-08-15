@@ -17,6 +17,10 @@ typedef enum {
   AnalogSDKResult_NoPlugins,
   AnalogSDKResult_FunctionNotFound,
   AnalogSDKResult_NoMapping,
+  /**
+   * Indicates that it isn't available on this platform
+   */
+  AnalogSDKResult_NotAvailable,
 } AnalogSDKResult;
 
 typedef enum {
