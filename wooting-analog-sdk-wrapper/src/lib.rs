@@ -32,10 +32,10 @@ macro_rules! dynamic_extern {
     ) => {
         lazy_static! {
             static ref LIB : Option<libl::Library> = {
-                #[cfg(unix)]
+                #[cfg(all(unix, not(target_os = "macos")))]
                 let lib_path = concat!("lib", $lib, ".so");
-                #[cfg(macos)]
-                let lib_path = concat!("lib", $lib);
+                #[cfg(all(unix, target_os = "macos"))]
+                let lib_path = concat!("lib", $lib, ".dylib");
                 #[cfg(windows)]
                 let lib_path = $lib;
 
