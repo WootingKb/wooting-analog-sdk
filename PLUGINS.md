@@ -8,7 +8,11 @@ The purpose of Plugins are to add support for new Devices through the Analog SDK
 
 The SDK uses the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to search for plugins, this is a semi-colon separated list of directories. So if you've created a plugin, you should add the build output directory to the path for development/testing and the install directory of the plugin for deployment.
 
-Plugins are required to statically link to `wooting-analog-sdk-common` as it includes the `ANALOG_SDK_PLUGIN_ABI_VERSION` constant, which ends up being exported in the plugin and tells the SDK which version of the plugin interface your plugin is using. This is so that if breaking changes are made to the interface, backwards compatibility can be made for older plugins.
+Plugins are required to statically link to `wooting-analog-sdk-common` as it includes the `ANALOG_SDK_PLUGIN_ABI_VERSION` constant, which ends up being exported in the plugin and tells the SDK which version of the plugin interface your plugin is using. This is so that if breaking changes are made to the interface, backwards compatibility can be made for older plugins.
+
+## A note about custom keys
+
+If your device has keys which are not defined in the HID standard keys, then you should output a number with prefix of 0x2 or higher, excluding 0xE0. e.g. 0x0201 would be a custom key. These numbers will not be converted into different keycode sets.
 
 ## Plugin Requirements
 

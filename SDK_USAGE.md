@@ -2,6 +2,15 @@
 
 If you wish to use the SDK, you should be dynamically linking to the `wooting-analog-sdk-wrapper` library and shipping it with your application. The way the SDK works is that it uses the wrapper to try and find the SDK at runtime, so it may gracefully error if the SDK isn't found. The wrapper library just passes through SDK calls to the actual SDK, so if there is an SDK update with new features you should update your wrapper when needed.
 
+# Keycodes
+
+By default the SDK will use the [USB HID codes (see table 10.6)](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets) to identify keys. This can be changed using the `wasdk_set_keycode_mode` function, which changes the keycodes taken by `read_analog` and the keycodes given in `read_full_buffer`. The available options are:
+
+* `HID`: The standard USB HID codes (default) [List on table 10.6](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets)
+* `ScanCode1`: Scan codes set 1, see [Set 1 column on table 10.6](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets) (Escape codes can be given as either a 0x1 or 0xE0 prefix)
+* `VirtualKey`: [Windows Virtual Key codes](https://docs.microsoft.com/en-gb/windows/win32/inputdev/virtual-key-codes)
+* `VirtualKeyTranslate`: [Windows Virtual Key codes](https://docs.microsoft.com/en-gb/windows/win32/inputdev/virtual-key-codes) but they are translated based on layout, so requesting the letter Q gets the key that inputs Q on the selected layout, rather than always getting the key right of tab (the standard Q position) like `VirtualKey` would.
+
 # Functions
 
 ## Initialise
