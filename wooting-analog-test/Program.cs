@@ -55,29 +55,29 @@ namespace analog_sdk_test
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void DeviceEventCb(DeviceEventType eventType, IntPtr deviceInfo);
 
-        public const string SdkLib = "wooting_analog_sdk_wrapper";
+        public const string SdkLib = "wooting_analog_wrapper";
 
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError wasdk_initialise();
+        public static extern AnalogSDKError wooting_analog_initialise();
 
         [DllImport(SdkLib)]
-        public static extern bool wasdk_is_initialised();
+        public static extern bool wooting_analog_is_initialised();
 
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError wasdk_uninitialise();
+        public static extern AnalogSDKError wooting_analog_uninitialise();
 
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError wasdk_set_keycode_mode(KeycodeType mode);
+        public static extern AnalogSDKError wooting_analog_set_keycode_mode(KeycodeType mode);
         
         [DllImport(SdkLib)]
-        public static extern float wasdk_read_analog(ushort code);
+        public static extern float wooting_analog_read_analog(ushort code);
         
         [DllImport(SdkLib)]
-        public static extern float wasdk_read_analog_device(ushort code, ulong deviceId);
+        public static extern float wooting_analog_read_analog_device(ushort code, ulong deviceId);
 
         public static (float, AnalogSDKError) ReadAnalog(ushort code, ulong deviceId = 0)
         {
-            float res = wasdk_read_analog_device(code, deviceId);
+            float res = wooting_analog_read_analog_device(code, deviceId);
             if (res >= 0)
                 return (res, AnalogSDKError.Ok);
             else
@@ -86,25 +86,25 @@ namespace analog_sdk_test
 
         
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError wasdk_set_device_event_cb(DeviceEventCb cb);
+        public static extern AnalogSDKError wooting_analog_set_device_event_cb(DeviceEventCb cb);
 
         [DllImport(SdkLib)]
-        public static extern AnalogSDKError wasdk_clear_device_event_cb();
+        public static extern AnalogSDKError wooting_analog_clear_device_event_cb();
 
-        //fn wasdk_device_info(buffer: *mut Void, len: c_uint) -> c_int;
-        //fn wasdk_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
+        //fn wooting_analog_device_info(buffer: *mut Void, len: c_uint) -> c_int;
+        //fn wooting_analog_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
 
         [DllImport(SdkLib)]
-        public static extern int wasdk_read_full_buffer([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len);
+        public static extern int wooting_analog_read_full_buffer([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len);
         
         [DllImport(SdkLib)]
-        public static extern int wasdk_read_full_buffer_device([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len, ulong deviceID);
+        public static extern int wooting_analog_read_full_buffer_device([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len, ulong deviceID);
 
         public static (List<(short, float)>, AnalogSDKError) ReadFullBuffer(uint length, ulong deviceID = 0)
         {
             short[] codeBuffer = new short[length];
             float[] analogBuffer = new float[length];
-            int count = wasdk_read_full_buffer_device(codeBuffer, analogBuffer, length, deviceID);
+            int count = wooting_analog_read_full_buffer_device(codeBuffer, analogBuffer, length, deviceID);
 
             if (count < 0)
                 return (null, (AnalogSDKError)count);
@@ -119,11 +119,11 @@ namespace analog_sdk_test
         }
 
         [DllImport(SdkLib)]
-        public static extern int wasdk_get_connected_devices_info([In][Out][MarshalAs(UnmanagedType.LPArray)] IntPtr[] buffer, uint len);
+        public static extern int wooting_analog_get_connected_devices_info([In][Out][MarshalAs(UnmanagedType.LPArray)] IntPtr[] buffer, uint len);
 
         public static (List<DeviceInfo>, AnalogSDKError) GetConnectedDevicesInfo(){
             IntPtr[] buffer = new IntPtr[40];
-            int count = wasdk_get_connected_devices_info(buffer, (uint)buffer.Length);
+            int count = wooting_analog_get_connected_devices_info(buffer, (uint)buffer.Length);
             if (count > 0)
             {
                 return (buffer.Select<IntPtr, DeviceInfo?>((ptr) =>
@@ -188,7 +188,7 @@ namespace analog_sdk_test
         static void timer_cb(object state)
         {
             _index = (_index + 1) % code_map.Count;
-            var ret = Native.wasdk_set_keycode_mode(code_map[_index].Item1);
+            var ret = Native.wooting_analog_set_keycode_mode(code_map[_index].Item1);
             Console.WriteLine($"Switched to {code_map[_index]}, ret: {ret}");
             var (rets, error) = Native.ReadAnalog(code_map[_index].Item2);
             Console.WriteLine($"{rets}, {error}");
@@ -196,16 +196,16 @@ namespace analog_sdk_test
         
         static void Main(string[] args)
         {
-            Native.AnalogSDKError err = Native.wasdk_initialise();
+            Native.AnalogSDKError err = Native.wooting_analog_initialise();
             if (err == Native.AnalogSDKError.Ok){
                 Console.WriteLine("SDK Successfully initialised!");
-                Native.wasdk_set_device_event_cb(device_event_cb);
-                //Console.WriteLine($"Yo yo yo 9+10={Native.wasdk_add(9,10)}!");
+                Native.wooting_analog_set_device_event_cb(device_event_cb);
+                //Console.WriteLine($"Yo yo yo 9+10={Native.wooting_analog_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
                 TestSpeedN(sw, () => Native.ReadAnalog(4), $"read analog HID", 5);
                 TestSpeedN(sw, () =>
                 {
-                    Native.wasdk_set_keycode_mode(Native.KeycodeType.ScanCode1);
+                    Native.wooting_analog_set_keycode_mode(Native.KeycodeType.ScanCode1);
                     return Native.ReadAnalog(30);
                 }, $"read analog SC", 5);
                 TestSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
@@ -215,15 +215,15 @@ namespace analog_sdk_test
                     Console.WriteLine($"Device info has: {dev}, {infoErr}");
 
                 }
-                //testSpeedN(sw, () => Native.wasdk_read_analog_vk(VirtualKeys.A, true), $"Local read analog VK (translate)", 5);
-                //testSpeedN(sw, () => Native.wasdk_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
+                //testSpeedN(sw, () => Native.wooting_analog_read_analog_vk(VirtualKeys.A, true), $"Local read analog VK (translate)", 5);
+                //testSpeedN(sw, () => Native.wooting_analog_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;
                 string output = "";
-                Native.wasdk_set_keycode_mode(code_map[_index].Item1);
+                Native.wooting_analog_set_keycode_mode(code_map[_index].Item1);
                 Timer t = new Timer(timer_cb, _index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
                 while (true)
                 {
-                    //var ret = Native.wasdk_read_analog_vk(VirtualKeys.A, false);
+                    //var ret = Native.wooting_analog_read_analog_vk(VirtualKeys.A, false);
                     sw.Restart();
                     var (ret, error) = Native.ReadAnalog(code_map[_index].Item2);//, devices.First().device_id);
                     sw.Stop();
@@ -266,7 +266,7 @@ namespace analog_sdk_test
                     //Thread.Sleep(250);
                 }
 
-                Native.wasdk_uninitialise();
+                Native.wooting_analog_uninitialise();
             }
             else{
                 Console.WriteLine($"SDK couldn't be initialised, err {err}!");

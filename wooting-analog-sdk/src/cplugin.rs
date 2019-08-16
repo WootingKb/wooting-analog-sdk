@@ -3,7 +3,8 @@ use libloading::{Library, Symbol};
 use log::*;
 use std::collections::HashMap;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
-use wooting_analog_sdk_common::*;
+use wooting_analog_common::*;
+use wooting_analog_plugin_dev::*;
 
 macro_rules! lib_wrap {
     //(@as_item $i:item) => {$i};
@@ -56,7 +57,7 @@ macro_rules! lib_wrap_option {
                                 }).ok();
                         match func {
                             Some(f) => f($($fn_arg_names),*).into(),
-                            _ => Err(AnalogSDKResult::FunctionNotFound).into()
+                            _ => Err(WootingAnalogResult::FunctionNotFound).into()
 
                         }
                     }
@@ -141,11 +142,11 @@ impl Plugin for CPlugin {
     }
 
     lib_wrap! {
-        fn initialise() -> AnalogSDKResult;
+        fn initialise() -> WootingAnalogResult;
         fn is_initialised() -> bool;
         fn unload();
-        fn set_device_event_cb(cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKResult;
-        fn clear_device_event_cb() -> AnalogSDKResult;
+        fn set_device_event_cb(cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> WootingAnalogResult;
+        fn clear_device_event_cb() -> WootingAnalogResult;
     }
     lib_wrap_option! {
         fn read_analog(code: u16, device: DeviceID) -> f32;

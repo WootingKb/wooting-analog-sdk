@@ -1,6 +1,6 @@
+use crate::cplugin::*;
 use crate::errors::*;
 use crate::keycode::*;
-use crate::cplugin::*;
 use libloading::{Library, Symbol};
 use log::{error, info, warn};
 use std::collections::HashMap;
@@ -8,9 +8,8 @@ use std::ffi::OsStr;
 use std::fs;
 use std::os::raw::{c_float, c_int, c_ushort};
 use std::path::{Path, PathBuf};
-use wooting_analog_sdk_common::*;
-
-
+use wooting_analog_common::*;
+use wooting_analog_plugin_dev::*;
 
 unsafe impl Send for AnalogSDK {}
 
@@ -45,7 +44,7 @@ impl AnalogSDK {
         }
     }
 
-    pub fn initialise(&mut self) -> AnalogSDKResult {
+    pub fn initialise(&mut self) -> WootingAnalogResult {
         if self.initialised {
             self.unload();
         }
@@ -83,11 +82,11 @@ impl AnalogSDK {
                 Ok(0) => {
                     warn!("Failed to load any plugins from {:?}!", dir);
                     self.initialised = false;
-                    //AnalogSDKResult::NoPlugins
+                    //WootingAnalogResult::NoPlugins
                 }
                 Ok(i) => {
                     info!("Loaded {} plugins from {:?}", i, dir);
-                    //AnalogSDKResult::Ok
+                    //WootingAnalogResult::Ok
                 }
                 Err(e) => {
                     error!("Error: {:?}", e);
@@ -106,9 +105,9 @@ impl AnalogSDK {
 
         self.initialised = plugins_initialised > 0;
         if !self.initialised {
-            AnalogSDKResult::NoPlugins
+            WootingAnalogResult::NoPlugins
         } else {
-            AnalogSDKResult::Ok
+            WootingAnalogResult::Ok
         }
     }
 
@@ -187,30 +186,30 @@ impl AnalogSDK {
     pub fn set_device_event_cb(
         &mut self,
         cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
-    ) -> AnalogSDKResult {
+    ) -> WootingAnalogResult {
         if !self.initialised {
-            return AnalogSDKResult::UnInitialized;
+            return WootingAnalogResult::UnInitialized;
         }
 
-        let mut result = AnalogSDKResult::Ok;
+        let mut result = WootingAnalogResult::Ok;
         for p in self.plugins.iter_mut() {
             let ret = p.set_device_event_cb(cb);
-            if ret != AnalogSDKResult::Ok {
+            if ret != WootingAnalogResult::Ok {
                 result = ret;
             }
         }
         result
     }
 
-    pub fn clear_device_event_cb(&mut self) -> AnalogSDKResult {
+    pub fn clear_device_event_cb(&mut self) -> WootingAnalogResult {
         if !self.initialised {
-            return AnalogSDKResult::UnInitialized;
+            return WootingAnalogResult::UnInitialized;
         }
 
-        let mut result = AnalogSDKResult::Ok;
+        let mut result = WootingAnalogResult::Ok;
         for p in self.plugins.iter_mut() {
             let ret = p.clear_device_event_cb();
-            if ret != AnalogSDKResult::Ok {
+            if ret != WootingAnalogResult::Ok {
                 result = ret;
             }
         }
@@ -219,7 +218,7 @@ impl AnalogSDK {
 
     pub fn get_device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<c_int> {
         if !self.initialised {
-            return AnalogSDKResult::UnInitialized.into();
+            return WootingAnalogResult::UnInitialized.into();
         }
         let mut count: usize = 0;
         for p in self.plugins.iter_mut() {
@@ -234,14 +233,14 @@ impl AnalogSDK {
 
     pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
         if !self.initialised {
-            return AnalogSDKResult::UnInitialized.into();
+            return WootingAnalogResult::UnInitialized.into();
         }
 
         //Try and map the given keycode to HID
         let hid_code = code_to_hid(code, &self.keycode_mode);
         if let Some(hid_code) = hid_code {
             let mut value: f32 = -1.0;
-            let mut err = AnalogSDKResult::Ok;
+            let mut err = WootingAnalogResult::Ok;
 
             for p in self.plugins.iter_mut() {
                 match p.read_analog(hid_code, device_id).into() {
@@ -265,7 +264,7 @@ impl AnalogSDK {
 
             return value.into();
         } else {
-            return AnalogSDKResult::NoMapping.into();
+            return WootingAnalogResult::NoMapping.into();
         }
     }
 
@@ -276,12 +275,12 @@ impl AnalogSDK {
         device_id: DeviceID,
     ) -> SDKResult<c_int> {
         if !self.initialised {
-            return AnalogSDKResult::UnInitialized.into();
+            return WootingAnalogResult::UnInitialized.into();
         }
 
         let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(code_buffer.len());
 
-        let mut err = AnalogSDKResult::Ok;
+        let mut err = WootingAnalogResult::Ok;
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
@@ -387,7 +386,7 @@ mod tests {
         ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
 
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise(), AnalogSDKResult::NoPlugins);
+        assert_eq!(sdk.initialise(), WootingAnalogResult::NoPlugins);
         assert!(!sdk.initialised);
         ::std::fs::remove_dir(dir);
     }
@@ -401,7 +400,7 @@ mod tests {
         ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
 
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise(), AnalogSDKResult::NoPlugins);
+        assert_eq!(sdk.initialise(), WootingAnalogResult::NoPlugins);
         assert!(!sdk.initialised)
     }
 
@@ -415,7 +414,7 @@ mod tests {
         ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
 
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise(), AnalogSDKResult::NoPlugins);
+        assert_eq!(sdk.initialise(), WootingAnalogResult::NoPlugins);
         assert!(!sdk.initialised);
 
         ::std::fs::remove_dir("./test_m1");
@@ -439,7 +438,7 @@ mod tests {
         ::std::fs::remove_dir(dir);
         ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
 
-        assert_eq!(sdk.initialise(), AnalogSDKResult::NoPlugins);
+        assert_eq!(sdk.initialise(), WootingAnalogResult::NoPlugins);
         assert!(!sdk.initialised);
 
         uninitialised_sdk_functions(&mut sdk);
@@ -448,20 +447,29 @@ mod tests {
     extern "C" fn cb(event: DeviceEventType, device: DeviceInfoPointer) {}
 
     fn uninitialised_sdk_functions(sdk: &mut AnalogSDK) {
-        assert_eq!(sdk.set_device_event_cb(cb), AnalogSDKResult::UnInitialized);
-        assert_eq!(sdk.clear_device_event_cb(), AnalogSDKResult::UnInitialized);
-        assert_eq!(sdk.read_analog(0, 0).0, Err(AnalogSDKResult::UnInitialized));
+        assert_eq!(
+            sdk.set_device_event_cb(cb),
+            WootingAnalogResult::UnInitialized
+        );
+        assert_eq!(
+            sdk.clear_device_event_cb(),
+            WootingAnalogResult::UnInitialized
+        );
+        assert_eq!(
+            sdk.read_analog(0, 0).0,
+            Err(WootingAnalogResult::UnInitialized)
+        );
         let mut buf = vec![];
         assert_eq!(
             sdk.get_device_info(buf.as_mut()).0,
-            Err(AnalogSDKResult::UnInitialized)
+            Err(WootingAnalogResult::UnInitialized)
         );
 
         let mut buf = vec![];
         let mut buf2 = vec![];
         assert_eq!(
             sdk.read_full_buffer(buf.as_mut(), buf2.as_mut(), 0).0,
-            Err(AnalogSDKResult::UnInitialized)
+            Err(WootingAnalogResult::UnInitialized)
         );
     }
 }

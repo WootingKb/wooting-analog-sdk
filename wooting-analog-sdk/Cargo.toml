@@ -13,7 +13,8 @@ lazy_static = "*"
 ffi-support = "0.3.5"
 scancode = "0.1.2"
 bimap = "0.3"
-wooting-analog-sdk-common = { path = "../wooting-analog-sdk-common"}
+wooting-analog-common = { path = "../wooting-analog-common"}
+wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.7", features = ["winuser"] }

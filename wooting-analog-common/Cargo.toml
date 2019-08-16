@@ -1,13 +1,10 @@
 [package]
-name = "wooting-analog-sdk-common"
+name = "wooting-analog-common"
 version = "0.1.0"
 authors = ["simon-wh <simon@wooting.io>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[build-dependencies]
-cbindgen = "0.9.0"
 
 [dependencies]
 enum_primitive = "*"

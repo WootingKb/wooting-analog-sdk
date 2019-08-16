@@ -2,6 +2,7 @@
 
 members = [
     "wooting-analog-sdk",
-    "wooting-analog-sdk-common",
-    "wooting-analog-sdk-wrapper"
+    "wooting-analog-common",
+    "wooting-analog-wrapper",
+    "wooting-analog-plugin-dev",
 ]

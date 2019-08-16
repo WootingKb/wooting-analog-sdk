@@ -14,10 +14,11 @@ extern crate lazy_static;
 extern crate env_logger;
 #[cfg(windows)]
 extern crate winapi;
-extern crate wooting_analog_sdk_common;
+extern crate wooting_analog_common;
+extern crate wooting_analog_plugin_dev;
 
 //library modules
+mod cplugin;
 pub mod ffi;
 pub mod keycode;
 pub mod sdk;
-mod cplugin;

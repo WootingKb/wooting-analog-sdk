@@ -1,5 +1,5 @@
 [package]
-name = "wooting-analog-sdk-wrapper"
+name = "wooting-analog-wrapper"
 version = "0.1.0"
 authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
 edition = "2018"
@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 lazy_static = "*"
 libloading = "0.5.1"
-wooting-analog-sdk-common = { path = "../wooting-analog-sdk-common"}
+wooting-analog-common = { path = "../wooting-analog-common"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]

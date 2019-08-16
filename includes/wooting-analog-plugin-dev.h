@@ -6,10 +6,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "wooting-analog-sdk-common.h"
+#include "wooting-analog-common.h"
 
 extern const uint32_t ANALOG_SDK_PLUGIN_ABI_VERSION;
 
-WASDK_DeviceID generate_device_id(const char* serial_number,
-                                  uint16_t vendor_id,
-                                  uint16_t product_id);
+WootingAnalog_DeviceID generate_device_id(const char* serial_number,
+                                          uint16_t vendor_id,
+                                          uint16_t product_id);

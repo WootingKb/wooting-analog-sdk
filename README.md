@@ -10,16 +10,16 @@ Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK a
 
 ## Components
 * `wooting-analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed systemwide and is updated separately
-* `wooting-analog-sdk-common`: This library contains all common Analog SDK code, this is used by plugins and the SDK itself
-* `wooting-analog-sdk-wrapper`: This is the SDK wrapper which is what Applications should use to communicate with the SDK. The linked dll should be shipped with the application using it.
-* `wooting-analog-sdk-test`: This is a C# test application which can be used to test the SDK through the wrapper.
+* `wooting-analog-common`: This library contains all common Analog SDK code, this is used by plugins and the SDK itself
+* `wooting-analog-wrapper`: This is the SDK wrapper which is what Applications should use to communicate with the SDK. The linked dll should be shipped with the application using it.
+* `wooting-analog-test`: This is a C# test application which can be used to test the SDK through the wrapper.
 
 ## Building 
 ### Build Dependencies
 * [rust](https://www.rust-lang.org/)
 * [cargo-make](https://github.com/sagiegurari/cargo-make)
 * [cbindgen](https://github.com/eqrion/cbindgen) (Should be installed automatically if necessary)
-* [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `analog-sdk-test`
+* [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `wooting-analog-test`
 
 
 ### How to Build
@@ -45,16 +45,16 @@ All build outputs can be found under `target/debug`, with generated headers comi
 Currently the headers have to be manually generated and kept in the repo. When intentional changes are made, the testing phase verifies that the pre-generated headers match what would be generated now to ensure that accidental changes aren't made to the output of the header generation.
 
 #### Outputted Headers
-* `wooting-analog-sdk-wrapper.h`: This is the header which includes everything that you need to use the SDK. (This uses `wooting-analog-sdk-common.h` which defines all relevant enums & structs)
-* `wooting-analog-sdk-common.h`: This defines all common enums, headers & structs which are needed by plugins & SDK users
-* `wooting-analog-sdk-common-plugin.h`: This includes `wooting-analog-sdk-common.h` & additional functions which are obtained from statically linking to the analog-sdk-common library. (FOR USE WITH PLUGINS)
+* `wooting-analog-wrapper.h`: This is the header which includes everything that you need to use the SDK. (This uses `wooting-analog-common.h` which defines all relevant enums & structs)
+* `wooting-analog-common.h`: This defines all common enums, headers & structs which are needed by plugins & SDK users
+* `wooting-analog-plugin-dev.h`: This includes `wooting-analog-common.h` & additional functions which are obtained from statically linking to the analog-sdk-common library. (FOR USE WITH PLUGINS)
 * `plugin.h`: This is the header which plugins should use to define all functions that need to be exported for a plugin to work
 
 ## Related Repositories
 
 * [wooting-analog-sdk-plugin](https://github.com/simon-wh/wooting-analog-sdk-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
 * [analog-sdk-plugin-examples](https://github.com/simon-wh/analog-sdk-plugin-examples): This repo contains all plugin examples that have been collected
-* [wooting-analog-sdk-wrappers](https://github.com/simon-wh/analog-sdk-wrappers): Official language wrappers for the Wooting Analog SDK
+* [wooting-analog-wrappers](https://github.com/simon-wh/analog-sdk-wrappers): Official language wrappers for the Wooting Analog SDK
 
 
 
@@ -62,4 +62,4 @@ Currently the headers have to be manually generated and kept in the repo. When i
 
 - [ ] Analog SDK Self-updater
 - [ ] Example Application using the SDK
-- [ ] Push `wooting-analog-sdk-common` to crates.io
+- [ ] Push `wooting-analog-common` to crates.io

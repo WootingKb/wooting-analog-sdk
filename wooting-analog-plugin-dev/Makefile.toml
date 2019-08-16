@@ -2,23 +2,11 @@
 HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
 HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
 
-HEADER_NAME="wooting-analog-sdk-common.h"
-HEADER_PLUGIN_NAME="wooting-analog-sdk-common-plugin.h"
+HEADER_NAME="wooting-analog-plugin-dev.h"
 
-HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/wooting-analog-sdk-common*"
-HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/wooting-analog-sdk-common*"
+HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/wooting-analog-common*"
+HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/wooting-analog-common*"
 
-PLUGIN_GEN_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/cbindgen-plugin.toml"
-
-[tasks.plugin-header-cpp]
-toolchain = "nightly"
-command = "cbindgen"
-args = ["-l", "c++", "${CBINDGEN_ARGS}", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_PLUGIN_NAME}", "-c", "${PLUGIN_GEN_PATH}"]
-
-[tasks.plugin-header-c]
-toolchain = "nightly"
-command = "cbindgen"
-args = ["-l", "c", "${CBINDGEN_ARGS}", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_PLUGIN_NAME}", "-c", "${PLUGIN_GEN_PATH}"]
 
 [tasks.header-cpp]
 toolchain = "nightly"
@@ -36,8 +24,7 @@ command = "cbindgen"
 args = ["--version"]
 
 [tasks.cbindgen]
-#TODO: Check the rustup_component_name arg to see if it is the correct name
-dependencies=["cbindgen-install", "header-cpp", "header-c", "plugin-header-c", "plugin-header-cpp"]
+dependencies=["cbindgen-install", "header-cpp", "header-c"]
 
 [tasks.gen-headers]
 env = { CBINDGEN_ARGS="-v" }

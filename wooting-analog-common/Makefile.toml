@@ -1,19 +1,23 @@
 [env]
-HEADER_NAME="wooting-analog-sdk-wrapper.h"
 HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
 HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
+
+HEADER_NAME="wooting-analog-common.h"
+
+HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/wooting-analog-common*"
+HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/wooting-analog-common*"
+
+PLUGIN_GEN_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/cbindgen-plugin.toml"
 
 [tasks.header-cpp]
 toolchain = "nightly"
 command = "cbindgen"
-args = ["-l", "c++", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
-#Include clean on the second header gen as otherwise it'll strangely fail on windows and mac
+args = ["-l", "c++", "${CBINDGEN_ARGS}", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
 
 [tasks.header-c]
 toolchain = "nightly"
 command = "cbindgen"
-args = ["-l", "c", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
-#Have had to throw in clean as well as there's some weird cases where cbindgen will fail when generating all headers
+args = ["-l", "c", "${CBINDGEN_ARGS}", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 
 [tasks.cbindgen-install]
 install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
@@ -22,7 +26,7 @@ args = ["--version"]
 
 [tasks.cbindgen]
 #TODO: Check the rustup_component_name arg to see if it is the correct name
-dependencies=["cbindgen-install", "header-c", "header-cpp"]
+dependencies=["cbindgen-install", "header-cpp", "header-c"]
 
 [tasks.gen-headers]
 env = { CBINDGEN_ARGS="-v" }
@@ -37,12 +41,10 @@ run_task = "cbindgen"
 script_runner = "@shell"
 script = [
 '''
-rm ${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}
-rm ${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}
+rm ${HEADER_PATH_CLEAN}
+rm ${HEADER_PATH_CLEAN_CPP}
 '''
 ]
-
-
 
 [tasks.post-test]
 dependencies=["verify-headers"]
