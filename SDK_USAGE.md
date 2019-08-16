@@ -2,6 +2,11 @@
 
 If you wish to use the SDK, you should be dynamically linking to the `wooting-analog-wrapper` library and shipping it with your application. The way the SDK works is that it uses the wrapper to try and find the SDK at runtime, so it may gracefully error if the SDK isn't found. The wrapper library just passes through SDK calls to the actual SDK, so if there is an SDK update with new features you should update your wrapper when needed.
 
+# Getting Started
+
+To get started using the SDK at the moment you'll need to build the entire repo by running `cargo make`. 
+Then you should add the output directory to your PATH variable, appending `PATH TO REPO/target/debug` to `PATH` on Windows and `LD_LIBRARY_PATH` on Linux/Mac. Once this is done, copy the `wooting_analog_wrapper` library to your project directory and get started!
+
 # Keycodes
 
 By default the SDK will use the [USB HID codes (see table 10.6)](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets) to identify keys. This can be changed using the `wooting_analog_set_keycode_mode` function, which changes the keycodes taken by `read_analog` and the keycodes given in `read_full_buffer`. The available options are:

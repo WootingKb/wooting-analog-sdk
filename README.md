@@ -57,8 +57,6 @@ Currently the headers have to be manually generated and kept in the repo. When i
 * [wooting-analog-plugin-examples](https://github.com/WootingKb/wooting-analog-plugin-examples): This repo contains all plugin examples that have been collected
 * [wooting-analog-wrappers](https://github.com/WootingKb/wooting-analog-wrappers): Official language wrappers for the Wooting Analog SDK
 
-
-
 ## TODO
 
 - [ ] Analog SDK Self-updater
