@@ -8,7 +8,7 @@ The purpose of Plugins are to add support for new Devices through the Analog SDK
 
 The SDK uses the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to search for plugins, this is a semi-colon separated list of directories. So if you've created a plugin, you should add the build output directory to the path for development/testing and the install directory of the plugin for deployment.
 
-Plugins are required to statically link to `wooting-analog-common` as it includes the `ANALOG_SDK_PLUGIN_ABI_VERSION` constant, which ends up being exported in the plugin and tells the SDK which version of the plugin interface your plugin is using. This is so that if breaking changes are made to the interface, backwards compatibility can be made for older plugins.
+Plugins are required to statically link to `wooting-analog-plugin-dev` as it includes the `ANALOG_SDK_PLUGIN_ABI_VERSION` constant, which ends up being exported in the plugin and tells the SDK which version of the plugin interface your plugin is using. This is so that if breaking changes are made to the interface, backwards compatibility can be made for older plugins.
 
 ## A note about custom keys
 
@@ -21,8 +21,9 @@ If your device has keys which are not defined in the HID standard keys, then you
 Rust Plugins are fairly straight forward to get started with, have a look at the [wooting plugin](https://github.com/simon-wh/wooting-analog-sdk-plugin) for a reference implementation:
 
 * Rust library with crate-type `cdylib`
-* Dependency to `wooting-analog-common`. (Currently while in the Alpha stage, this should be done by adding the SDK repo as a submodule and adding a relative reference to the library)
-* A struct that implements the `Plugin` trait from `wooting-analog-common`
+* Dependency to `wooting-analog-plugin-dev`. (Currently while in the Alpha stage, this should be done by adding the SDK repo as a submodule and adding a relative reference to the library)
+* Import all relevant items through `use wooting_analog_plugin_dev::` and `use wooting_analog_plugin_dev::wooting_analog_common::`
+* A struct that implements the `Plugin` trait from `wooting-analog-plugin-dev`
 * Declare the plugin using the `declare_plugin!` macro. e.g. `declare_plugin!(ExamplePlugin, ExamplePlugin::new)`
 
 ### C

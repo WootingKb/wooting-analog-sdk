@@ -10,7 +10,8 @@ Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK a
 
 ## Components
 * `wooting-analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed systemwide and is updated separately
-* `wooting-analog-common`: This library contains all common Analog SDK code, this is used by plugins and the SDK itself
+* `wooting-analog-common`: This library contains all common Analog SDK definitions which are used by every part
+* `wooting-analog-plugin-dev`: This library contains all common elements needed for designing plugins. This re-exports `wooting-analog-common`, so it is not required for plugins to separately depend on `wooting-analog-common`
 * `wooting-analog-wrapper`: This is the SDK wrapper which is what Applications should use to communicate with the SDK. The linked dll should be shipped with the application using it.
 * `wooting-analog-test`: This is a C# test application which can be used to test the SDK through the wrapper.
 
