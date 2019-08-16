@@ -13,7 +13,7 @@
 #define ANALOGSDK_API
 #endif
 
-typedef void(*device_event)(WootingAnalog_DeviceEventType, wooting_analog_DeviceInfo*);
+typedef void(*device_event)(WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo*);
 
 /// Get a name describing the `Plugin`.
 ANALOGSDK_API const char* _name();

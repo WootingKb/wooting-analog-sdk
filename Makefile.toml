@@ -8,7 +8,7 @@ workspace = false
 workspace = false
 env = { PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
 command = "dotnet"
-args = [ "run", "--project", "wooting-analog-sdk-test" ]
+args = [ "run", "--project", "wooting-analog-test" ]
 dependencies = [ "build" ]
 
 [tasks.gen-headers]
