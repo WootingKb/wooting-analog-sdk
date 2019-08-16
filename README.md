@@ -53,9 +53,9 @@ Currently the headers have to be manually generated and kept in the repo. When i
 
 ## Related Repositories
 
-* [wooting-analog-sdk-plugin](https://github.com/simon-wh/wooting-analog-sdk-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
-* [analog-sdk-plugin-examples](https://github.com/simon-wh/analog-sdk-plugin-examples): This repo contains all plugin examples that have been collected
-* [wooting-analog-wrappers](https://github.com/simon-wh/analog-sdk-wrappers): Official language wrappers for the Wooting Analog SDK
+* [wooting-analog-plugin](https://github.com/WootingKb/wooting-analog-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
+* [wooting-analog-plugin-examples](https://github.com/WootingKb/wooting-analog-plugin-examples): This repo contains all plugin examples that have been collected
+* [wooting-analog-wrappers](https://github.com/WootingKb/wooting-analog-wrappers): Official language wrappers for the Wooting Analog SDK
 
 
 
