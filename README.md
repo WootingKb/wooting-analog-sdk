@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/simon-wh/Analog-SDK.svg?token=cXSit4fro9HcRkW9M9xk&branch=master)](https://travis-ci.com/simon-wh/Analog-SDK)
+[![Build Status](https://travis-ci.com/WootingKb/wooting-analog-sdk.svg?branch=master)](https://travis-ci.com/WootingKb/wooting-analog-sdk)
 
 # Wooting Analog SDK
 
