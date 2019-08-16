@@ -1,8 +1,8 @@
 [![Build Status](https://travis-ci.com/simon-wh/Analog-SDK.svg?token=cXSit4fro9HcRkW9M9xk&branch=master)](https://travis-ci.com/simon-wh/Analog-SDK)
 
-# Analog SDK
+# Wooting Analog SDK
 
-This repo contains all the core components of the Analog SDK.
+This repo contains all the core components of the Wooting Analog SDK.
 
 NOTE: Use the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to tell the SDK where to search for plugins.
 
