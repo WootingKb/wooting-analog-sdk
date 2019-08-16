@@ -6,7 +6,6 @@ extern crate ffi_support;
 
 pub use enum_primitive::FromPrimitive;
 use ffi_support::FfiStr;
-use std::any::Any;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::hash::Hasher;
@@ -18,7 +17,7 @@ use std::os::raw::{c_char, c_float, c_int, c_ushort};
 pub static ANALOG_SDK_PLUGIN_ABI_VERSION: u32 = 1;
 
 /// The core Plugin trait which needs to be implemented for an Analog Plugin to function
-pub trait Plugin: Any + Send + Sync {
+pub trait Plugin {
     /// Get a name describing the `Plugin`.
     fn name(&mut self) -> SDKResult<&'static str>;
 
