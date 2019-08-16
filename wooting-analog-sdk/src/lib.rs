@@ -5,8 +5,6 @@ extern crate log;
 extern crate error_chain;
 extern crate ffi_support;
 extern crate scancode;
-#[macro_use]
-extern crate enum_primitive;
 mod errors {
     // Create the Error, ErrorKind, ResultExt, and Result types
     error_chain! {}
@@ -22,3 +20,4 @@ extern crate wooting_analog_sdk_common;
 pub mod ffi;
 pub mod keycode;
 pub mod sdk;
+mod cplugin;

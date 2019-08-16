@@ -1,162 +1,16 @@
 use crate::errors::*;
 use crate::keycode::*;
-use ffi_support::FfiStr;
+use crate::cplugin::*;
 use libloading::{Library, Symbol};
 use log::{error, info, warn};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
-use std::os::raw::{c_float, c_int, c_uint, c_ushort};
+use std::os::raw::{c_float, c_int, c_ushort};
 use std::path::{Path, PathBuf};
 use wooting_analog_sdk_common::*;
 
-macro_rules! lib_wrap {
-    //(@as_item $i:item) => {$i};
 
-    (
-        $(
-            fn $fn_names:ident($($fn_arg_names:ident: $fn_arg_tys:ty),*) $(-> $fn_ret_tys:ty)*;
-        )*
-    ) => {
-        $(
-            //lib_wrap! {
-            //    @as_item
-                #[no_mangle]
-                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
-                    unsafe {
-                        type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
-                        //TODO: Retain the obtained function pointer between calls
-                        let func :  Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    error!("{}", e);
-                                }).ok();
-                        match func {
-                            Some(f) => f($($fn_arg_names),*).into(),
-                            _ => Default::default()
-
-                        }
-                    }
-                }
-            //}
-        )*
-    };
-}
-
-macro_rules! lib_wrap_option {
-    //(@as_item $i:item) => {$i};
-
-    (
-        $(
-            fn $fn_names:ident($($fn_arg_names:ident: $fn_arg_tys:ty),*) $(-> $fn_ret_tys:ty)*;
-        )*
-    ) => {
-        $(
-            //lib_wrap! {
-            //    @as_item
-                #[no_mangle]
-                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> SDKResult<$fn_ret_tys>)* {
-                    unsafe {
-                        type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
-                        let func :Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    error!("{}", e);
-                                }).ok();
-                        match func {
-                            Some(f) => f($($fn_arg_names),*).into(),
-                            _ => Err(AnalogSDKResult::FunctionNotFound).into()
-
-                        }
-                    }
-                }
-            //}
-        )*
-    };
-}
-
-struct CPlugin {
-    lib: Library,
-    //funcs: HashMap<&'static str, Option<Symbol>>
-}
-
-impl CPlugin {
-    fn new(lib: Library) -> CPlugin {
-        CPlugin {
-            lib,
-            //funcs: HashMap::new()
-        }
-    }
-
-    lib_wrap_option! {
-        //c_name has to be over here due to it not being part of the Plugin trait
-        fn _name() -> FfiStr<'static>;
-
-        fn _read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
-        fn _device_info(buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int;
-    }
-}
-
-impl Plugin for CPlugin {
-    fn name(&mut self) -> SDKResult<&'static str> {
-        /*let s = self.c_name();
-        let c_str = unsafe {
-            assert!(!s.is_null());
-
-            CStr::from_ptr(s)
-        };
-
-        c_str.to_str().unwrap()*/
-        self._name().0.map(|s| s.as_str()).into()
-    }
-
-    fn read_full_buffer(
-        &mut self,
-        max_length: usize,
-        device: DeviceID,
-    ) -> SDKResult<HashMap<c_ushort, c_float>> {
-        let mut code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length);
-        let mut analog_buffer: Vec<c_float> = Vec::with_capacity(max_length);
-        code_buffer.resize(max_length, 0);
-        analog_buffer.resize(max_length, 0.0);
-        let count: usize = {
-            let ret = self
-                ._read_full_buffer(
-                    code_buffer.as_ptr(),
-                    analog_buffer.as_ptr(),
-                    max_length as c_uint,
-                    device,
-                )
-                .0;
-            if let Err(e) = ret {
-                //debug!("Error got: {:?}",e);
-                return Err(e).into();
-            }
-            let ret = ret.unwrap();
-            max_length.min(ret as usize)
-        };
-
-        let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
-        //println!("Count was {}", count);
-        for i in 0..count {
-            analog_data.insert(code_buffer[i], analog_buffer[i]);
-        }
-
-        Ok(analog_data).into()
-    }
-
-    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<c_int> {
-        self._device_info(buffer.as_mut_ptr(), buffer.len() as c_uint)
-    }
-
-    lib_wrap! {
-        fn initialise() -> AnalogSDKResult;
-        fn is_initialised() -> bool;
-        fn unload();
-        fn set_device_event_cb(cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> AnalogSDKResult;
-        fn clear_device_event_cb() -> AnalogSDKResult;
-    }
-    lib_wrap_option! {
-        fn read_analog(code: u16, device: DeviceID) -> f32;
-        //fn neg(x: u32, y: u32) -> u32;
-    }
-}
 
 unsafe impl Send for AnalogSDK {}
 
@@ -195,6 +49,7 @@ impl AnalogSDK {
         if self.initialised {
             self.unload();
         }
+
         let plugin_dir: std::result::Result<Vec<PathBuf>, std::env::VarError> =
             std::env::var(ENV_PLUGIN_DIR_KEY).map(|var| {
                 var.split(';')
@@ -368,6 +223,7 @@ impl AnalogSDK {
         }
         let mut count: usize = 0;
         for p in self.plugins.iter_mut() {
+            //Give a reference to the buffer at the point where there is free space
             let num = p.device_info(&mut buffer[count..]).0.unwrap_or(0) as usize;
             if num > 0 {
                 count += num
@@ -381,10 +237,12 @@ impl AnalogSDK {
             return AnalogSDKResult::UnInitialized.into();
         }
 
+        //Try and map the given keycode to HID
         let hid_code = code_to_hid(code, &self.keycode_mode);
         if let Some(hid_code) = hid_code {
             let mut value: f32 = -1.0;
             let mut err = AnalogSDKResult::Ok;
+
             for p in self.plugins.iter_mut() {
                 match p.read_analog(hid_code, device_id).into() {
                     Ok(x) => {
@@ -484,7 +342,7 @@ impl AnalogSDK {
     /// their `on_plugin_unload()` methods so they can do any necessary cleanup.
     pub fn unload(&mut self) {
         debug!("Unloading plugins");
-
+        self.initialised = false;
         for mut plugin in self.plugins.drain(..) {
             trace!("Firing on_plugin_unload for {:?}", plugin.name());
             plugin.unload();

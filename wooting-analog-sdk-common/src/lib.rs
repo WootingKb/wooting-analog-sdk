@@ -1,10 +1,10 @@
 #[macro_use]
-extern crate enum_primitive;
+pub extern crate enum_primitive;
 #[macro_use]
 extern crate log;
 extern crate ffi_support;
 
-use enum_primitive::FromPrimitive;
+pub use enum_primitive::FromPrimitive;
 use ffi_support::FfiStr;
 use std::any::Any;
 use std::collections::HashMap;
@@ -56,6 +56,7 @@ pub trait Plugin: Any + Send + Sync {
 
     /// Function called to get the full analog read buffer for a particular device with ID `device`. `max_length` is the maximum amount
     /// of keys that can be accepted, any more beyond this will be ignored by the SDK.
+    /// If `device` is 0 then no specific device is specified and the data should be read from all devices and combined
     fn read_full_buffer(
         &mut self,
         max_length: usize,
@@ -95,9 +96,9 @@ pub struct DeviceInfo {
     pub product_id: u16,
     //TODO: Consider switching these to FFiStr
     /// Device Manufacturer name
-    manufacturer_name: *const c_char,
+    pub manufacturer_name: *const c_char,
     /// Device name
-    device_name: *const c_char,
+    pub device_name: *const c_char,
     /// Unique device ID, which should be generated using `generate_device_id`
     pub device_id: DeviceID,
 }
@@ -218,7 +219,9 @@ enum_from_primitive! {
         NoPlugins,
         FunctionNotFound,
         //No Keycode mapping to HID was found for the given Keycode
-        NoMapping
+        NoMapping,
+        /// Indicates that it isn't available on this platform
+        NotAvailable
 
     }
 }

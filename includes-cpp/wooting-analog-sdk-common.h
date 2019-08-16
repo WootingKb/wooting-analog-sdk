@@ -17,6 +17,8 @@ enum class AnalogSDKResult {
   AnalogSDKResult_NoPlugins,
   AnalogSDKResult_FunctionNotFound,
   AnalogSDKResult_NoMapping,
+  /// Indicates that it isn't available on this platform
+  AnalogSDKResult_NotAvailable,
 };
 
 enum class WASDK_DeviceEventType {
