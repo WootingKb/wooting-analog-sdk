@@ -32,3 +32,4 @@ assets = [
     ["target/release/libwooting_analog_sdk.so", "usr/lib/", "755"],
 ]
 depends = "$auto"
+priority = "optional"
