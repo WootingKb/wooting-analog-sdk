@@ -2,7 +2,7 @@
 
 # Wooting Analog SDK
 
-This repo contains all the core components of the Wooting Analog SDK.
+This repo contains all the core cross-platform components of the Wooting Analog SDK. The SDK and most of the components are built on Rust and should run on Windows, Mac and Linux, following the same steps for each platform unless otherwise specified.
 
 NOTE: Use the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to tell the SDK where to search for plugins.
 
@@ -45,7 +45,7 @@ All build outputs can be found under `target/debug`, with generated headers comi
 
 Currently the headers have to be manually generated and kept in the repo. When intentional changes are made, the testing phase verifies that the pre-generated headers match what would be generated now to ensure that accidental changes aren't made to the output of the header generation.
 
-#### Outputted Headers
+### Headers
 * `wooting-analog-wrapper.h`: This is the header which includes everything that you need to use the SDK. (This uses `wooting-analog-common.h` which defines all relevant enums & structs)
 * `wooting-analog-common.h`: This defines all common enums, headers & structs which are needed by plugins & SDK users
 * `wooting-analog-plugin-dev.h`: This includes `wooting-analog-common.h` & additional functions which are obtained from statically linking to the analog-sdk-common library. (FOR USE WITH PLUGINS)
