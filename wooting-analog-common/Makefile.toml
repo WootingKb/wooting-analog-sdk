@@ -53,4 +53,4 @@ dependencies=["verify-headers"]
 #dependencies=["gen-headers"]
 
 [tasks.clean]
-dependencies=["clean-headers"]
+#dependencies=["clean-headers"]
