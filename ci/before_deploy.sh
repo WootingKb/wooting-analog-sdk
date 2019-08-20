@@ -44,6 +44,7 @@ main() {
 
     # Copy Plugin items
     cp target/$TARGET/release/${lib_prefix}wooting_analog_common.$lib_ext $stage/plugins/lib
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_plugin_dev.$lib_ext $stage/plugins/lib
 
     ## Copy c headers
     cp includes/plugin.h $stage/plugins/includes/
