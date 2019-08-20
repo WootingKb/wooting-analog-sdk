@@ -114,7 +114,9 @@ deploy:
   api_key:
     secure: eMiCXm1LYj/2c7xQ+j0wqKiRGHMevPMqJX4mshNm0VtmkyAQBCjdueTdMjXxB0FE0E3L9ts0RcxrBTXD96S74DdEKvw5kz0Bmn3XrUZfNJ0mK85s+c9wXycRKPyBlKzrPZOxmn8WUxQAx7Db1qAiOjK4IPpKp90GTFMKyOgGRpfCdM72UEyM1hEOs8++n1MRaW/5l/PsTRKdYVqmFT5oC7zh65MobWI6U7O3xkEkfQ1xrya2FJxMrEmQIVYlU1ADFAeUwtJJuocqhlJnmKhDWdUa9cNhpYzfDva+Fh95SSJuLPX8f9+DTya59Ts6Cqxtq6s7nEn1jU2awT11pmuuDewrztQRX5Tm1hTBQ8EhGN19w1lp+BEsnv7tidwG8zPKn0ME/j1dPGIO8Bz1zhMGqljqROvslv6PeEISO1aAizaPczZ6RaIGhiSsXdapzRLGrQRKY0Hkh80QLEMOVAayx1cUZC3GF7SAN4Wi7y3WXNsNnLdw7wPY7T1y7yAWXDplTASp4b+CmbdxLIfzOih/VR9dNwjn06bRfHHB1spGsyj+GzBThsRS069jix7lbTCEecpjNn9lLVUcspSl5d5MiOSiUHPdRcgPdG/6CLK2PeDoaM5avmlqs6GJXIkG218ju6/nSOq4bZhMB66N6Utc5Qyh63fSG9VTuvDdEwoh6OA=
   file_glob: true
-  file: $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
+  file: 
+    - $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
+    - target\wix\*.msi
   on:
     # TODO Here you can pick which targets will generate binary releases
     # In this example, there are some targets that are tested using the stable
