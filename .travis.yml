@@ -126,9 +126,9 @@ branches:
     # release tags
     - /^v\d+\.\d+\.\d+.*$/
     - develop
-    - feature/*
-    - hotfix/*
-    - feature/*
+    - /^feature\/.*$/
+    - /^hotfix\/.*$/
+    - /^release\/.*$/
 
 notifications:
   email:

@@ -21,6 +21,16 @@ main() {
     cargo make default -e CARGO_COMMAND=cross -- --target $TARGET --release
 
 
+    mkdir $stage/plugins
+    mkdir $stage/plugins/lib
+    mkdir $stage/plugins/includes
+    mkdir $stage/plugins/includes-cpp
+
+    mkdir $stage/wrapper
+    mkdir $stage/wrapper/includes
+    mkdir $stage/wrapper/includes-cpp
+    mkdir $stage/wrapper/sdk
+
     # Copy Plugin items
     cp target/$TARGET/release/libwooting_analog_common.a $stage/plugins/lib
 
