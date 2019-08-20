@@ -100,6 +100,7 @@ install:
   - sh ci/install.sh
   - source ~/.cargo/env || true
   - which cargo-make || cargo install cargo-make
+  - which choco || choco install wixtoolset
 
 script:
   - bash ci/script.sh
