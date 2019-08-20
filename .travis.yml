@@ -3,9 +3,6 @@
 
 dist: trusty
 language: rust
-rust:
-  - stable
-  - nightly
 services: docker
 sudo: required
 
@@ -89,6 +86,7 @@ matrix:
 before_install:
   - set -e
   - rustup self update
+  - rustup toolchain install nightly
 
 install:
   - sh ci/install.sh
