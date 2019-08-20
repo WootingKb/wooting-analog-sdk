@@ -6,13 +6,14 @@ set -ex
 main() {
     #cross build --target $TARGET
     #cross build --target $TARGET --release
-    cargo make default -e CARGO_COMMAND=cross -- --target $TARGET --release
+    cargo make build -e CARGO_COMMAND=cross -- --target $TARGET --release
 
 
     if [ ! -z $DISABLE_TESTS ]; then
         return
     fi
 
+    cargo make test-flow -e CARGO_COMMAND=cross -- --target $TARGET
     #cross test --target $TARGET
     #cross test --target $TARGET --release
 
