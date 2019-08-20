@@ -22,8 +22,8 @@ environment:
     - TARGET: x86_64-pc-windows-msvc
 
     # Testing other channels
-    - TARGET: x86_64-pc-windows-gnu
-      RUST_VERSION: nightly
+    #- TARGET: x86_64-pc-windows-gnu
+    #  RUST_VERSION: nightly
     - TARGET: x86_64-pc-windows-msvc
       RUST_VERSION: nightly
 
@@ -87,8 +87,10 @@ cache:
 branches:
   only:
     # Release tags
-    - /^v\d+\.\d+\.\d+.*$/
-    - master
+    - release/*
+    - develop
+    - feature/*
+    - hotfix/*
 
 notifications:
   - provider: Email
