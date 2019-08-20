@@ -3,7 +3,7 @@
 set -ex
 
 main() {
-    local src=$(pwd) /
+    local src=$(pwd) 
           stage=
 
     case $TRAVIS_OS_NAME in
@@ -18,7 +18,7 @@ main() {
     test -f Cargo.lock || cargo generate-lockfile
 
     # TODO Update this to build the artifacts that matter to you
-    cargo make default -e CARGO_COMMAND=cross -- --target $TARGET --release -- -C lto
+    cargo make default -e CARGO_COMMAND=cross -- --target $TARGET --release
 
 
     # Copy Plugin items
