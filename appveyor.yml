@@ -46,10 +46,10 @@ install:
 test_script:
   # we don't run the "test phase" when doing deploys
   - if [%APPVEYOR_REPO_TAG%]==[false] (
-      cargo make test-flow -- --target %TARGET% &&
-      cargo make test-flow -- --target %TARGET% --release 
+      cargo make test -- --target %TARGET% &&
+      cargo make test -- --target %TARGET% --release 
     )
-  - cargo make default -- --target %TARGET% --release 
+  #- cargo make default -- --target %TARGET% --release 
   - cargo make win-installer --cwd wooting-analog-sdk -- --target %TARGET%
   - ps: ci\before_deploy.ps1
 
