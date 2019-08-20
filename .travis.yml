@@ -100,7 +100,7 @@ install:
   - sh ci/install.sh
   - source ~/.cargo/env || true
   - which cargo-make || cargo install cargo-make
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset          ; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset --version 3.10.3.300702          ; fi
 
 script:
   - bash ci/script.sh
@@ -109,7 +109,7 @@ after_script: set +e
 
 before_deploy:
   - sh ci/before_deploy.sh
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target %TARGET%          ; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target %TARGET%; export PATH=$PATH";C:\Program Files (x86)\WiX Toolset v3.10\bin"          ; fi
 
 deploy:
   api_key:
