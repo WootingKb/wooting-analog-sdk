@@ -40,6 +40,7 @@ install:
   - rustc -Vv
   - cargo -V
   - cargo install cargo-make
+  - rustup toolchain install nightly
 
 # TODO This is the "test phase", tweak it as you see fit
 test_script:
