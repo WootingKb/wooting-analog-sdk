@@ -100,7 +100,7 @@ install:
   - sh ci/install.sh
   - source ~/.cargo/env || true
   - which cargo-make || cargo install cargo-make
-  - which choco || choco install wixtoolset
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install wixtoolset          ; fi
 
 script:
   - bash ci/script.sh
