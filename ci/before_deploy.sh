@@ -29,7 +29,7 @@ main() {
     test -f Cargo.lock || cargo generate-lockfile
 
     # TODO Update this to build the artifacts that matter to you
-    cargo make default -e CARGO_COMMAND=cross -- --target $TARGET --release
+    cargo make build -e CARGO_COMMAND=cross -- --target $TARGET --release
 
 
     mkdir $stage/plugins
