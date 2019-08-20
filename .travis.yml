@@ -3,6 +3,9 @@
 
 dist: trusty
 language: rust
+rust:
+  - stable
+  - nightly
 services: docker
 sudo: required
 

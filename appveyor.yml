@@ -81,7 +81,7 @@ deploy:
   provider: GitHub
 
 cache:
-  - C:\Users\appveyor\.cargo\registry
+  - C:\Users\appveyor\.cargo
   - target
 
 branches:
