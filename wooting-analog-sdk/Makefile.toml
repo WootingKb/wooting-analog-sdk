@@ -1,3 +1,11 @@
 [tasks.gen-headers]
 
 [tasks.verify-headers]
+
+[tasks.build-release]
+args = ["build", "--all-features", "--release",  "${@}"]
+
+[tasks.win-installer]
+dependencies = ["build-release"]
+command = "cargo"
+args = ["wix", "--output", "..\target\wix\${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"]

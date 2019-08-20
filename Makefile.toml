@@ -1,16 +1,40 @@
+[config]
+default_to_workspace=false
+
+
 [tasks.build]
-workspace = false
+args = ["build", "--all-features", "${@}"]
+dependencies = [ "cargo-args" ]
+
+[tasks.cargo-args]
+condition = { env_set = [ "CARGO_TARGET" ] }
+env = { CARGO_ARGS="--target ${CARGO_TARGET}" }
+script = [
+    "echo var: ${CARGO_TARGET}"
+]
 
 [tasks.test]
-workspace = false
+args = ["test", "--all-features", "${@}"]
+dependencies = [ "cargo-args" ]
 
 [tasks.test-app]
-workspace = false
 env = { PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
 command = "dotnet"
 args = [ "run", "--project", "wooting-analog-test" ]
 dependencies = [ "build" ]
 
 [tasks.gen-headers]
+workspace = true
+env = { CARGO_MAKE_MEMBER_TASK = "gen-headers", CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "wooting-analog-sdk" }
+run_task = "do-on-members"
 
+#NOTE: We're gonna leave the cbindgen-install tasks in each directory as it means you can successfully run the tasks on just the children
+# and it also doesn't work consistently moving it to this file
 [tasks.verify-headers]
+workspace=true
+env = { CARGO_MAKE_MEMBER_TASK = "verify-headers", CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "wooting-analog-sdk" }
+run_task = "do-on-members"
+
+[tasks.post-test]
+dependencies=["verify-headers"]
+

@@ -8,7 +8,7 @@ environment:
     RUST_VERSION: stable
 
     # TODO Update this to match the name of your project.
-    CRATE_NAME: analog-sdk
+    CRATE_NAME: wooting-analog-sdk
 
   # TODO These are all the build jobs. Adjust as necessary. Comment out what you
   # don't need
@@ -39,23 +39,24 @@ install:
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
   - rustc -Vv
   - cargo -V
+  - cargo install cargo-make
 
 # TODO This is the "test phase", tweak it as you see fit
 test_script:
   # we don't run the "test phase" when doing deploys
   - if [%APPVEYOR_REPO_TAG%]==[false] (
-      cargo build --target %TARGET% &&
-      cargo build --target %TARGET% --release &&
-      cargo test --target %TARGET% &&
-      cargo test --target %TARGET% --release &&
-      cargo run --target %TARGET% &&
-      cargo run --target %TARGET% --release
+      cargo make test-flow -- --target %TARGET% &&
+      cargo make test-flow -- --target %TARGET% --release 
     )
 
-before_deploy:
+build:
   # TODO Update this to build the artifacts that matter to you
-  - cargo rustc --target %TARGET% --release --bin hello -- -C lto
+  - cargo make default -- --target %TARGET% --release 
+  - cargo make win-installer --cwd wooting-analog-sdk -- --target %TARGET%
   - ps: ci\before_deploy.ps1
+
+artifacts:
+  - path: target\wix\*.msi
 
 deploy:
   artifact: /.*\.zip/
