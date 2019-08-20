@@ -87,10 +87,11 @@ cache:
 branches:
   only:
     # Release tags
-    - release/*
+    - /^v\d+\.\d+\.\d+.*$/
     - develop
     - feature/*
     - hotfix/*
+    - feature/*
 
 notifications:
   - provider: Email

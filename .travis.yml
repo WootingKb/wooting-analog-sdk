@@ -124,10 +124,11 @@ before_cache:
 branches:
   only:
     # release tags
-    - release/*
+    - /^v\d+\.\d+\.\d+.*$/
     - develop
     - feature/*
     - hotfix/*
+    - feature/*
 
 notifications:
   email:
