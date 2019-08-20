@@ -8,6 +8,17 @@ Set-Location $ENV:Temp
 New-Item -Type Directory -Name $STAGE
 Set-Location $STAGE
 
+New-Item -Type Directory -Name "plugins"
+New-Item -Type Directory -Name "plugins\lib"
+New-Item -Type Directory -Name "plugins\includes"
+New-Item -Type Directory -Name "plugins\includes-cpp"
+
+New-Item -Type Directory -Name "wrapper"
+New-Item -Type Directory -Name "wrapper\includes"
+New-Item -Type Directory -Name "wrapper\includes-cpp"
+New-Item -Type Directory -Name "wrapper\sdk"
+
+
 $ZIP = "$SRC_DIR\$($Env:CRATE_NAME)-$($Env:APPVEYOR_REPO_TAG_NAME)-$($Env:TARGET).zip"
 
 # Copy Plugin items
