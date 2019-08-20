@@ -52,7 +52,7 @@ test_script:
   - cargo make win-installer --cwd wooting-analog-sdk -- --target %TARGET%
   - ps: ci\before_deploy.ps1
 
-before-deploy:
+before_deploy:
   # TODO Update this to build the artifacts that matter to you
   - cargo make default -- --target %TARGET% --release 
   - cargo make win-installer --cwd wooting-analog-sdk -- --target %TARGET%
