@@ -115,6 +115,7 @@ deploy:
     tags: true
   provider: releases
   skip_cleanup: true
+  draft: true
 
 cache: cargo
 before_cache:

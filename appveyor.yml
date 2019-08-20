@@ -79,6 +79,7 @@ deploy:
     RUST_VERSION: stable
     appveyor_repo_tag: true
   provider: GitHub
+  draft: true
 
 cache:
   - C:\Users\appveyor\.cargo\registry
