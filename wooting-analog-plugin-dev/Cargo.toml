@@ -8,11 +8,15 @@ homepage = "https://github.com/WootingKb/wooting-analog-sdk"
 repository = "https://github.com/WootingKb/wooting-analog-sdk"
 description = "Library for designing plugins for the Wooting Analog SDK"
 keywords = [ "wooting", "keyboard", "analog", "sdk", "plugin" ]
+documentation = "https://docs.rs/wooting-analog-plugin-dev"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+#use this for local development
 wooting-analog-common = { path = "../wooting-analog-common"}
+#Use this when publishing
+#wooting-analog-common = "0.1.0"
 ffi-support = "0.3.5"
 
 
