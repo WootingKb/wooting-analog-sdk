@@ -4,16 +4,21 @@ set -ex
 
 # TODO This is the "test phase", tweak it as you see fit
 main() {
+    local cargo=cargo
+    if [ $TRAVIS_OS_NAME = linux ] || [ $TRAVIS_OS_NAME = osx ]; then
+      cargo=cross
+    fi
+
     #cross build --target $TARGET
     #cross build --target $TARGET --release
-    cargo make build -e CARGO_COMMAND=cross -- --target $TARGET --release
+    cargo make build -e CARGO_COMMAND=$cargo -- --target $TARGET --release
 
 
     if [ ! -z $DISABLE_TESTS ]; then
         return
     fi
 
-    cargo make test-flow -e CARGO_COMMAND=cross -- --target $TARGET
+    cargo make test-flow -e CARGO_COMMAND=$cargo -- --target $TARGET
     #cross test --target $TARGET
     #cross test --target $TARGET --release
 

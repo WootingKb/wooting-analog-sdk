@@ -8,6 +8,7 @@ main() {
           lib_ext=
           lib_prefix=
           shared_lib_ext=
+          cargo=cargo
 
     case $TRAVIS_OS_NAME in
         linux)
@@ -15,21 +16,27 @@ main() {
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="so"
+            cargo=cross
             ;;
         osx)
             stage=$(mktemp -d -t tmp)
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="dylib"
+            cargo=cross
+            ;;
+        windows)
+            stage=$(mktemp -d)
+            lib_ext="lib"
+            lib_prefix=""
+            shared_lib_ext="dll"
             ;;
     esac
-
-    
 
     test -f Cargo.lock || cargo generate-lockfile
 
     # TODO Update this to build the artifacts that matter to you
-    cargo make build -e CARGO_COMMAND=cross -- --target $TARGET --release
+    cargo make build -e CARGO_COMMAND=$cargo -- --target $TARGET --release
 
 
     mkdir $stage/plugins
