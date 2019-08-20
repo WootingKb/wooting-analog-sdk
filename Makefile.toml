@@ -1,8 +1,12 @@
+[env]
+CARGO_COMMAND = "cargo"
+
 [config]
 default_to_workspace=false
 
 
 [tasks.build]
+command = "${CARGO_COMMAND}"
 args = ["build", "--all-features", "${@}"]
 dependencies = [ "cargo-args" ]
 
@@ -14,6 +18,7 @@ script = [
 ]
 
 [tasks.test]
+command = "${CARGO_COMMAND}"
 args = ["test", "--all-features", "${@}"]
 dependencies = [ "cargo-args" ]
 
@@ -36,5 +41,5 @@ env = { CARGO_MAKE_MEMBER_TASK = "verify-headers", CARGO_MAKE_WORKSPACE_SKIP_MEM
 run_task = "do-on-members"
 
 [tasks.post-test]
-dependencies=["verify-headers"]
+#dependencies=["verify-headers"]
 
