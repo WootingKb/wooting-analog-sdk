@@ -39,7 +39,7 @@ install:
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
   - rustc -Vv
   - cargo -V
-  - cargo install cargo-make
+  - cargo install --force cargo-make
   - rustup toolchain install nightly
 
 # TODO This is the "test phase", tweak it as you see fit
