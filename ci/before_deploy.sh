@@ -5,15 +5,26 @@ set -ex
 main() {
     local src=$(pwd) 
           stage=
+          lib_ext=
+          lib_prefix=
+          shared_lib_ext=
 
     case $TRAVIS_OS_NAME in
         linux)
             stage=$(mktemp -d)
+            lib_ext="a"
+            lib_prefix="lib"
+            shared_lib_ext="so"
             ;;
         osx)
             stage=$(mktemp -d -t tmp)
+            lib_ext="a"
+            lib_prefix="lib"
+            shared_lib_ext="dylib"
             ;;
     esac
+
+    
 
     test -f Cargo.lock || cargo generate-lockfile
 
@@ -32,7 +43,7 @@ main() {
     mkdir $stage/wrapper/sdk
 
     # Copy Plugin items
-    cp target/$TARGET/release/libwooting_analog_common.a $stage/plugins/lib
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_common.$lib_ext $stage/plugins/lib
 
     ## Copy c headers
     cp includes/plugin.h $stage/plugins/includes/
@@ -49,8 +60,8 @@ main() {
 
 
     # Copy wrapper items
-    cp target/$TARGET/release/libwooting_analog_wrapper.so $stage/wrapper/
-    cp target/$TARGET/release/libwooting_analog_sdk.so $stage/wrapper/sdk/
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext $stage/wrapper/
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
 
     ## Copy c headers
     cp includes/wooting-analog-wrapper.h $stage/wrapper/includes/
