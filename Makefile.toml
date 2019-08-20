@@ -41,5 +41,5 @@ env = { CARGO_MAKE_MEMBER_TASK = "verify-headers", CARGO_MAKE_WORKSPACE_SKIP_MEM
 run_task = "do-on-members"
 
 [tasks.post-test]
-#dependencies=["verify-headers"]
+dependencies=["verify-headers"]
 
