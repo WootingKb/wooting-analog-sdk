@@ -22,7 +22,7 @@ main() {
 
 
     # Copy Plugin items
-    cp target/$TARGET/release/wooting_analog_common.lib $stage/plugins/lib
+    cp target/$TARGET/release/libwooting_analog_common.a $stage/plugins/lib
 
     ## Copy c headers
     cp includes/plugin.h $stage/plugins/includes/
@@ -39,8 +39,8 @@ main() {
 
 
     # Copy wrapper items
-    cp target/$TARGET/release/wooting_analog_wrapper.dll $stage/wrapper/
-    cp target/$TARGET/release/wooting_analog_sdk.dll $stage/wrapper/sdk/
+    cp target/$TARGET/release/libwooting_analog_wrapper.so $stage/wrapper/
+    cp target/$TARGET/release/libwooting_analog_sdk.so $stage/wrapper/sdk/
 
     ## Copy c headers
     cp includes/wooting-analog-wrapper.h $stage/wrapper/includes/
