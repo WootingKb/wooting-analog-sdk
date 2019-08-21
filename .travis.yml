@@ -67,10 +67,10 @@ matrix:
     #- env: TARGET=x86_64-unknown-netbsd DISABLE_TESTS=1
 
     # Windows
-    - env: TARGET=x86_64-pc-windows-gnu
+    #- env: TARGET=x86_64-pc-windows-gnu
     
-    #- env: TARGET=x86_64-pc-windows-msvc
-    #  os: windows
+    - env: TARGET=x86_64-pc-windows-msvc
+      os: windows
 
     #- env: TARGET=i686-pc-windows-msvc
     #  os: windows
