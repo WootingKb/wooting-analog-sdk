@@ -1,0 +1,46 @@
+# Maintainer: Chiu-Hsiang Hsu <wdv4758h@gmail.com>
+
+pkgname=cargo-arch
+pkgver=0.1.2
+pkgrel=1
+epoch=0
+pkgdesc="Rust Arch Linux package packer"
+url="https://github.com/wdv4758h/cargo-arch/"
+license=("Apache-2.0")
+install=""
+changelog=""
+source=()
+validpgpkeys=()
+noextract=()
+md5sums=()
+sha1sums=()
+sha256sums=()
+sha384sums=()
+sha512sums=()
+groups=()
+arch=("x86_64")
+backup=()
+depends=()
+makedepends=()
+checkdepends=()
+optdepends=()
+conflicts=()
+provides=()
+replaces=()
+options=()
+
+pkgver() {
+    (git describe --long --tags || echo "$pkgver") | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+build() {
+    cargo build --release
+}
+
+package() {
+    cd ..
+    usrdir="$pkgdir/usr"
+    mkdir -p $usrdir
+    cargo install --path . --root "$usrdir"
+    rm -f $usrdir/.crates.toml
+}
