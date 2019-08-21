@@ -13,6 +13,7 @@ env:
   global:
     # TODO Update this to match the name of your project.
     - CRATE_NAME=wooting-analog-sdk
+    #- RUST_LOG=trace
 
 matrix:
   # TODO These are all the build jobs. Adjust as necessary. Comment out what you
@@ -66,7 +67,13 @@ matrix:
     #- env: TARGET=x86_64-unknown-netbsd DISABLE_TESTS=1
 
     # Windows
-    - env: TARGET=x86_64-pc-windows-gnu
+    #- env: TARGET=x86_64-pc-windows-gnu
+    
+    - env: TARGET=x86_64-pc-windows-msvc
+      os: windows
+
+    #- env: TARGET=i686-pc-windows-msvc
+    #  os: windows
 
     # Bare metal
     # These targets don't support std and as such are likely not suitable for
@@ -77,6 +84,9 @@ matrix:
     # - env: TARGET=thumbv7m-none-eabi
 
     # Testing other channels
+    - env: TARGET=x86_64-pc-windows-msvc
+      os: windows
+      rust: nightly
     - env: TARGET=x86_64-unknown-linux-gnu
       rust: nightly
     - env: TARGET=x86_64-apple-darwin
@@ -92,6 +102,7 @@ install:
   - sh ci/install.sh
   - source ~/.cargo/env || true
   - which cargo-make || cargo install cargo-make
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset --version 3.10.3.300702 || true; export PATH=$PATH";C:\Program Files (x86)\WiX Toolset v3.10\bin"               ; fi
 
 script:
   - bash ci/script.sh
@@ -100,12 +111,17 @@ after_script: set +e
 
 before_deploy:
   - sh ci/before_deploy.sh
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then cargo make build-deb --cwd wooting-analog-sdk -- --target $TARGET     ; fi
 
 deploy:
   api_key:
     secure: eMiCXm1LYj/2c7xQ+j0wqKiRGHMevPMqJX4mshNm0VtmkyAQBCjdueTdMjXxB0FE0E3L9ts0RcxrBTXD96S74DdEKvw5kz0Bmn3XrUZfNJ0mK85s+c9wXycRKPyBlKzrPZOxmn8WUxQAx7Db1qAiOjK4IPpKp90GTFMKyOgGRpfCdM72UEyM1hEOs8++n1MRaW/5l/PsTRKdYVqmFT5oC7zh65MobWI6U7O3xkEkfQ1xrya2FJxMrEmQIVYlU1ADFAeUwtJJuocqhlJnmKhDWdUa9cNhpYzfDva+Fh95SSJuLPX8f9+DTya59Ts6Cqxtq6s7nEn1jU2awT11pmuuDewrztQRX5Tm1hTBQ8EhGN19w1lp+BEsnv7tidwG8zPKn0ME/j1dPGIO8Bz1zhMGqljqROvslv6PeEISO1aAizaPczZ6RaIGhiSsXdapzRLGrQRKY0Hkh80QLEMOVAayx1cUZC3GF7SAN4Wi7y3WXNsNnLdw7wPY7T1y7yAWXDplTASp4b+CmbdxLIfzOih/VR9dNwjn06bRfHHB1spGsyj+GzBThsRS069jix7lbTCEecpjNn9lLVUcspSl5d5MiOSiUHPdRcgPdG/6CLK2PeDoaM5avmlqs6GJXIkG218ju6/nSOq4bZhMB66N6Utc5Qyh63fSG9VTuvDdEwoh6OA=
   file_glob: true
-  file: $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
+  file: 
+    - $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
+    - target/wix/*.msi
+    - target/$TARGET/debian/*.deb
   on:
     # TODO Here you can pick which targets will generate binary releases
     # In this example, there are some targets that are tested using the stable
@@ -115,19 +131,23 @@ deploy:
     tags: true
   provider: releases
   skip_cleanup: true
+  draft: true
 
-cache: cargo
+cache:
+  timeout: 1000
+  cargo: true
 before_cache:
   # Travis can't cache files that are not readable by "others"
-  - chmod -R a+r $HOME/.cargo
+  - travis_wait chmod -R a+r $HOME/.cargo
 
 branches:
   only:
     # release tags
-    - release/*
+    - /^v\d+\.\d+\.\d+.*$/
     - develop
-    - feature/*
-    - hotfix/*
+    - /^feature\/.*$/
+    - /^hotfix\/.*$/
+    - /^release\/.*$/
 
 notifications:
   email:

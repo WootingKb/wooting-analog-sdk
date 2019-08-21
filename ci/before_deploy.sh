@@ -3,26 +3,55 @@
 set -ex
 
 main() {
-    local src=$(pwd) /
+    local src=$(pwd) 
           stage=
+          lib_ext=
+          lib_prefix=
+          shared_lib_ext=
+          cargo=cargo
 
     case $TRAVIS_OS_NAME in
         linux)
             stage=$(mktemp -d)
+            lib_ext="a"
+            lib_prefix="lib"
+            shared_lib_ext="so"
+            cargo=cross
             ;;
         osx)
             stage=$(mktemp -d -t tmp)
+            lib_ext="a"
+            lib_prefix="lib"
+            shared_lib_ext="dylib"
+            cargo=cross
+            ;;
+        windows)
+            stage=$(mktemp -d)
+            lib_ext="lib"
+            lib_prefix=""
+            shared_lib_ext="dll"
             ;;
     esac
 
     test -f Cargo.lock || cargo generate-lockfile
 
     # TODO Update this to build the artifacts that matter to you
-    cargo make default -e CARGO_COMMAND=cross -- --target $TARGET --release -- -C lto
+    cargo make build -e CARGO_COMMAND=$cargo -- --target $TARGET --release
 
+
+    mkdir $stage/plugins
+    mkdir $stage/plugins/lib
+    mkdir $stage/plugins/includes
+    mkdir $stage/plugins/includes-cpp
+
+    mkdir $stage/wrapper
+    mkdir $stage/wrapper/includes
+    mkdir $stage/wrapper/includes-cpp
+    mkdir $stage/wrapper/sdk
 
     # Copy Plugin items
-    cp target/$TARGET/release/wooting_analog_common.lib $stage/plugins/lib
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_common.$lib_ext $stage/plugins/lib
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_plugin_dev.$lib_ext $stage/plugins/lib
 
     ## Copy c headers
     cp includes/plugin.h $stage/plugins/includes/
@@ -39,8 +68,8 @@ main() {
 
 
     # Copy wrapper items
-    cp target/$TARGET/release/wooting_analog_wrapper.dll $stage/wrapper/
-    cp target/$TARGET/release/wooting_analog_sdk.dll $stage/wrapper/sdk/
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext $stage/wrapper/
+    cp target/$TARGET/release/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
 
     ## Copy c headers
     cp includes/wooting-analog-wrapper.h $stage/wrapper/includes/

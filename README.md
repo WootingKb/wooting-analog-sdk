@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.com/WootingKb/wooting-analog-sdk.svg?branch=master)](https://travis-ci.com/WootingKb/wooting-analog-sdk)
+[![Build status](https://ci.appveyor.com/api/projects/status/e9gea2le1404ar22?svg=true)](https://ci.appveyor.com/project/simon-wh/wooting-analog-sdk)
 
 # Wooting Analog SDK
 

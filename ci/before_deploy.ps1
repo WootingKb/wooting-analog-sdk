@@ -23,6 +23,7 @@ $ZIP = "$SRC_DIR\$($Env:CRATE_NAME)-$($Env:APPVEYOR_REPO_TAG_NAME)-$($Env:TARGET
 
 # Copy Plugin items
 Copy-Item "$SRC_DIR\target\$($Env:TARGET)\release\wooting_analog_common.lib" '.\plugins\lib'
+Copy-Item "$SRC_DIR\target\$($Env:TARGET)\release\wooting_analog_plugin_dev.lib" '.\plugins\lib'
 
 ## Copy c headers
 Copy-Item "$SRC_DIR\includes\plugin.h" '.\plugins\includes\'
