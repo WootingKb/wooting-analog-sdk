@@ -117,7 +117,7 @@ deploy:
   file_glob: true
   file: 
     - $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
-    - target\wix\*.msi
+    - target/wix/*.msi
   on:
     # TODO Here you can pick which targets will generate binary releases
     # In this example, there are some targets that are tested using the stable
