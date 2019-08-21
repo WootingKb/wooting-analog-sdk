@@ -67,9 +67,11 @@ matrix:
     #- env: TARGET=x86_64-unknown-netbsd DISABLE_TESTS=1
 
     # Windows
-    #- env: TARGET=x86_64-pc-windows-gnu
-    - env: TARGET=x86_64-pc-windows-msvc
-      os: windows
+    - env: TARGET=x86_64-pc-windows-gnu
+    
+    #- env: TARGET=x86_64-pc-windows-msvc
+    #  os: windows
+
     #- env: TARGET=i686-pc-windows-msvc
     #  os: windows
 
@@ -110,6 +112,7 @@ after_script: set +e
 before_deploy:
   - sh ci/before_deploy.sh
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then cargo deb -p wooting-analog-sdk --target $TARGET     ; fi
 
 deploy:
   api_key:
@@ -118,6 +121,7 @@ deploy:
   file: 
     - $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
     - target/wix/*.msi
+    - target/debian/*.deb
   on:
     # TODO Here you can pick which targets will generate binary releases
     # In this example, there are some targets that are tested using the stable

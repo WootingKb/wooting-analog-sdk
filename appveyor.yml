@@ -24,8 +24,8 @@ environment:
     # Testing other channels
     #- TARGET: x86_64-pc-windows-gnu
     #  RUST_VERSION: nightly
-    - TARGET: x86_64-pc-windows-msvc
-      RUST_VERSION: nightly
+    #- TARGET: x86_64-pc-windows-msvc
+    #  RUST_VERSION: nightly
 
 install:
   - ps: >-
@@ -59,17 +59,17 @@ before_deploy:
   - cargo make win-installer --cwd wooting-analog-sdk -- --target %TARGET%
   - ps: ci\before_deploy.ps1
 
-artifacts:
-  - path: target\wix\*.msi
+#artifacts:
+#  - path: target\wix\*.msi
 
 deploy:
-  artifact: /.*\.zip/
+  artifact: /.*\.zip/,target\wix\*.msi
   # TODO update `auth_token.secure`
   # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
   # - Encrypt it. Go to https://ci.appveyor.com/tools/encrypt
   # - Paste the output down here
   auth_token:
-    secure: tv24bZ+ksIBTNFDAt2qblPi5SL0I9HPfsxrDScDjwL3GQjNTaLomjAUDDHrIVSL1
+    secure: TkxmOiF0KxXf2neRNnf7tSbbdPrIKgpg1nXeNSdCpixZNpI7fNsSGOcxCz/0s/mI
   description: ''
   on:
     # TODO Here you can pick which targets will generate binary releases
@@ -90,9 +90,9 @@ branches:
     # Release tags
     - /^v\d+\.\d+\.\d+.*$/
     - develop
-    - /^feature\/.*$/
-    - /^hotfix\/.*$/
-    - /^release\/.*$/
+    #- /^feature\/.*$/
+    #- /^hotfix\/.*$/
+    #- /^release\/.*$/
 
 #notifications:
 #  - provider: Email
