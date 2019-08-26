@@ -5,4 +5,10 @@ members = [
     "wooting-analog-common",
     "wooting-analog-wrapper",
     "wooting-analog-plugin-dev",
+    
+]
+
+exclude = [
+    "wooting-analog-test-plugin",
+    "wooting-analog-virtual-control"
 ]
