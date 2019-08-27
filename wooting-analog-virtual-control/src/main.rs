@@ -77,7 +77,7 @@ const keyboard_layout: [[(&str, u16, i32, i32); 21]; 6] = [
 ];
 
 fn main() {
-    use gtk::{Box, ButtonBuilder, Button, ButtonExt, GridBuilder, VolumeButton, VolumeButtonBuilder};
+    use gtk::{Box, ButtonBuilder, Button, ButtonExt, GridBuilder, VolumeButton, VolumeButtonBuilder, CheckButtonBuilder};
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -91,28 +91,39 @@ fn main() {
         return;
     }*/
 
+    let mut shmem = match SharedMem::open_linked("wooting-test-plugin.link") {
+        Ok(v) => v,
+        Err(e) => {
+            println!("Error : {}", e);
+            println!("Failed to open SharedMem...");
+            return;
+        }
+    };
+
+    println!("Opened link file with info : {}", shmem);
+
+    //Make sure at least one lock exists before using it...
+    if shmem.num_locks() != 1 {
+        println!("Expected to only have 1 lock in shared mapping !");
+        return;
+    }
+
+    //Tell the plugin that we've connected
+    {
+        let mut shared_state = match shmem.wlock::<SharedState>(0) {
+            Ok(v) => v,
+            Err(_) => panic!("Failed to acquire write lock !"),
+        };
+        shared_state.device_connected = true;
+    }
+    let og_my_shmem = Rc::new(RefCell::new(shmem));
+    let my_shmem = og_my_shmem.clone();
 
     let uiapp = gtk::Application::new(Some("org.gtkrsnotes.demo"),
                                       gio::ApplicationFlags::FLAGS_NONE)
         .expect("Application::new failed");
-    uiapp.connect_activate(|app| {
-        let mut shmem = match SharedMem::open_linked("wooting-test-plugin.link") {
-            Ok(v) => v,
-            Err(e) => {
-                println!("Error : {}", e);
-                println!("Failed to open SharedMem...");
-                return;
-            }
-        };
-
-        println!("Opened link file with info : {}", shmem);
-
-        //Make sure at least one lock exists before using it...
-        if shmem.num_locks() != 1 {
-            println!("Expected to only have 1 lock in shared mapping !");
-            return;
-        }
-        let my_shmem = Rc::new(RefCell::new(shmem));
+    uiapp.connect_activate(move |app| {
+        
 
         // We create the main window.
         let win = gtk::ApplicationWindow::new(app);
@@ -135,18 +146,36 @@ fn main() {
 
                 let mem_clone = my_shmem.clone();
                 button.connect_value_changed(move |but, val| {
-                    let mut sem = mem_clone.borrow_mut();
-                    let mut shared_state = match sem.wlock::<SharedState>(0) {
-                        Ok(v) => v,
-                        Err(_) => panic!("Failed to acquire write lock !"),
-                    };
-                    shared_state.analog_values[code as usize] =  (val*255_f64) as u8;
+                    {
+                        let mut sem = mem_clone.borrow_mut();
+                        let mut shared_state = match sem.wlock::<SharedState>(0) {
+                            Ok(v) => v,
+                            Err(_) => panic!("Failed to acquire write lock !"),
+                        };
+                        shared_state.analog_values[code as usize] =  (val*255_f64) as u8;
+                        //shared_state.dirty_device_info = true;
+                    }
                     but.set_label(format!("{}\n{}\n{:.2}", name, code,val).as_str());
                     but.override_color(gtk::StateFlags::NORMAL, Some(&gdk::RGBA { red:1f64-val,green:val,blue:0f64,alpha:1f64 }));
                 });
                 grid.attach(&button, x as i32, y as i32, width,height);
             }
         }
+        let edit_grid = GridBuilder::new().build();
+
+        let connected_btn = CheckButtonBuilder::new().label("Device Connected").build();
+        let mem_clone = my_shmem.clone();
+        connected_btn.connect_toggled(move |btn| {
+            let mut sem = mem_clone.borrow_mut();
+            let mut shared_state = match sem.wlock::<SharedState>(0) {
+                Ok(v) => v,
+                Err(_) => panic!("Failed to acquire write lock !"),
+            };
+            shared_state.device_connected = btn.get_active();
+        });
+        edit_grid.attach(&connected_btn, 0, 0, 1, 1);
+
+        grid.attach(&edit_grid, 0, keyboard_layout.len() as i32, (keyboard_layout[0].len() as i32)-1, 1);
 
         /*for x in 0..20 {
             for y in 0..5 {
@@ -165,4 +194,15 @@ fn main() {
         win.show_all();
     });
     uiapp.run(&env::args().collect::<Vec<_>>());
+
+    //Perform cleanup
+    let mut sem = og_my_shmem.borrow_mut();
+    let mut shared_state = match sem.wlock::<SharedState>(0) {
+        Ok(v) => v,
+        Err(_) => panic!("Failed to acquire write lock !"),
+    };
+
+    shared_state.device_connected = false;
+    shared_state.analog_values.iter_mut().for_each(|x| *x = 0);
+
 }

@@ -68,6 +68,8 @@ impl DeviceInfo {
 #[derive(Clone)]
 pub struct DeviceInfoPointer(pub *mut DeviceInfo);
 
+unsafe impl Send for DeviceInfoPointer {}
+
 impl Default for DeviceInfoPointer {
     fn default() -> Self {
         DeviceInfoPointer(std::ptr::null_mut())

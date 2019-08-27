@@ -8,12 +8,16 @@ use std::collections::HashMap;
 use shared_memory::*;
 use std::os::raw::{c_char};
 use log::{error, info};
-
+use std::thread;
+use std::sync::{Arc, Mutex};
 
 struct WootingAnalogTestPlugin {
-    shmem: SharedMem,
-    device_event_cb: Option<extern "C" fn(DeviceEventType, DeviceInfoPointer)>,
-    device: Option<DeviceInfoPointer>
+    //shmem: SharedMem,
+    device_connected: Arc<Mutex<bool>>,
+    device_event_cb: Arc<Mutex<Option<extern "C" fn(DeviceEventType, DeviceInfoPointer)>>>,
+    device: Arc<Mutex<Option<DeviceInfoPointer>>>,
+    buffer: Arc<Mutex<HashMap<u16, f32>>>,
+    device_id: Arc<Mutex<DeviceID>>
 }
 
 struct SharedState {
@@ -38,36 +42,102 @@ unsafe impl SharedMemCast for SharedState {}
 
 impl WootingAnalogTestPlugin{
     fn new() -> Self {
-        let mut my_shmem = match SharedMem::create_linked("wooting-test-plugin.link", LockType::Mutex, 4096) {
-            Ok(m) => m,
-            Err(e) => {
-                println!("Error : {}", e);
-                println!("Failed to create SharedMem !");
-                //return;
-                panic!();
-            }
-        };
-        println!("{:?}", my_shmem.get_link_path());
+        let device: Arc<Mutex<Option<DeviceInfoPointer>>> = Arc::new(Mutex::new(None));
+        let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
+        let device_id: Arc<Mutex<DeviceID>> = Arc::new(Mutex::new(1));
+        let device_event_cb: Arc<Mutex<Option<extern "C" fn(DeviceEventType, DeviceInfoPointer)>>> = Arc::new(Mutex::new(None));
+        let device_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
-        {
-            let mut shared_state = match my_shmem.wlock::<SharedState>(0) {
-                Ok(v) => v,
-                Err(_) => panic!("Failed to acquire write lock !"),
+        let t_buffer = Arc::clone(&buffer);
+        let t_device = Arc::clone(&device);
+        let t_device_id = Arc::clone(&device_id);
+        let t_device_event_cb = Arc::clone(&device_event_cb);
+        let t_device_connected = Arc::clone(&device_connected);
+
+        let worker_thread = thread::spawn(move || {
+            let mut my_shmem = match SharedMem::create_linked("wooting-test-plugin.link", LockType::Mutex, 4096) {
+                Ok(m) => m,
+                Err(e) => {
+                    println!("Error : {}", e);
+                    println!("Failed to create SharedMem !");
+                    //return;
+                    panic!();
+                }
             };
-            shared_state.vendor_id = 0x03eb;
-            shared_state.product_id = 0xFFFF;
-            shared_state.device_id = 1;
-            shared_state.device_connected = true;
-            shared_state.dirty_device_info = false;
-            let src = b"Wooting\x00";
-            shared_state.manufacturer_name[0..src.len()].copy_from_slice(src);
-            let src = b"Test Device\x00";
-            shared_state.device_name[0..src.len()].copy_from_slice(src);
-        }
+            println!("{:?}", my_shmem.get_link_path());
+
+            {
+                let mut shared_state = match my_shmem.wlock::<SharedState>(0) {
+                    Ok(v) => v,
+                    Err(_) => panic!("Failed to acquire write lock !"),
+                };
+                shared_state.vendor_id = 0x03eb;
+                shared_state.product_id = 0xFFFF;
+                shared_state.device_id = 1;
+                shared_state.device_connected = false;
+                shared_state.dirty_device_info = false;
+                let src = b"Wooting\x00";
+                shared_state.manufacturer_name[0..src.len()].copy_from_slice(src);
+                let src = b"Test Device\x00";
+                shared_state.device_name[0..src.len()].copy_from_slice(src);
+            }
+
+            let mut vals = vec![0; 0xFF];
+            loop {
+                {
+                    let mut state = match my_shmem.wlock::<SharedState>(0) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            println!("failed to get lock");
+                            continue;
+                        },
+                    };
+
+                    if state.dirty_device_info || t_device.lock().unwrap().is_none() {
+                        state.dirty_device_info = false;
+                        let dev = DeviceInfo::new_with_id(
+                            state.vendor_id,
+                            state.product_id,
+                            from_ut8f_to_null(&state.manufacturer_name[..], state.manufacturer_name.len()),
+                            from_ut8f_to_null(&state.device_name[..], state.device_name.len()),
+                            state.device_id,
+                        ).to_ptr();
+                        *t_device_id.lock().unwrap() = state.device_id;
+                        t_device.lock().unwrap().replace(dev);
+
+
+                    }
+                    if *t_device_connected.lock().unwrap() != state.device_connected {
+                        *t_device_connected.lock().unwrap() = state.device_connected;
+                        t_device_event_cb.lock().unwrap().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected }else {DeviceEventType::Disconnected} , t_device.lock().unwrap().clone().unwrap());Some(0)});
+                    }
+
+                    vals.copy_from_slice(&state.analog_values[..]);
+                }
+
+                let analog: HashMap<u16, f32> = vals.iter().enumerate().filter_map(|(i, &val)| {
+                    if val > 0 {
+                        Some((i as u16, f32::from(val) / 255_f32))
+                    }else {
+                        None
+                    }
+                } ).collect();
+                {
+                    let mut m = t_buffer.lock().unwrap();
+                    m.clear();
+                    m.extend(analog);
+                }
+                //t_buffer.lock().unwrap().
+                //thread::sleep_ms(500);
+            }
+        });
+
         WootingAnalogTestPlugin {
-            shmem: my_shmem,
-            device_event_cb: None,
-            device: None
+            device_connected,
+            device_event_cb,
+            device,
+            buffer,
+            device_id
         }
     }
 }
@@ -102,8 +172,9 @@ impl Plugin for WootingAnalogTestPlugin {
         //if !self.initialised {
         //    return WootingAnalogResult::UnInitialized;
         //}
+
         debug!("disconnected cb set");
-        self.device_event_cb = Some(cb);
+        self.device_event_cb.lock().unwrap().replace(cb);
         WootingAnalogResult::Ok
     }
 
@@ -113,15 +184,19 @@ impl Plugin for WootingAnalogTestPlugin {
         //}
 
         debug!("disconnected cb cleared");
-        self.device_event_cb = None;
+        self.device_event_cb.lock().unwrap().take();
         WootingAnalogResult::Ok
     }
 
     fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<i32> {
+        if !*self.device_connected.lock().unwrap() {
+            return WootingAnalogResult::NoDevices.into();
+        }
+
         //if !self.initialised {
         //    return WootingAnalogResult::UnInitialized.into();
         //}
-        let shared_state = self.shmem.rlock::<SharedState>(0);
+        /*let shared_state = self.shmem.rlock::<SharedState>(0);
 
 
         let dev_ptr: DeviceInfoPointer = match shared_state {
@@ -147,7 +222,8 @@ impl Plugin for WootingAnalogTestPlugin {
                     }
                 }
             }
-        }.clone();
+        }.clone();*/
+        let dev_ptr = self.device.lock().unwrap().clone().unwrap();
         buffer[0] = dev_ptr;
 
 
@@ -155,7 +231,20 @@ impl Plugin for WootingAnalogTestPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: u64) -> SDKResult<f32> {
-        let shared_state = self.shmem.rlock::<SharedState>(0);
+        if !*self.device_connected.lock().unwrap() {
+            return WootingAnalogResult::NoDevices.into();
+        }
+
+        if device == 0 || device == *self.device_id.lock().unwrap() {
+
+            //WootingAnalogResult::Failure.into()
+
+            Ok(self.buffer.lock().unwrap().get(&code).cloned().or(Some(0.0)).unwrap()).into()
+        }
+        else {
+            WootingAnalogResult::NoDevices.into()
+        }
+        /*let shared_state = self.shmem.rlock::<SharedState>(0);
 
         if let Ok(state) = shared_state {
             if device == 0 || device == state.device_id {
@@ -166,11 +255,16 @@ impl Plugin for WootingAnalogTestPlugin {
         }
         else {
             WootingAnalogResult::Failure.into()
-        }
+        }*/
     }
 
     fn read_full_buffer(&mut self, max_length: usize, device: u64) -> SDKResult<HashMap<u16, f32>> {
-        let mut vals = vec![0; 0xFF];
+        if !*self.device_connected.lock().unwrap() {
+            return WootingAnalogResult::NoDevices.into();
+        }
+
+        Ok(self.buffer.lock().unwrap().clone()).into()
+        /*let mut vals = vec![0; 0xFF];
         let shared_state = self.shmem.rlock::<SharedState>(0);
         if let Ok(state) = shared_state {
             if device == 0 || device == state.device_id {
@@ -191,7 +285,8 @@ impl Plugin for WootingAnalogTestPlugin {
         }
         else {
             WootingAnalogResult::Failure.into()
-        }
+        }*/
+        //WootingAnalogResult::Failure.into()
     }
 }
 
