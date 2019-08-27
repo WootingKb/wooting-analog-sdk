@@ -38,7 +38,7 @@ unsafe impl SharedMemCast for SharedState {}
 
 impl WootingAnalogTestPlugin{
     fn new() -> Self {
-        let mut my_shmem = match SharedMem::create_linked("/home/simonw/wooting-test-plugin.link", LockType::RwLock, 4096) {
+        let mut my_shmem = match SharedMem::create_linked("wooting-test-plugin.link", LockType::Mutex, 4096) {
             Ok(m) => m,
             Err(e) => {
                 println!("Error : {}", e);

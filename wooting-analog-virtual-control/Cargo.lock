@@ -479,6 +479,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "wooting-analog-virtual-control"
 version = "0.1.0"
 dependencies = [
+ "gdk 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gio 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
