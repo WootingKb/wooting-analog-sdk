@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.com/WootingKb/wooting-analog-sdk.svg?branch=master)](https://travis-ci.com/WootingKb/wooting-analog-sdk)
-[![Build status](https://ci.appveyor.com/api/projects/status/e9gea2le1404ar22?svg=true)](https://ci.appveyor.com/project/simon-wh/wooting-analog-sdk)
+[![wooting-analog-common Crates.io](https://img.shields.io/crates/v/wooting-analog-common?label=crates.io%20wooting-analog-common)](https://crates.io/crates/wooting-analog-common)
+[![wooting-analog-plugin-dev Crates.io](https://img.shields.io/crates/v/wooting-analog-plugin-dev?label=crates.io%20wooting-analog-plugin-dev)](https://crates.io/crates/wooting-analog-plugin-dev)
 
 # Wooting Analog SDK
 
@@ -15,6 +16,8 @@ Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK a
 * `wooting-analog-plugin-dev`: This library contains all common elements needed for designing plugins. This re-exports `wooting-analog-common`, so it is not required for plugins to separately depend on `wooting-analog-common`
 * `wooting-analog-wrapper`: This is the SDK wrapper which is what Applications should use to communicate with the SDK. The linked dll should be shipped with the application using it.
 * `wooting-analog-test`: This is a C# test application which can be used to test the SDK through the wrapper.
+* `wooting-analog-test-plugin`: Dummy plugin which uses shared memory so other processes can control the output of the plugin. This is used for unit testing of the SDK and allows the `wooting-analog-virtual-kb` to work
+* `wooting-analog-virtual-kb`: Virtual Keyboard using GTK which allows to set the analog value of all the keys through the dummy plugin. This allows you to test an Analog SDK implementation without an analog device
 
 ## Building 
 ### Build Dependencies
@@ -22,6 +25,7 @@ Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK a
 * [cargo-make](https://github.com/sagiegurari/cargo-make)
 * [cbindgen](https://github.com/eqrion/cbindgen) (Should be installed automatically if necessary)
 * [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `wooting-analog-test`
+* [libgtk-3](https://gtk-rs.org/docs-src/requirements.html) If you want to build the `wooting-analog-virtual-kb`, follow the install instructions from [here](https://gtk-rs.org/docs-src/requirements.html) (for Windows MSVC I also had to add `%VCPKGDIR%\lib` to the `LIB` environment variable)
 
 
 ### How to Build
@@ -39,6 +43,11 @@ cargo make gen-headers
 To run the test application:
 ```
 cargo make test-app
+```
+
+To run the virtual keyboard (The Analog SDK must be running for this to work):
+```
+cargo make virtual-kb
 ```
 
 ### Outputs
@@ -62,4 +71,6 @@ Currently the headers have to be manually generated and kept in the repo. When i
 
 - [ ] Analog SDK Self-updater
 - [ ] Example Application using the SDK
-- [ ] Push `wooting-analog-common` to crates.io
+- [ ] Improve docs & crates readme for `common` and `plugin-dev` packages
+- [ ] Plugin multi-threading
+- [x] Push `wooting-analog-common` to crates.io
