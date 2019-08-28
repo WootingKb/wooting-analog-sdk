@@ -164,6 +164,7 @@ fn main() {
         let edit_grid = GridBuilder::new().build();
 
         let connected_btn = CheckButtonBuilder::new().label("Device Connected").build();
+        connected_btn.set_active(true);
         let mem_clone = my_shmem.clone();
         connected_btn.connect_toggled(move |btn| {
             let mut sem = mem_clone.borrow_mut();
