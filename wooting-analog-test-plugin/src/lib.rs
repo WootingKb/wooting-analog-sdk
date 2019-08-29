@@ -128,7 +128,7 @@ impl WootingAnalogTestPlugin{
                     m.extend(analog);
                 }
                 //t_buffer.lock().unwrap().
-                //thread::sleep_ms(500);
+                thread::sleep_ms(10);
             }
         });
 
