@@ -1,0 +1,15 @@
+[package]
+name = "wooting-analog-test-plugin"
+version = "0.1.0"
+authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
+shared_memory = "0.8.2"
+log = "0.4.7"
+
+[lib]
+crate-type = ["cdylib"]

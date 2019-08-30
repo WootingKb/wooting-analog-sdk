@@ -8,26 +8,68 @@
 #include <stdlib.h>
 
 typedef enum {
+  /**
+   * Device has been connected
+   */
   WootingAnalog_DeviceEventType_Connected = 1,
+  /**
+   * Device has been disconnected
+   */
   WootingAnalog_DeviceEventType_Disconnected,
 } WootingAnalog_DeviceEventType;
 
 typedef enum {
+  /**
+   * USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
+   */
   WootingAnalog_KeycodeType_HID,
+  /**
+   * Scan code set 1
+   */
   WootingAnalog_KeycodeType_ScanCode1,
+  /**
+   * Windows Virtual Keys
+   */
   WootingAnalog_KeycodeType_VirtualKey,
+  /**
+   * Windows Virtual Keys which are translated to the current keyboard locale
+   */
   WootingAnalog_KeycodeType_VirtualKeyTranslate,
 } WootingAnalog_KeycodeType;
 
 typedef enum {
   WootingAnalogResult_Ok = 1,
+  /**
+   * Item hasn't been initialized
+   */
   WootingAnalogResult_UnInitialized = -2000,
+  /**
+   * No Devices are connected
+   */
   WootingAnalogResult_NoDevices,
+  /**
+   * Device has been disconnected
+   */
   WootingAnalogResult_DeviceDisconnected,
+  /**
+   * Generic Failure
+   */
   WootingAnalogResult_Failure,
+  /**
+   * A given parameter was invalid
+   */
   WootingAnalogResult_InvalidArgument,
+  /**
+   * No Plugins were found
+   */
   WootingAnalogResult_NoPlugins,
+  /**
+   * The specified function was not found in the library
+   */
   WootingAnalogResult_FunctionNotFound,
+  /**
+   * No Keycode mapping to HID was found for the given Keycode
+   */
   WootingAnalogResult_NoMapping,
   /**
    * Indicates that it isn't available on this platform

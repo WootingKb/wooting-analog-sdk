@@ -68,6 +68,8 @@ impl DeviceInfo {
 #[derive(Clone)]
 pub struct DeviceInfoPointer(pub *mut DeviceInfo);
 
+unsafe impl Send for DeviceInfoPointer {}
+
 impl Default for DeviceInfoPointer {
     fn default() -> Self {
         DeviceInfoPointer(std::ptr::null_mut())
@@ -111,9 +113,13 @@ enum_from_primitive! {
     #[derive(Debug, PartialEq)]
     #[repr(C)]
     pub enum KeycodeType {
+        /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
         HID,
+        /// Scan code set 1
         ScanCode1,
+        /// Windows Virtual Keys
         VirtualKey,
+        /// Windows Virtual Keys which are translated to the current keyboard locale
         VirtualKeyTranslate
     }
 }
@@ -124,7 +130,9 @@ enum_from_primitive! {
     #[derive(Debug, PartialEq)]
     #[repr(C)]
     pub enum DeviceEventType  {
+        /// Device has been connected
         Connected = 1,
+        /// Device has been disconnected
         Disconnected
     }
 }
@@ -134,15 +142,21 @@ enum_from_primitive! {
     #[repr(C)]
     pub enum WootingAnalogResult {
         Ok = 1,
+        /// Item hasn't been initialized
         UnInitialized = -2000,
+        /// No Devices are connected
         NoDevices,
+        /// Device has been disconnected
         DeviceDisconnected,
-        //Generic Failure
+        /// Generic Failure
         Failure,
+        /// A given parameter was invalid
         InvalidArgument,
+        /// No Plugins were found
         NoPlugins,
+        /// The specified function was not found in the library
         FunctionNotFound,
-        //No Keycode mapping to HID was found for the given Keycode
+        /// No Keycode mapping to HID was found for the given Keycode
         NoMapping,
         /// Indicates that it isn't available on this platform
         NotAvailable
