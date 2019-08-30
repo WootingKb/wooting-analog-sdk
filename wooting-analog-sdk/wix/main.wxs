@@ -47,7 +47,7 @@
             InstallerVersion='450'
             Languages='1033'
             Compressed='yes'
-            InstallScope='perMachine'
+            InstallScope='perUser'
             SummaryCodepage='1252'
             Platform='$(var.Platform)'/>
 
@@ -59,7 +59,7 @@
         <Property Id='DiskPrompt' Value='wooting-analog-sdk Installation'/>
 
         <Directory Id='TARGETDIR' Name='SourceDir'>
-            <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
+            <Directory Id='LocalAppDataFolder' Name='AppData'>
                 <Directory Id='APPLICATIONFOLDER' Name='wooting-analog-sdk'>
                     
                     <!--
@@ -83,7 +83,10 @@
                     -->
 
                     <Directory Id='Lib' Name='lib'>
-                        <Component Id='Path' Guid='81362F80-0FEC-4CBD-9C7E-AC92D1D3BBEB' Win64='$(var.Win64)' KeyPath='yes'>
+                        <Component Id='Path' Guid='81362F80-0FEC-4CBD-9C7E-AC92D1D3BBEB' Win64='$(var.Win64)'>
+                            <RegistryKey Root="HKCU" Key="Software\Wooting\AnalogSDK">
+                              <RegistryValue Name="MainPath" Value="1" KeyPath="yes" Type="integer" />
+                            </RegistryKey>
                             <Environment
                                 Id='PATH'
                                 Name='PATH'
@@ -91,15 +94,20 @@
                                 Permanent='no'
                                 Part='last'
                                 Action='set'
-                                System='yes'/>
+                                System='no'/>
                         </Component>
-                        <Component Id='wooting_analog_sdkLibrary' Guid='*' Win64='$(var.Win64)'>
+                        <Component Id='wooting_analog_sdkLibrary' Guid='d54a7521-8516-497f-a27b-8deacd93621e' Win64='$(var.Win64)'>
+                            <CreateFolder />
+                            <RemoveFolder Id="RemoveMyAppDirectory" Directory='APPLICATIONFOLDER' On="uninstall" />
+                            <RemoveFolder Id="RemoveMyLibDirectory" Directory='Lib' On="uninstall" />
+                            <RegistryKey Root="HKCU" Key="Software\Wooting\AnalogSDK">
+                              <RegistryValue Name="MainLib" Value="1" KeyPath="yes" Type="integer" />
+                            </RegistryKey>
                             <File
                                 Id='wooting_analog_sdkDLL'
                                 Name='wooting_analog_sdk.dll'
                                 DiskId='1'
-                                Source='..\target\release\wooting_analog_sdk.dll'
-                                KeyPath='yes'/>
+                                Source='..\target\release\wooting_analog_sdk.dll'/>
                         </Component>
                     </Directory>
                 </Directory>
@@ -111,10 +119,10 @@
             Title='Analog SDK'
             Description='Installs the Analog SDK'
             Level='1'
-            ConfigurableDirectory='APPLICATIONFOLDER'
             AllowAdvertise='no'
             Display='expand'
             Absent='disallow'>
+            <!--ConfigurableDirectory='APPLICATIONFOLDER'-->
             
             <!--
               Uncomment the following `ComponentRef` tag to add the license

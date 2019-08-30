@@ -54,7 +54,7 @@ env = { CARGO_MAKE_MEMBER_TASK = "verify-headers", CARGO_MAKE_WORKSPACE_SKIP_MEM
 run_task = "do-on-members"
 
 [tasks.post-test]
-dependencies=["verify-headers"]
+dependencies=["verify-headers"] # TODO: Add testing of crates excluded from workspace
 
 [tasks.virtual-kb]
 command="${CARGO_COMMAND}"
