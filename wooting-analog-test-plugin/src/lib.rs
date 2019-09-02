@@ -61,29 +61,30 @@ impl WootingAnalogTestPlugin{
         let worker_thread = thread::spawn(move || {
             let link_path = std::env::temp_dir().join("wooting-test-plugin.link");
 
-            let mut my_shmem = match link_path.exists() {
-                true => {
-                    match SharedMem::open_linked(link_path.as_os_str()) {
-                        Ok(v) => v,
-                        Err(e) => {
+            let mut my_shmem = {
+                match SharedMem::open_linked(link_path.as_os_str()) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if link_path.exists() {
                             error!("Error : {}", e);
                             error!("Failed to open SharedMem...");
-                            return;
+                            if let Err(e) = std::fs::remove_file(&link_path) {
+                                error!("Could not delete old link file: {}", e);
+                            }
                         }
-                    }
-                },
-                false => {
-                    match SharedMem::create_linked(link_path.as_os_str(), LockType::Mutex, 4096) {
-                        Ok(m) => m,
-                        Err(e) => {
-                            error!("Error : {}", e);
-                            error!("Failed to create SharedMem !");
-                            //return;
-                            panic!();
+                        match SharedMem::create_linked(link_path.as_os_str(), LockType::Mutex, 4096) {
+                            Ok(m) => m,
+                            Err(e) => {
+                                error!("Error : {}", e);
+                                error!("Failed to create SharedMem !");
+                                //return;
+                                panic!();
+                            }
                         }
                     }
                 }
             };
+
             info!("{:?}", my_shmem.get_link_path());
 
             {
@@ -130,6 +131,12 @@ impl WootingAnalogTestPlugin{
                     if *t_device_connected.lock().unwrap() != state.device_connected {
                         *t_device_connected.lock().unwrap() = state.device_connected;
                         t_device_event_cb.lock().unwrap().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected }else {DeviceEventType::Disconnected} , t_device.lock().unwrap().clone().unwrap());Some(0)});
+                    }
+
+                    if !state.device_connected {
+                        drop(state);
+                        thread::sleep_ms(500);
+                        continue;
                     }
 
                     vals.copy_from_slice(&state.analog_values[..]);
