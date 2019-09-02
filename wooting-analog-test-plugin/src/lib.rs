@@ -2,6 +2,7 @@
 extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate log;
+extern crate env_logger;
 use wooting_analog_plugin_dev::*;
 use wooting_analog_common::*;
 use std::collections::HashMap;
@@ -10,6 +11,7 @@ use std::os::raw::{c_char};
 use log::{error, info};
 use std::thread;
 use std::sync::{Arc, Mutex};
+use std::path::Path;
 
 struct WootingAnalogTestPlugin {
     //shmem: SharedMem,
@@ -42,6 +44,8 @@ unsafe impl SharedMemCast for SharedState {}
 
 impl WootingAnalogTestPlugin{
     fn new() -> Self {
+        env_logger::try_init();
+
         let device: Arc<Mutex<Option<DeviceInfoPointer>>> = Arc::new(Mutex::new(None));
         let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
         let device_id: Arc<Mutex<DeviceID>> = Arc::new(Mutex::new(1));
@@ -55,16 +59,32 @@ impl WootingAnalogTestPlugin{
         let t_device_connected = Arc::clone(&device_connected);
 
         let worker_thread = thread::spawn(move || {
-            let mut my_shmem = match SharedMem::create_linked("wooting-test-plugin.link", LockType::Mutex, 4096) {
-                Ok(m) => m,
-                Err(e) => {
-                    println!("Error : {}", e);
-                    println!("Failed to create SharedMem !");
-                    //return;
-                    panic!();
+            let link_path = std::env::temp_dir().join("wooting-test-plugin.link");
+
+            let mut my_shmem = match link_path.exists() {
+                true => {
+                    match SharedMem::open_linked(link_path.as_os_str()) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!("Error : {}", e);
+                            error!("Failed to open SharedMem...");
+                            return;
+                        }
+                    }
+                },
+                false => {
+                    match SharedMem::create_linked(link_path.as_os_str(), LockType::Mutex, 4096) {
+                        Ok(m) => m,
+                        Err(e) => {
+                            error!("Error : {}", e);
+                            error!("Failed to create SharedMem !");
+                            //return;
+                            panic!();
+                        }
+                    }
                 }
             };
-            println!("{:?}", my_shmem.get_link_path());
+            info!("{:?}", my_shmem.get_link_path());
 
             {
                 let mut shared_state = match my_shmem.wlock::<SharedState>(0) {
@@ -88,7 +108,7 @@ impl WootingAnalogTestPlugin{
                     let mut state = match my_shmem.wlock::<SharedState>(0) {
                         Ok(v) => v,
                         Err(_) => {
-                            println!("failed to get lock");
+                            warn!("failed to get lock");
                             continue;
                         },
                     };

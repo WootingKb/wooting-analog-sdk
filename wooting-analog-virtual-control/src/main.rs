@@ -2,6 +2,7 @@
 extern crate log;
 use shared_memory::*;
 use log::{error, info};
+use std::path::Path;
 
 extern crate gtk;
 extern crate gio;
@@ -91,7 +92,7 @@ fn main() {
         return;
     }*/
 
-    let mut shmem = match SharedMem::open_linked("wooting-test-plugin.link") {
+    let mut shmem = match SharedMem::open_linked(std::env::temp_dir().join("wooting-test-plugin.link").as_os_str()) {
         Ok(v) => v,
         Err(e) => {
             println!("Error : {}", e);
