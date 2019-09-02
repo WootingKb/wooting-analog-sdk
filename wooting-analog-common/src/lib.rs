@@ -10,6 +10,13 @@ use std::ffi::CString;
 use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
 
+#[cfg(target_os = "macos")]
+pub const DEFAULT_PLUGIN_DIR: &str = "/Library/WootingAnalogPlugins";
+#[cfg(target_os = "linux")]
+pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
+#[cfg(target_os = "windows")]
+pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
+
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device
 #[repr(C)]
