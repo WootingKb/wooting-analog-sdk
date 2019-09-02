@@ -14,6 +14,15 @@ env:
     # TODO Update this to match the name of your project.
     - CRATE_NAME=wooting-analog-sdk
     #- RUST_LOG=trace
+    - >
+      DISABLE_WINDOWS_DEFENDER=`powershell -Command
+      Set-MpPreference -DisableArchiveScanning \\\$true`
+    - >
+      DISABLE_WINDOWS_DEFENDER=`powershell -Command
+      Set-MpPreference -DisableRealtimeMonitoring \\\$true`
+    - >
+      DISABLE_WINDOWS_DEFENDER=`powershell -Command
+      Set-MpPreference -DisableBehaviorMonitoring \\\$true`
 
 matrix:
   # TODO These are all the build jobs. Adjust as necessary. Comment out what you
