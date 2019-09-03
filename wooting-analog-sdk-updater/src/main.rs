@@ -44,7 +44,7 @@ fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {
     }
 }
 
-fn install_update(release: Release) -> Result<(), Box<dyn ::std::error::Error>> {
+fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>> {
     info!("installing");
     match find_installer_asset(&release) {
         Some(asset) => {
@@ -112,6 +112,17 @@ fn main() {
         update_available
     );
 
+
+    let data = object!{
+            "name" => "Wooting Analog SDK",
+            "update_available" => update_available,
+            "new_version"    => r.version(),
+            "version"     => PKG_VER,
+            "release_title" => r.name.clone(),
+            "release_notes" => r.body.clone()
+        };
+    println!("{}", data.dump());
+
     if !matches.is_present("no_install") && update_available {
         #[cfg(windows)]
         {
@@ -130,18 +141,7 @@ fn main() {
         }
 
         debug!("Attempting to update");
-        install_update(r).expect("Failed to install updates");
-    }
-    else {
-        let data = object!{
-            "name" => "Wooting Analog SDK",
-            "update_available" => update_available,
-            "new_version"    => r.version(),
-            "version"     => PKG_VER,
-            "release_title" => r.name,
-            "release_notes" => r.body
-        };
-        println!("{}", data.dump());
+        install_update(&r).expect("Failed to install updates");
     }
 
 

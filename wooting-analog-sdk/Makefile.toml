@@ -5,6 +5,10 @@
 [tasks.build-release]
 args = ["build", "--all-features", "--release",  "${@}"]
 
+[tasks.build-updater]
+command = "cargo"
+args = ["build", "--release", "--manifest-path", "../wooting-analog-sdk-updater/Cargo.toml"]
+
 [tasks.win-installer]
 dependencies = ["build-release"]
 command = "cargo"
