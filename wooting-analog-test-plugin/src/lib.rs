@@ -78,7 +78,7 @@ impl WootingAnalogTestPlugin{
                                 error!("Error : {}", e);
                                 error!("Failed to create SharedMem !");
                                 //return;
-                                panic!();
+                                return;
                             }
                         }
                     }

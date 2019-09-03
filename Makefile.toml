@@ -35,9 +35,9 @@ script_runner = "@shell"
 script = [
 '''
 sudo mkdir -p "${PLUGIN_INSTALL_PATH}"
-sudo mkdir -p "${PLUGIN_INSTALL_PATH}/test-plugin"
+sudo mkdir -p "${PLUGIN_INSTALL_PATH}/wooting-test-plugin"
 
-sudo cp "./wooting-analog-test-plugin/target/debug/${TEST_PLUGIN_FILENAME}" "${PLUGIN_INSTALL_PATH}/test-plugin/${TEST_PLUGIN_FILENAME}"
+sudo cp "./wooting-analog-test-plugin/target/debug/${TEST_PLUGIN_FILENAME}" "${PLUGIN_INSTALL_PATH}/wooting-test-plugin/${TEST_PLUGIN_FILENAME}"
 '''
 ]
 dependencies = ["build-test-plugin"]
@@ -52,7 +52,7 @@ script_extension = "ps1"
 script = [
 '''
 echo "Requesting admin powershell to install the test-plugin"
-$command = "New-Item -ItemType 'directory' -Force '${env:PLUGIN_INSTALL_PATH}\test-plugin'; Copy-Item '${env:CARGO_MAKE_WORKING_DIRECTORY}\wooting-analog-test-plugin\target\debug\${env:TEST_PLUGIN_FILENAME}' '${env:PLUGIN_INSTALL_PATH}\test-plugin\${env:TEST_PLUGIN_FILENAME}' -Force"
+$command = "New-Item -ItemType 'directory' -Force '${env:PLUGIN_INSTALL_PATH}\wooting-test-plugin'; Copy-Item '${env:CARGO_MAKE_WORKING_DIRECTORY}\wooting-analog-test-plugin\target\debug\${env:TEST_PLUGIN_FILENAME}' '${env:PLUGIN_INSTALL_PATH}\wooting-test-plugin\${env:TEST_PLUGIN_FILENAME}' -Force"
 echo $command
 Start-Process PowerShell.exe -ArgumentList $command -Wait -Verb RunAs
 '''
