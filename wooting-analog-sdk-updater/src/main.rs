@@ -24,7 +24,7 @@ fn find_installer_asset(release: &Release) -> Option<&ReleaseAsset> {
     release
         .assets
         .iter()
-        .find(|asset| asset.name.ends_with(".msi"))
+        .find(|asset| asset.name.starts_with("wooting_analog_sdk") && asset.name.ends_with(".msi"))
 }
 
 fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {

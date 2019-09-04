@@ -8,7 +8,7 @@ default_to_workspace=false
 [tasks.build]
 command = "${CARGO_COMMAND}"
 args = ["build", "--all-features", "${@}"]
-dependencies = [ "cargo-args" ]
+dependencies = [ "cargo-args", "build-test-plugin" ]
 
 [tasks.cargo-args]
 condition = { env_set = [ "CARGO_TARGET" ] }
@@ -65,7 +65,7 @@ env = {TEST_PLUGIN_FILENAME="libwooting_analog_test_plugin.dylib",PLUGIN_INSTALL
 
 [tasks.build-test-plugin]
 command = "${CARGO_COMMAND}"
-args = ["build", "--manifest-path", "wooting-analog-test-plugin/Cargo.toml"]
+args = ["build", "--manifest-path", "wooting-analog-test-plugin/Cargo.toml", "${@}"]
 #dependencies = ["clean-plugin-shmem-link"]
 
 [tasks.test-app]
