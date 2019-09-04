@@ -20,12 +20,16 @@ args = ["build", "--release", "--manifest-path", "../wooting-analog-virtual-cont
 [tasks.build-virtual-kb]
 dependencies = ["cargo-build-virtual-kb"]
 
+[tasks.build-wooting-plugin]
+command = "cargo"
+args = ["build", "--release", "--manifest-path", "../wooting-analog-plugin/Cargo.toml"]
 
 [tasks.win-installer]
-dependencies = ["build-release", "build-updater", "build-test-plugin"]
+dependencies = ["build-release", "build-updater", "build-test-plugin", "build-wooting-plugin"]
 command = "cargo"
 args = ["wix", "--nocapture", "--output", "../target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"]
 
 [tasks.build-deb]
+dependencies = ["build-release", "build-test-plugin", "build-wooting-plugin"]
 command = "cargo"
 args = ["deb", "${@}"]

@@ -10,5 +10,6 @@ members = [
 exclude = [
     "wooting-analog-test-plugin",
     "wooting-analog-virtual-control",
-    "wooting-analog-sdk-updater"
+    "wooting-analog-sdk-updater",
+    "wooting-analog-plugin"
 ]
