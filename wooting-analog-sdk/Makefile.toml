@@ -22,7 +22,7 @@ dependencies = ["cargo-build-virtual-kb"]
 
 
 [tasks.win-installer]
-dependencies = ["build-release", "build-updater", "build-test-plugin", "build-virtual-kb"]
+dependencies = ["build-release", "build-updater", "build-test-plugin"]
 command = "cargo"
 args = ["wix", "--nocapture", "--output", "../target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"]
 
