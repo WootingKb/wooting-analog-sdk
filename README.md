@@ -46,7 +46,7 @@ Have a look at the [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK a
 The SDK includes a 'Virtual Keyboard' app which will emulate an Analog Keyboard and allows you to test with the Analog SDK without needing a keyboard. To use this, ensure you have the `wooting-analog-test-plugin` installed, on windows the installer allows you to choose if you want to install the feature. On Linux it is currently installed automatically with the `deb` package.
 If you wish to install it otherwise, you can find it in the `.tar.gz` for your platform from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) under `$extract/wrapper/sdk/{lib}wooting_analog_test_plugin.{dll/so/dylib}`, install it as discussed above in the [Plugins section](#Plugins)
 
-
+To get the virtual keyboard, right now there are only Windows builds available from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases), for other platforms you'll need to build it yourself as described below.
 
 ## Components
 * `wooting-analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed systemwide and is updated separately
