@@ -38,6 +38,7 @@ int wooting_analog_get_connected_devices_info(WootingAnalog_DeviceInfo **buffer,
 ///
 /// # Expected Returns
 /// * `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
+/// * `NoDevices`: Meaning the SDK initialised successfully, but no devices are connected
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 ///
 WootingAnalogResult wooting_analog_initialise();

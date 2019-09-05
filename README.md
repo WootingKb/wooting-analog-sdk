@@ -68,7 +68,7 @@ If you wish to install it otherwise, you can find it in the `.tar.gz` for your p
 ### Build Dependencies
 * [rust](https://www.rust-lang.org/)
 * [cargo-make](https://github.com/sagiegurari/cargo-make)
-* [cbindgen](https://github.com/eqrion/cbindgen) (Should be installed automatically if necessary)
+* [cbindgen](https://github.com/eqrion/cbindgen) (For verifying/generating headers. Should be installed automatically if necessary)
 * [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `wooting-analog-test`
 * [libgtk-3](https://gtk-rs.org/docs-src/requirements.html) If you want to build the `wooting-analog-virtual-kb`, follow the install instructions from [here](https://gtk-rs.org/docs-src/requirements.html) (for Windows MSVC I also had to add `%VCPKGDIR%\lib` to the `LIB` environment variable)
 * [wixtoolset](https://wixtoolset.org/releases/) If you want to build the windows installer for the sdk
@@ -113,6 +113,11 @@ The deb package will be located in `$gitroot/target/debian`
 All build outputs can be found under `target/debug`, with generated headers coming under the `includes` and `includes-cpp` directories.
 
 Currently the headers have to be manually generated and kept in the repo. When intentional changes are made, the testing phase verifies that the pre-generated headers match what would be generated now to ensure that accidental changes aren't made to the output of the header generation.
+
+### Contributing Note
+
+The headers generated for the `wrapper`, `common` and `plugin-dev` crates are verified in the CI to ensure that the current headers are up to date and that we can review any changes which are made to the headers (rather than purely generating them and potentially not knowing exactly what has changed).
+Before commiting (if you've made changes to any of the previously mentioned crates) you should run `cargo make verify-headers` to ensure that your headers are up to date, if this fails due to them being different, run `cargo make gen-headers` and review the changes to the headers before commiting.  
 
 ## Related Repositories
 

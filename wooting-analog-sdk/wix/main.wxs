@@ -181,7 +181,7 @@
             Id='TestPlugin'
             Title='Test Plugin'
             Description='Installs the Test Plugin which allows you to use the Virtual Keyboard utility to emulate analog input'
-            Level='3'
+            Level='1'
             Absent='allow'>
             <ComponentRef Id='wooting_analog_test_pluginLib'/>
         </Feature>
