@@ -175,6 +175,10 @@ impl WootingAnalogResult {
     pub fn is_ok(&self) -> bool {
         *self == WootingAnalogResult::Ok
     }
+
+    pub fn is_ok_or_no_device(&self) -> bool {
+        *self == WootingAnalogResult::Ok || *self == WootingAnalogResult::NoDevices
+    }
 }
 
 impl Default for WootingAnalogResult {

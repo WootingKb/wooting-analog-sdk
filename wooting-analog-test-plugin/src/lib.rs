@@ -130,10 +130,11 @@ impl WootingAnalogTestPlugin{
                     }
                     if *t_device_connected.lock().unwrap() != state.device_connected {
                         *t_device_connected.lock().unwrap() = state.device_connected;
-                        t_device_event_cb.lock().unwrap().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected }else {DeviceEventType::Disconnected} , t_device.lock().unwrap().clone().unwrap());Some(0)});
+                        t_device_event_cb.lock().unwrap().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected } else {DeviceEventType::Disconnected} , t_device.lock().unwrap().clone().unwrap());Some(0)});
                     }
 
                     if !state.device_connected {
+                        //make sure we drop the state so we're not holding the lock while the thread is sleeping
                         drop(state);
                         thread::sleep_ms(500);
                         continue;
@@ -185,7 +186,7 @@ impl Plugin for WootingAnalogTestPlugin {
     }
 
     fn initialise(&mut self) -> WootingAnalogResult {
-        WootingAnalogResult::Ok
+        if *self.device_connected.lock().unwrap() { WootingAnalogResult::Ok } else { WootingAnalogResult::NoDevices }
     }
 
     fn is_initialised(&mut self) -> bool {

@@ -109,9 +109,14 @@ impl AnalogSDK {
         }
 
         let mut plugins_initialised = 0;
+        let mut has_devices = false;
         for p in self.plugins.iter_mut() {
-            if p.initialise().is_ok() {
+            let ret = p.initialise();
+            if ret.is_ok_or_no_device()  {
                 plugins_initialised += 1;
+                if ret.is_ok() {
+                    has_devices = true;
+                }
             }
         }
         info!("{} plugins successfully initialised", plugins_initialised);
@@ -119,6 +124,8 @@ impl AnalogSDK {
         self.initialised = plugins_initialised > 0;
         if !self.initialised {
             WootingAnalogResult::NoPlugins
+        } else if !has_devices {
+            WootingAnalogResult::NoDevices
         } else {
             WootingAnalogResult::Ok
         }

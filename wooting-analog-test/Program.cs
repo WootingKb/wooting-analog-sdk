@@ -197,8 +197,10 @@ namespace analog_sdk_test
         static void Main(string[] args)
         {
             Native.AnalogSDKError err = Native.wooting_analog_initialise();
-            if (err == Native.AnalogSDKError.Ok){
+            if (err == Native.AnalogSDKError.Ok || err == Native.AnalogSDKError.NoDevices){
                 Console.WriteLine("SDK Successfully initialised!");
+                if (err == Native.AnalogSDKError.NoDevices)
+                    Console.WriteLine("But we got no devices");
                 Native.wooting_analog_set_device_event_cb(device_event_cb);
                 //Console.WriteLine($"Yo yo yo 9+10={Native.wooting_analog_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
