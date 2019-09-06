@@ -8,7 +8,7 @@ default_to_workspace=false
 [tasks.build]
 command = "${CARGO_COMMAND}"
 args = ["build", "--all-features", "${@}"]
-dependencies = [ "cargo-args" ]
+dependencies = [ "cargo-args", "build-test-plugin" ]
 
 [tasks.cargo-args]
 condition = { env_set = [ "CARGO_TARGET" ] }
@@ -22,11 +22,57 @@ command = "${CARGO_COMMAND}"
 args = ["test", "--all-features", "${@}"]
 dependencies = [ "cargo-args" ]
 
+[tasks.clean-plugin-shmem-link]
+script_runner = "@shell"
+script = [
+'''
+rm -f wooting-test-plugin.link
+'''
+]
+
+[tasks.install-test-plugin]
+script_runner = "@shell"
+script = [
+'''
+sudo mkdir -p "${PLUGIN_INSTALL_PATH}"
+sudo mkdir -p "${PLUGIN_INSTALL_PATH}/wooting-test-plugin"
+
+sudo cp "./wooting-analog-test-plugin/target/debug/${TEST_PLUGIN_FILENAME}" "${PLUGIN_INSTALL_PATH}/wooting-test-plugin/${TEST_PLUGIN_FILENAME}"
+'''
+]
+dependencies = ["build-test-plugin"]
+
+[tasks.install-test-plugin.linux]
+env = {TEST_PLUGIN_FILENAME="libwooting_analog_test_plugin.so",PLUGIN_INSTALL_PATH="/usr/local/share/WootingAnalogPlugins"}
+
+[tasks.install-test-plugin.windows]
+env = {TEST_PLUGIN_FILENAME="wooting_analog_test_plugin.dll",PLUGIN_INSTALL_PATH="C:\\Program Files\\WootingAnalogPlugins"}
+script_runner = "powershell"
+script_extension = "ps1"
+script = [
+'''
+echo "Requesting admin powershell to install the test-plugin"
+$command = "New-Item -ItemType 'directory' -Force '${env:PLUGIN_INSTALL_PATH}\wooting-test-plugin'; Copy-Item '${env:CARGO_MAKE_WORKING_DIRECTORY}\wooting-analog-test-plugin\target\debug\${env:TEST_PLUGIN_FILENAME}' '${env:PLUGIN_INSTALL_PATH}\wooting-test-plugin\${env:TEST_PLUGIN_FILENAME}' -Force"
+echo $command
+Start-Process PowerShell.exe -ArgumentList $command -Wait -Verb RunAs
+'''
+]
+
+[tasks.install-test-plugin.mac]
+env = {TEST_PLUGIN_FILENAME="libwooting_analog_test_plugin.dylib",PLUGIN_INSTALL_PATH="/Library/WootingAnalogPlugins"}
+
+
+
+[tasks.build-test-plugin]
+command = "${CARGO_COMMAND}"
+args = ["build", "--manifest-path", "wooting-analog-test-plugin/Cargo.toml", "${@}"]
+#dependencies = ["clean-plugin-shmem-link"]
+
 [tasks.test-app]
-env = { PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
+env = {  WOOTING_ANALOG_SDK_PLUGINS_PATH="${WOOTING_ANALOG_SDK_PLUGINS_PATH};${CARGO_MAKE_WORKING_DIRECTORY}/wooting-analog-test-plugin/target/debug", PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
 command = "dotnet"
 args = [ "run", "--project", "wooting-analog-test" ]
-dependencies = [ "build" ]
+dependencies = [ "build", "install-test-plugin" ]
 
 [tasks.gen-headers]
 workspace = true
@@ -41,5 +87,9 @@ env = { CARGO_MAKE_MEMBER_TASK = "verify-headers", CARGO_MAKE_WORKSPACE_SKIP_MEM
 run_task = "do-on-members"
 
 [tasks.post-test]
-dependencies=["verify-headers"]
+dependencies=["verify-headers"] # TODO: Add testing of crates excluded from workspace
+
+[tasks.virtual-kb]
+command="${CARGO_COMMAND}"
+args = ["run", "--manifest-path", "wooting-analog-virtual-control/Cargo.toml"]
 

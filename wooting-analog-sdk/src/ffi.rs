@@ -13,12 +13,9 @@ lazy_static! {
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
 ///
-/// # Notes
-/// The SDK will use the semi-colon separated list of directories in the environment variable `WOOTING_ANALOG_wooting_analog_PLUGINS_PATH` to search for Plugins.
-/// Plugins must have the extension `.dll` on Windows, `.so` on Linux and `.dylib` on MacOS
-///
 /// # Expected Returns
 /// * `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
+/// * `NoDevices`: Meaning the SDK initialised successfully, but no devices are connected
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 ///
 #[no_mangle]

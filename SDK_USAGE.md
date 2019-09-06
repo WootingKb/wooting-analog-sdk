@@ -1,11 +1,12 @@
 # Introduction
 
-If you wish to use the SDK, you should be dynamically linking to the `wooting-analog-wrapper` library and shipping it with your application. The way the SDK works is that it uses the wrapper to try and find the SDK at runtime, so it may gracefully error if the SDK isn't found. The wrapper library just passes through SDK calls to the actual SDK, so if there is an SDK update with new features you should update your wrapper when needed.
+If you wish to use the SDK, you should be dynamically linking to the `wooting-analog-wrapper` library and shipping it with your application. The way the SDK works is that it uses the wrapper to try and find the SDK at runtime, so it may gracefully error if the SDK isn't found. The wrapper library just passes through SDK calls to the actual SDK, so if there is an SDK update with new features, you only need to update your wrapper when you wish to use them.
 
 # Getting Started
 
-To get started using the SDK at the moment you'll need to build the entire repo by running `cargo make`. 
-Then you should add the output directory to your PATH variable, appending `PATH TO REPO/target/debug` to `PATH` on Windows and `LD_LIBRARY_PATH` on Linux/Mac. Once this is done, copy the `wooting_analog_wrapper` library to your project directory and get started!
+To get started, make sure you have the SDK & Wooting plugin installed. Follow the installation instructions from the [SDK Readme](https://github.com/WootingKb/wooting-analog-sdk).
+
+Then download & extract the `.tar.gz` for the platform you're targeting from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases). Inside the `$extract/wrapper` directory you'll find the wrapper lib you should link to and all the headers you may need.
 
 # Keycodes
 
@@ -26,17 +27,10 @@ WootingAnalogResult wooting_analog_initialise(void);
 
 Initialises the Analog SDK, this needs to be successfully called before any other functions of the SDK can be called
 
-### Notes
-
-The SDK will use the semi-colon separated list of directories in the environment variable `WOOTING_ANALOG_SDK_PLUGINS_PATH` to search for Plugins.
-
-Plugins must have the extension `.dll` on Windows, `.so` on Linux and `.dylib` on MacOS
-
-
 ### Expected Returns
 
 * `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
-
+* `NoDevices`: Meaning the SDK initialised successfully, but no devices are connected
 * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 
 ## Is Initialised
@@ -96,7 +90,7 @@ wooting_analog_read_analog(0x10); //This will get you the value for the key whic
 wooting_analog_set_mode(KeycodeType::VirtualKey); //This will only work on Windows
 wooting_analog_read_analog(0x51); //This will get you the value for the key that is Q on the standard layout
 
-wooting_analog_set_mode(KeycodeType::VirtualKeyTranslate);
+wooting_analog_set_mode(KeycodeType::VirtualKeyTranslate); //Also will only work on Windows
 wooting_analog_read_analog(0x51); //This will get you the value for the key that inputs Q on the current layout
 ```
 

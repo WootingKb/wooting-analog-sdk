@@ -6,9 +6,20 @@ The Analog SDK can accept plugins created using Rust, C or anything that provide
 
 The purpose of Plugins are to add support for new Devices through the Analog SDK, exposing an interface the SDK can use to read analog key information from the device.
 
-The SDK uses the `WOOTING_ANALOG_SDK_PLUGINS_PATH` environment variable to search for plugins, this is a semi-colon separated list of directories. So if you've created a plugin, you should add the build output directory to the path for development/testing and the install directory of the plugin for deployment.
+Plugins must be located in a subdirectory of `WootingAnalogPlugins`. Which can be found in these places on each platform:
 
-Plugins are required to statically link to `wooting-analog-plugin-dev` as it includes the `ANALOG_SDK_PLUGIN_ABI_VERSION` constant, which ends up being exported in the plugin and tells the SDK which version of the plugin interface your plugin is using. This is so that if breaking changes are made to the interface, backwards compatibility can be made for older plugins.
+| OS      | Plugins Directory                        |
+|---------|------------------------------------------|
+| Windows | `C:\Program Files\WootingAnalogPlugins\` |
+| Linux   | `/usr/local/share/WootingAnalogPlugins/` |
+| Mac     | `/Library/WootingAnalogPlugins/`         |
+
+So an example path on Windows would be:
+```
+C:\Program Files\WootingAnalogPlugins\wooting-analog-plugin\wooting_analog_plugin.dll
+```
+
+Plugins are required to statically link to `wooting-analog-plugin-dev` as it includes the `ANALOG_SDK_PLUGIN_ABI_VERSION` constant, which ends up being exported in the plugin and tells the SDK which version of the plugin interface your plugin is using. This is so that if breaking changes are made to the interface, backwards compatibility can be made for older plugins. (This is subject to change, we're considering using this variable to store the semver of the plugin-dev crate to have more information about the exact ABI of the loaded plugin)
 
 ## A note about custom keys
 
@@ -21,7 +32,7 @@ If your device has keys which are not defined in the HID standard keys, then you
 Rust Plugins are fairly straight forward to get started with, have a look at the [wooting plugin](https://github.com/simon-wh/wooting-analog-sdk-plugin) for a reference implementation:
 
 * Rust library with crate-type `cdylib`
-* Dependency to `wooting-analog-plugin-dev`. (Currently while in the Alpha stage, this should be done by adding the SDK repo as a submodule and adding a relative reference to the library)
+* Add a dependency to [`wooting-analog-plugin-dev` (crates.io)](https://crates.io/crates/wooting-analog-plugin-dev)
 * Import all relevant items through `use wooting_analog_plugin_dev::` and `use wooting_analog_plugin_dev::wooting_analog_common::`
 * A struct that implements the `Plugin` trait from `wooting-analog-plugin-dev`
 * Declare the plugin using the `declare_plugin!` macro. e.g. `declare_plugin!(ExamplePlugin, ExamplePlugin::new)`

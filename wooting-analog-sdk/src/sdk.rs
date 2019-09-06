@@ -30,8 +30,9 @@ static LIB_EXT: &str = "so";
 #[cfg(target_os = "windows")]
 static LIB_EXT: &str = "dll";
 
-const ENV_PLUGIN_DIR_KEY: &str = "WOOTING_ANALOG_SDK_PLUGINS_PATH";
-const DEFAULT_PLUGIN_DIR: &str = "~/.analog_plugins";
+//const ENV_PLUGIN_DIR_KEY: &str = "WOOTING_ANALOG_SDK_PLUGINS_PATH";
+
+
 
 impl AnalogSDK {
     pub fn new() -> AnalogSDK {
@@ -49,7 +50,7 @@ impl AnalogSDK {
             self.unload();
         }
 
-        let plugin_dir: std::result::Result<Vec<PathBuf>, std::env::VarError> =
+        /*let plugin_dir: std::result::Result<Vec<PathBuf>, std::env::VarError> =
             std::env::var(ENV_PLUGIN_DIR_KEY).map(|var| {
                 var.split(';')
                     .filter_map(|path| {
@@ -60,8 +61,13 @@ impl AnalogSDK {
                         }
                     })
                     .collect()
-            });
-        let mut plugin_dir = match plugin_dir {
+            });*/
+        let plugin_dir = PathBuf::from(DEFAULT_PLUGIN_DIR);
+        if !plugin_dir.is_dir() {
+            error!("The plugin directory '{}' does not exist! Make sure you have it created and have plugins in there", DEFAULT_PLUGIN_DIR);
+            return WootingAnalogResult::NoPlugins;
+        }
+        /*let mut plugin_dir = match plugin_dir {
             Ok(v) => {
                 info!(
                     "Found ${}, loading plugins from {:?}",
@@ -76,29 +82,41 @@ impl AnalogSDK {
                 );
                 vec![PathBuf::from(String::from(DEFAULT_PLUGIN_DIR))]
             }
-        };
-        for dir in plugin_dir.drain(..) {
-            match self.load_plugins(&dir) {
-                Ok(0) => {
-                    warn!("Failed to load any plugins from {:?}!", dir);
-                    self.initialised = false;
-                    //WootingAnalogResult::NoPlugins
-                }
-                Ok(i) => {
-                    info!("Loaded {} plugins from {:?}", i, dir);
-                    //WootingAnalogResult::Ok
-                }
+        };*/
+        for dir in plugin_dir.read_dir().expect("Could not read dir") {
+            match dir {
+                Ok(dir) => {
+                    match self.load_plugins(&dir.path()) {
+                        Ok(0) => {
+                            warn!("Failed to load any plugins from {:?}!", dir);
+                            //self.initialised = false;
+                            //WootingAnalogResult::NoPlugins
+                        }
+                        Ok(i) => {
+                            info!("Loaded {} plugins from {:?}", i, dir);
+                            //WootingAnalogResult::Ok
+                        }
+                        Err(e) => {
+                            error!("Error: {:?}", e);
+                            //self.initialised = false;
+                        }
+                    }
+                },
                 Err(e) => {
-                    error!("Error: {:?}", e);
-                    self.initialised = false;
+                    error!("Error reading directory: {}", e);
                 }
             }
         }
 
         let mut plugins_initialised = 0;
+        let mut has_devices = false;
         for p in self.plugins.iter_mut() {
-            if p.initialise().is_ok() {
+            let ret = p.initialise();
+            if ret.is_ok_or_no_device()  {
                 plugins_initialised += 1;
+                if ret.is_ok() {
+                    has_devices = true;
+                }
             }
         }
         info!("{} plugins successfully initialised", plugins_initialised);
@@ -106,6 +124,8 @@ impl AnalogSDK {
         self.initialised = plugins_initialised > 0;
         if !self.initialised {
             WootingAnalogResult::NoPlugins
+        } else if !has_devices {
+            WootingAnalogResult::NoDevices
         } else {
             WootingAnalogResult::Ok
         }
@@ -377,7 +397,7 @@ mod tests {
         env_logger::try_init_from_env(env);
     }
 
-    #[test]
+    /*#[test]
     fn initialise_no_plugins() {
         shared_init();
 
@@ -419,7 +439,7 @@ mod tests {
 
         ::std::fs::remove_dir("./test_m1");
         ::std::fs::remove_dir("./test_m2");
-    }
+    }*/
 
     #[test]
     fn unitialised_sdk_functions_new() {
@@ -429,7 +449,7 @@ mod tests {
         uninitialised_sdk_functions(&mut sdk);
     }
 
-    #[test]
+    /*#[test]
     fn unitialised_sdk_functions_failed_init() {
         shared_init();
 
@@ -442,7 +462,7 @@ mod tests {
         assert!(!sdk.initialised);
 
         uninitialised_sdk_functions(&mut sdk);
-    }
+    }*/
 
     extern "C" fn cb(event: DeviceEventType, device: DeviceInfoPointer) {}
 

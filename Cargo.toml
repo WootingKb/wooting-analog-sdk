@@ -4,5 +4,12 @@ members = [
     "wooting-analog-sdk",
     "wooting-analog-common",
     "wooting-analog-wrapper",
-    "wooting-analog-plugin-dev",
+    "wooting-analog-plugin-dev"
+]
+
+exclude = [
+    "wooting-analog-test-plugin",
+    "wooting-analog-virtual-control",
+    "wooting-analog-sdk-updater",
+    "wooting-analog-plugin"
 ]
