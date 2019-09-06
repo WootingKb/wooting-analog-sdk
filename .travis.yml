@@ -61,14 +61,14 @@ matrix:
     #- env: TARGET=powerpc64-unknown-linux-gnu
     #- env: TARGET=powerpc64le-unknown-linux-gnu
     #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
-    - env: TARGET=x86_64-unknown-linux-gnu
+    # - env: TARGET=x86_64-unknown-linux-gnu
     #- env: TARGET=x86_64-unknown-linux-musl
 
     # OSX
     #- env: TARGET=i686-apple-darwin
     #  os: osx
-    - env: TARGET=x86_64-apple-darwin
-      os: osx
+    # - env: TARGET=x86_64-apple-darwin
+    #   os: osx
 
     # *BSD
     #- env: TARGET=i686-unknown-freebsd DISABLE_TESTS=1
@@ -83,7 +83,6 @@ matrix:
 
     #- env: TARGET=i686-pc-windows-msvc
     #  os: windows
-
     # Bare metal
     # These targets don't support std and as such are likely not suitable for
     # most crates.
@@ -91,16 +90,15 @@ matrix:
     # - env: TARGET=thumbv7em-none-eabi
     # - env: TARGET=thumbv7em-none-eabihf
     # - env: TARGET=thumbv7m-none-eabi
-
     # Testing other channels
-    - env: TARGET=x86_64-pc-windows-msvc
-      os: windows
-      rust: nightly
-    - env: TARGET=x86_64-unknown-linux-gnu
-      rust: nightly
-    - env: TARGET=x86_64-apple-darwin
-      os: osx
-      rust: nightly
+    # - env: TARGET=x86_64-pc-windows-msvc
+    #   os: windows
+    #   rust: nightly
+    # - env: TARGET=x86_64-unknown-linux-gnu
+    #   rust: nightly
+    # - env: TARGET=x86_64-apple-darwin
+    #   os: osx
+    #   rust: nightly
 
 before_install:
   - set -e
@@ -113,11 +111,11 @@ install:
   - which cargo-make || cargo install cargo-make
 
 script:
-  - bash ci/script.sh
+  # - bash ci/script.sh
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset --version 3.10.3.300702 || true; export PATH=$PATH";C:\Program Files (x86)\WiX Toolset v3.10\bin"               ; fi
   - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then choco install -y windows-sdk-10.0; fi
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
-  # - bash ci/codesign.sh
+  - bash ci/codesign.sh
 
 after_script: set +e
 
