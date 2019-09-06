@@ -5,6 +5,10 @@
 [tasks.build-release]
 args = ["build", "--all-features", "--release",  "${@}"]
 
+[tasks.build-release-alt]
+#Don't want args to pass as for Windows we want it to just build into target/release for the installer
+args = ["build", "--all-features", "--release"]
+
 [tasks.build-updater]
 command = "cargo"
 args = ["build", "--release", "--manifest-path", "../wooting-analog-sdk-updater/Cargo.toml"]
@@ -26,7 +30,7 @@ args = ["build", "--release", "--manifest-path", "../wooting-analog-plugin/Cargo
 
 [tasks.win-installer]
 env = {WIN_INSTALLER_PATH="../target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"}
-dependencies = ["build-release", "build-updater", "build-test-plugin", "build-wooting-plugin"]
+dependencies = ["build-release-alt", "build-updater", "build-test-plugin", "build-wooting-plugin"]
 command = "cargo"
 args = ["wix", "--nocapture", "--output", "${WIN_INSTALLER_PATH}"]
 
