@@ -2,9 +2,10 @@ if [ $TRAVIS_OS_NAME = windows ]; then
   set -e
 
   export PATH="C:\Program Files (x86)\Windows Kits\10\bin\x64":$PATH
-  export BINARY_FILE=$1
+  # TODO: Dynamic installer filename
+  export BINARY_FILE="target/wix/wooting_analog_sdk-0.1.0-x86_64.msi"
 
-  # choco install -y windows-sdk-10.0
+  choco install -y windows-sdk-10.0
 
   curl -v -L "$WIN_CSC_LINK" --output cert.pfx
   # gpg --passphrase ${WIN_CSC_KEY_PASSWORD} --batch -o cert.pfx -d cert.pfx.gpg
