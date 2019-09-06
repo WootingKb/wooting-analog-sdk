@@ -4,7 +4,7 @@ if [ $TRAVIS_OS_NAME = windows ]; then
 
   export PATH="C:\Program Files (x86)\Windows Kits\10\bin\x64":$PATH
   # TODO: Dynamic installer filename
-  export BINARY_FILE="target/wix/wooting_analog_sdk-0.1.0-x86_64.msi"
+  #export BINARY_FILE="target/wix/wooting_analog_sdk-0.1.0-x86_64.msi"
 
   choco install -y windows-sdk-10.0
 
@@ -14,5 +14,5 @@ if [ $TRAVIS_OS_NAME = windows ]; then
   powershell Get-ExecutionPolicy -List
 
   powershell $PWD/ci/codesign.ps1
-  signtool.exe verify -pa "$BINARY_FILE"
+  signtool.exe verify -pa "$WIN_INSTALLER_PATH"
 fi

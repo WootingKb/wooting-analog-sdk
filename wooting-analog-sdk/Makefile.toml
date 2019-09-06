@@ -35,20 +35,7 @@ condition = {env_true = ["CARGO_MAKE_CI"]}
 dependencies = ["win-installer"]
 script = [
 '''
-#!/usr/bin/env bash
-set -e
-
-export PATH="C:\Program Files (x86)\Windows Kits\10\bin\x64":$PATH
-
-choco install -y windows-sdk-10.0
-
-curl -v -L "$WIN_CSC_LINK" --output cert.pfx
-
-powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
-powershell Get-ExecutionPolicy -List
-
-powershell $PWD/ci/codesign.ps1
-signtool.exe verify -pa "$WIN_INSTALLER_PATH"
+bash ../ci/codesign.sh
 '''
 ]
 
