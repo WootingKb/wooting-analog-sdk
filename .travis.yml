@@ -114,7 +114,7 @@ install:
 
 script:
   - bash ci/script.sh
-  - bash ci/codesign.sh
+  # - bash ci/codesign.sh
 
 after_script: set +e
 
