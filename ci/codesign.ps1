@@ -1,3 +1,4 @@
+# Thanks https://github.com/electron-userland/electron-builder/issues/3629#issuecomment-473238513
 Set-PSDebug -Trace 1
 
 dir cert:/LocalMachine

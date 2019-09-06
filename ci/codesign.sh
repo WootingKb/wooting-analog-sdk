@@ -1,3 +1,4 @@
+# Thanks https://github.com/electron-userland/electron-builder/issues/3629#issuecomment-473238513
 if [ $TRAVIS_OS_NAME = windows ]; then
   set -e
 
@@ -8,7 +9,6 @@ if [ $TRAVIS_OS_NAME = windows ]; then
   choco install -y windows-sdk-10.0
 
   curl -v -L "$WIN_CSC_LINK" --output cert.pfx
-  # gpg --passphrase ${WIN_CSC_KEY_PASSWORD} --batch -o cert.pfx -d cert.pfx.gpg
 
   powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
   powershell Get-ExecutionPolicy -List
