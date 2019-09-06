@@ -342,7 +342,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-sdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bimap 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
