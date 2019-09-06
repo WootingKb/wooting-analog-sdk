@@ -12,6 +12,7 @@ if [ $TRAVIS_OS_NAME = windows ]; then
   powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
   powershell Get-ExecutionPolicy -List
 
-  powershell $PWD/.build/codesign.ps1
+  # powershell $PWD/.build/codesign.ps1
+  signtool.exe sign -f "cert.pfx" -d "Wooting Analog SDK" -p "$WIN_CSC_KEY_PASSWORD" "$BINARY_FILE"
   signtool.exe verify -pa "$BINARY_FILE"
 fi
