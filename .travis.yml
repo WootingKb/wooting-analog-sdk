@@ -114,15 +114,15 @@ install:
 
 script:
   - bash ci/script.sh
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset --version 3.10.3.300702 || true; export PATH=$PATH";C:\Program Files (x86)\WiX Toolset v3.10\bin"               ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then choco install -y windows-sdk-10.0; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
   # - bash ci/codesign.sh
 
 after_script: set +e
 
 before_deploy:
   - sh ci/before_deploy.sh
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset --version 3.10.3.300702 || true; export PATH=$PATH";C:\Program Files (x86)\WiX Toolset v3.10\bin"               ; fi
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then choco install -y windows-sdk-10.0; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then cargo make build-deb --cwd wooting-analog-sdk -- --target $TARGET     ; fi
 
 deploy:
