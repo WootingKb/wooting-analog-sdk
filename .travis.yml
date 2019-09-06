@@ -61,14 +61,14 @@ matrix:
     #- env: TARGET=powerpc64-unknown-linux-gnu
     #- env: TARGET=powerpc64le-unknown-linux-gnu
     #- env: TARGET=s390x-unknown-linux-gnu DISABLE_TESTS=1
-    - env: TARGET=x86_64-unknown-linux-gnu
+    # - env: TARGET=x86_64-unknown-linux-gnu
     #- env: TARGET=x86_64-unknown-linux-musl
 
     # OSX
     #- env: TARGET=i686-apple-darwin
     #  os: osx
-    - env: TARGET=x86_64-apple-darwin
-      os: osx
+    # - env: TARGET=x86_64-apple-darwin
+    #   os: osx
 
     # *BSD
     #- env: TARGET=i686-unknown-freebsd DISABLE_TESTS=1
@@ -77,13 +77,12 @@ matrix:
 
     # Windows
     #- env: TARGET=x86_64-pc-windows-gnu
-    
+
     - env: TARGET=x86_64-pc-windows-msvc
       os: windows
 
     #- env: TARGET=i686-pc-windows-msvc
     #  os: windows
-
     # Bare metal
     # These targets don't support std and as such are likely not suitable for
     # most crates.
@@ -91,16 +90,15 @@ matrix:
     # - env: TARGET=thumbv7em-none-eabi
     # - env: TARGET=thumbv7em-none-eabihf
     # - env: TARGET=thumbv7m-none-eabi
-
     # Testing other channels
-    - env: TARGET=x86_64-pc-windows-msvc
-      os: windows
-      rust: nightly
-    - env: TARGET=x86_64-unknown-linux-gnu
-      rust: nightly
-    - env: TARGET=x86_64-apple-darwin
-      os: osx
-      rust: nightly
+    # - env: TARGET=x86_64-pc-windows-msvc
+    #   os: windows
+    #   rust: nightly
+    # - env: TARGET=x86_64-unknown-linux-gnu
+    #   rust: nightly
+    # - env: TARGET=x86_64-apple-darwin
+    #   os: osx
+    #   rust: nightly
 
 before_install:
   - set -e
@@ -114,20 +112,21 @@ install:
 
 script:
   - bash ci/script.sh
+  
 
 after_script: set +e
 
 before_deploy:
   - sh ci/before_deploy.sh
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset --version 3.10.3.300702 || true; export PATH=$PATH";C:\Program Files (x86)\WiX Toolset v3.10\bin"               ; fi
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make sign-win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then cargo make build-deb --cwd wooting-analog-sdk -- --target $TARGET     ; fi
 
 deploy:
   api_key:
     secure: eMiCXm1LYj/2c7xQ+j0wqKiRGHMevPMqJX4mshNm0VtmkyAQBCjdueTdMjXxB0FE0E3L9ts0RcxrBTXD96S74DdEKvw5kz0Bmn3XrUZfNJ0mK85s+c9wXycRKPyBlKzrPZOxmn8WUxQAx7Db1qAiOjK4IPpKp90GTFMKyOgGRpfCdM72UEyM1hEOs8++n1MRaW/5l/PsTRKdYVqmFT5oC7zh65MobWI6U7O3xkEkfQ1xrya2FJxMrEmQIVYlU1ADFAeUwtJJuocqhlJnmKhDWdUa9cNhpYzfDva+Fh95SSJuLPX8f9+DTya59Ts6Cqxtq6s7nEn1jU2awT11pmuuDewrztQRX5Tm1hTBQ8EhGN19w1lp+BEsnv7tidwG8zPKn0ME/j1dPGIO8Bz1zhMGqljqROvslv6PeEISO1aAizaPczZ6RaIGhiSsXdapzRLGrQRKY0Hkh80QLEMOVAayx1cUZC3GF7SAN4Wi7y3WXNsNnLdw7wPY7T1y7yAWXDplTASp4b+CmbdxLIfzOih/VR9dNwjn06bRfHHB1spGsyj+GzBThsRS069jix7lbTCEecpjNn9lLVUcspSl5d5MiOSiUHPdRcgPdG/6CLK2PeDoaM5avmlqs6GJXIkG218ju6/nSOq4bZhMB66N6Utc5Qyh63fSG9VTuvDdEwoh6OA=
   file_glob: true
-  file: 
+  file:
     - $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
     - target/wix/*.msi
     - target/$TARGET/debian/*.deb
