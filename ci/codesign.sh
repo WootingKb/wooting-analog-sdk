@@ -13,6 +13,6 @@ if [ $TRAVIS_OS_NAME = windows ]; then
   powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
   powershell Get-ExecutionPolicy -List
 
-  powershell $PWD/ci/codesign.ps1
+  powershell $TRAVIS_BUILD_DIR/ci/codesign.ps1
   signtool.exe verify -pa "$WIN_INSTALLER_PATH"
 fi
