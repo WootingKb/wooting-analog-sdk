@@ -12,6 +12,6 @@ if [ $TRAVIS_OS_NAME = windows ]; then
   powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
   powershell Get-ExecutionPolicy -List
 
-  powershell $PWD/.build/codesign.ps1
+  powershell $PWD/ci/codesign.ps1
   signtool.exe verify -pa "$BINARY_FILE"
 fi
