@@ -16,7 +16,7 @@ main() {
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="so"
-            cargo=cross
+            cargo=cargo
             ;;
         osx)
             stage=$(mktemp -d -t tmp)
