@@ -22,14 +22,6 @@ command = "${CARGO_COMMAND}"
 args = ["test", "--all-features", "${@}"]
 dependencies = [ "cargo-args" ]
 
-[tasks.clean-plugin-shmem-link]
-script_runner = "@shell"
-script = [
-'''
-rm -f wooting-test-plugin.link
-'''
-]
-
 [tasks.install-test-plugin]
 script_runner = "@shell"
 script = [
@@ -66,7 +58,6 @@ env = {TEST_PLUGIN_FILENAME="libwooting_analog_test_plugin.dylib",PLUGIN_INSTALL
 [tasks.build-test-plugin]
 command = "${CARGO_COMMAND}"
 args = ["build", "--manifest-path", "wooting-analog-test-plugin/Cargo.toml", "${@}"]
-#dependencies = ["clean-plugin-shmem-link"]
 
 [tasks.test-app]
 env = {  WOOTING_ANALOG_SDK_PLUGINS_PATH="${WOOTING_ANALOG_SDK_PLUGINS_PATH};${CARGO_MAKE_WORKING_DIRECTORY}/wooting-analog-test-plugin/target/debug", PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
