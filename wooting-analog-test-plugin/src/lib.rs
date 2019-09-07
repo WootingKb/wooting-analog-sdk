@@ -291,7 +291,14 @@ impl Plugin for WootingAnalogTestPlugin {
             return WootingAnalogResult::NoDevices.into();
         }
 
-        Ok(self.buffer.lock().unwrap().clone()).into()
+        if device == 0 || device == *self.device_id.lock().unwrap() {
+
+            Ok(self.buffer.lock().unwrap().clone()).into()
+        }
+        else {
+            WootingAnalogResult::NoDevices.into()
+        }
+
         /*let mut vals = vec![0; 0xFF];
         let shared_state = self.shmem.rlock::<SharedState>(0);
         if let Ok(state) = shared_state {
