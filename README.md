@@ -15,13 +15,13 @@ On Linux the primarily installation method is the `deb` package, which includes 
 
 To install manually:
 * Download & Extract the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) `wooting-analog-sdk-v*.*.*-x86_64-unknown-linux-gnu.tar.gz`
-* Copy `$extract/wrapper/sdk/libwooting_analog_sdk.so` to some directory and add that path to the `LD_LIBRARY_PATH` environment variable
+* Copy `$extract/wrapper/sdk/libwooting_analog_sdk.so` to `/usr/lib`. (Or to some directory and add that path to the `LD_LIBRARY_PATH` environment variable)
 * Follow the installation instructions for the [Wooting Analog Plugin](https://github.com/WootingKb/wooting-analog-plugin)
 
 ### Mac
 Currently there is no installer available for Mac, so you will have to install manually.
 * Download & Extract the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) `wooting-analog-sdk-v*.*.*-x86_64-apple-darwin.tar.gz`
-* Copy `$extract/wrapper/sdk/libwooting_analog_sdk.dylib` to some directory and add that path to the `DYLD_LIBRARY_PATH` environment variable
+* Copy `$extract/wrapper/sdk/libwooting_analog_sdk.dylib` to `/Library`. (Or to some directory and add that path to the `DYLD_LIBRARY_PATH` environment variable)
 * Follow the installation instructions for the [Wooting Analog Plugin](https://github.com/WootingKb/wooting-analog-plugin)
 
 ## Plugins
