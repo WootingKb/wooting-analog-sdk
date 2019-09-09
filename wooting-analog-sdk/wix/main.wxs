@@ -35,7 +35,7 @@
         Id='*'
         Name='wooting-analog-sdk'
         UpgradeCode='E2BA0FB4-1F18-43A7-9A46-F7F8BA85B6CA'
-        Manufacturer='simon-wh'
+        Manufacturer='Wooting'
         Language='1033'
         Codepage='1252'
         Version='$(var.Version)'>
@@ -43,7 +43,7 @@
         <Package Id='*'
             Keywords='Installer'
             Description='Wooting Analog SDK'
-            Manufacturer='simon-wh'
+            Manufacturer='Wooting'
             InstallerVersion='450'
             Languages='1033'
             Compressed='yes'
@@ -196,8 +196,8 @@
           The product icon is the graphic that appears in the Add/Remove
           Programs control panel for the application.
         -->
-        <!--<Icon Id='ProductICO' SourceFile='wix\Product.ico'/>-->
-        <!--<Property Id='ARPPRODUCTICON' Value='ProductICO' />-->
+        <Icon Id='ProductICO' SourceFile='wix\iconv2.ico'/>
+        <Property Id='ARPPRODUCTICON' Value='ProductICO' />
 
         <Property Id='ARPHELPLINK' Value='https://github.com/WootingKb/wooting-analog-sdk'/>
         
