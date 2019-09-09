@@ -196,7 +196,7 @@
           The product icon is the graphic that appears in the Add/Remove
           Programs control panel for the application.
         -->
-        <Icon Id='ProductICO' SourceFile='iconv2.ico'/>
+        <Icon Id='ProductICO' SourceFile='wix\iconv2.ico'/>
         <Property Id='ARPPRODUCTICON' Value='ProductICO' />
 
         <Property Id='ARPHELPLINK' Value='https://github.com/WootingKb/wooting-analog-sdk'/>
