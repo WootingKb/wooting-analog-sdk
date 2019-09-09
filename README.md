@@ -8,7 +8,7 @@ This repo contains all the core cross-platform components of the Wooting Analog 
 
 ## Installing
 ### Windows
-On Windows the SDK & Wooting Plugin will be installed & updated automatically through Wootility (currently the beta version). If you wish to install manually, download the latest `.msi` from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases)
+On Windows the SDK & Wooting Plugin will be installed & updated automatically through Wootility (>= v3.4). If you wish to install manually, download the latest `.msi` from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases)
 
 ### Linux
 On Linux the primarily installation method is the `deb` package, which includes both the SDK and the Wooting Plugin, which can be found on the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases)
@@ -121,12 +121,11 @@ Before commiting (if you've made changes to any of the previously mentioned crat
 
 ## Related Repositories
 
+* [WootingPiano](https://github.com/simon-wh/WootingPiano) (Originally by Microdee) Sets up the Wooting keyboard to be used as a MIDI keyboard input
 * [wooting-analog-plugin](https://github.com/WootingKb/wooting-analog-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
 * [wooting-analog-plugin-examples](https://github.com/WootingKb/wooting-analog-plugin-examples): This repo contains all plugin examples that have been collected
 * [wooting-analog-wrappers](https://github.com/WootingKb/wooting-analog-wrappers): Official language wrappers for the Wooting Analog SDK
 
 ## TODO
 
-- [ ] Example Application using the SDK
 - [ ] Improve docs & crates readme for `common` and `plugin-dev` packages
-- [ ] Plugin multi-threading
