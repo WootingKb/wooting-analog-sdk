@@ -13,3 +13,5 @@ analog-plugin-c/win-out/
 \.vs/
 
 wooting-test-plugin.link
+
+test-plugins/

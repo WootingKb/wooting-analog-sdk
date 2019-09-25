@@ -47,8 +47,7 @@ unsafe impl SharedMemCast for SharedState {}
 impl WootingAnalogTestPlugin{
     fn new() -> Self {
         use env_logger::Env;
-        let env = Env::new().default_filter_or("trace");
-        env_logger::try_init_from_env(env);
+        env_logger::try_init();
 
         let device: Arc<Mutex<Option<DeviceInfoPointer>>> = Arc::new(Mutex::new(None));
         let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));

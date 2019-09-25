@@ -454,7 +454,7 @@ mod tests {
     extern "C" fn connect_cb(event: DeviceEventType, device: DeviceInfoPointer) {
         info!("Got cb {:?}", event);
 
-        *Arc::clone(&got_connected).lock().unwrap() = (event == DeviceEventType::Connected);
+        *Arc::clone(&got_connected).lock().unwrap() = event == DeviceEventType::Connected;
     }
 
     fn wait_for_connected(attempts: u32, connected: bool) {
@@ -473,7 +473,8 @@ mod tests {
     fn initialise_test_plugin() {
         shared_init();
 
-        let dir = "../wooting-analog-test-plugin/target";
+
+        let dir = "../test-plugins";
         let mut sdk = AnalogSDK::new();
         assert_eq!(sdk.initialise_with_plugin_path(dir), WootingAnalogResult::NoDevices);
         assert!(sdk.initialised);
