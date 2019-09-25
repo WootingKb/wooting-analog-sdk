@@ -23,6 +23,9 @@ bimap = "0.3"
 wooting-analog-common = { path = "../wooting-analog-common"}
 wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 
+[dev-dependencies]
+shared_memory = "0.8.2"
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.7", features = ["winuser"] }
 

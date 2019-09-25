@@ -46,23 +46,15 @@ impl AnalogSDK {
     }
 
     pub fn initialise(&mut self) -> WootingAnalogResult {
+        self.initialise_with_plugin_path(DEFAULT_PLUGIN_DIR)
+    }
+
+    pub fn initialise_with_plugin_path(&mut self, plugin_dir: &str) -> WootingAnalogResult {
         if self.initialised {
             self.unload();
         }
 
-        /*let plugin_dir: std::result::Result<Vec<PathBuf>, std::env::VarError> =
-            std::env::var(ENV_PLUGIN_DIR_KEY).map(|var| {
-                var.split(';')
-                    .filter_map(|path| {
-                        if path.is_empty() {
-                            None
-                        } else {
-                            Some(PathBuf::from(path))
-                        }
-                    })
-                    .collect()
-            });*/
-        let plugin_dir = PathBuf::from(DEFAULT_PLUGIN_DIR);
+        let plugin_dir = PathBuf::from(plugin_dir);
         if !plugin_dir.is_dir() {
             error!("The plugin directory '{}' does not exist! Make sure you have it created and have plugins in there", DEFAULT_PLUGIN_DIR);
             return WootingAnalogResult::NoPlugins;
@@ -86,6 +78,10 @@ impl AnalogSDK {
         for dir in plugin_dir.read_dir().expect("Could not read dir") {
             match dir {
                 Ok(dir) => {
+                    if dir.path().is_file() {
+                        continue;
+                    }
+
                     match self.load_plugins(&dir.path()) {
                         Ok(0) => {
                             warn!("Failed to load any plugins from {:?}!", dir);
@@ -304,7 +300,7 @@ impl AnalogSDK {
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            let plugin_data = p.read_full_buffer(code_buffer.len(), 0).into();
+            let plugin_data = p.read_full_buffer(code_buffer.len(), device_id).into();
             match plugin_data {
                 Ok(mut data) => {
                     for (hid_code, analog) in data.drain() {
@@ -323,7 +319,7 @@ impl AnalogSDK {
                             }
                             analog_data.insert(code, total_analog);
                         } else {
-                            //warn!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
+                            warn!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
                         }
                     }
 
@@ -390,6 +386,31 @@ impl Default for AnalogSDK {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared_memory::*;
+    use std::time::Duration;
+    use std::sync::{Arc,Mutex};
+
+    struct SharedState {
+        pub vendor_id: u16,
+        /// Device Product ID `pid`
+        pub product_id: u16,
+        //TODO: Consider switching these to FFiStr
+        /// Device Manufacturer name
+        pub manufacturer_name: [u8; 20],
+        /// Device name
+        pub device_name: [u8; 20],
+        /// Unique device ID, which should be generated using `generate_device_id`
+        pub device_id: u64,
+
+        pub device_type: DeviceType,
+
+        pub device_connected: bool,
+        pub dirty_device_info: bool,
+
+        pub analog_values: [u8; 0xFF]
+    }
+
+    unsafe impl SharedMemCast for SharedState {}
 
     fn shared_init() {
         use env_logger::Env;
@@ -397,16 +418,15 @@ mod tests {
         env_logger::try_init_from_env(env);
     }
 
-    /*#[test]
+    #[test]
     fn initialise_no_plugins() {
         shared_init();
 
         let dir = "./test_np";
         ::std::fs::create_dir(dir);
-        ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
 
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise(), WootingAnalogResult::NoPlugins);
+        assert_eq!(sdk.initialise_with_plugin_path(dir), WootingAnalogResult::NoPlugins);
         assert!(!sdk.initialised);
         ::std::fs::remove_dir(dir);
     }
@@ -417,29 +437,166 @@ mod tests {
 
         let dir = "./test_n";
         ::std::fs::remove_dir(dir);
-        ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
 
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise(), WootingAnalogResult::NoPlugins);
+        assert_eq!(sdk.initialise_with_plugin_path(dir), WootingAnalogResult::NoPlugins);
         assert!(!sdk.initialised)
     }
 
+    fn get_wlock(shmem: &mut SharedMem) -> WriteLockGuard<SharedState> {
+        match shmem.wlock::<SharedState>(0) {
+            Ok(v) => v,
+            Err(_) => panic!("Failed to acquire write lock !"),
+        }
+    }
+
+    lazy_static! { static ref got_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false)); }
+    extern "C" fn connect_cb(event: DeviceEventType, device: DeviceInfoPointer) {
+        info!("Got cb {:?}", event);
+
+        *Arc::clone(&got_connected).lock().unwrap() = (event == DeviceEventType::Connected);
+    }
+
+    fn wait_for_connected(attempts: u32, connected: bool) {
+        let mut n = 0;
+        while *Arc::clone(&got_connected).lock().unwrap() != connected {
+            if n > attempts {
+                panic!("Waiting for device to be connected status: {:?} timed out!", connected);
+            }
+            ::std::thread::sleep(Duration::from_millis(500));
+            n+=1;
+        }
+        info!("Got {:?} after {} attempts", connected, n);
+    }
+
     #[test]
-    fn initialise_multiple_dir() {
+    fn initialise_test_plugin() {
         shared_init();
 
-        let dir = "./test;./test1";
-        ::std::fs::create_dir("./test_m1");
-        ::std::fs::create_dir("./test_m2");
-        ::std::env::set_var(ENV_PLUGIN_DIR_KEY, dir);
-
+        let dir = "../wooting-analog-test-plugin/target";
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise(), WootingAnalogResult::NoPlugins);
-        assert!(!sdk.initialised);
+        assert_eq!(sdk.initialise_with_plugin_path(dir), WootingAnalogResult::NoDevices);
+        assert!(sdk.initialised);
 
-        ::std::fs::remove_dir("./test_m1");
-        ::std::fs::remove_dir("./test_m2");
-    }*/
+
+        let mut shmem = match SharedMem::open_linked(std::env::temp_dir().join("wooting-test-plugin.link").as_os_str()) {
+            Ok(v) => v,
+            Err(e) => {
+                println!("Error : {}", e);
+                println!("Failed to open SharedMem...");
+                assert!(false);
+                return;
+            }
+        };
+
+        sdk.set_device_event_cb(connect_cb);
+
+        //Check the connected cb is called
+        {
+            {
+                let mut shared_state = get_wlock(&mut shmem);
+                shared_state.device_connected = true;
+            }
+            wait_for_connected(5,true);
+        }
+
+        //Check that we now have one device
+        {
+            let mut device_infos: Vec<DeviceInfoPointer> = vec![Default::default(), Default::default()];
+            assert_eq!(sdk.get_device_info(device_infos.as_mut()).0, Ok(1));
+        }
+
+        //Check the cb is called with disconnected
+        {
+            {
+                let mut shared_state = get_wlock(&mut shmem);
+                shared_state.device_connected = false;
+            }
+            wait_for_connected(5,false);
+        }
+
+        //Check that we now have no devices
+        {
+            let mut device_infos: Vec<DeviceInfoPointer> = vec![Default::default(), Default::default()];
+            assert_eq!(sdk.get_device_info(device_infos.as_mut()).0, Ok(0));
+        }
+
+
+        let analog_val = 0xF4;
+        let f_analog_val = f32::from(analog_val) / 255_f32;
+        let analog_key = 5;
+        //Connect the device again, set a keycode to a val
+        let device_id =
+        {
+            let mut shared_state = get_wlock(&mut shmem);
+            shared_state.analog_values[analog_key] = analog_val;
+            shared_state.device_connected = true;
+            shared_state.device_id
+        };
+
+        wait_for_connected(5,true);
+
+        //Check we get the val with no id specified
+        assert_eq!(sdk.read_analog(analog_key as u16, 0).0, Ok(f_analog_val));
+        //Check we get the val with the device_id we use
+        assert_eq!(sdk.read_analog(analog_key as u16, device_id).0, Ok(f_analog_val));
+        //Check we don't get a val with invalid device id
+        assert_eq!(sdk.read_analog(analog_key as u16, device_id+1).0, Err(WootingAnalogResult::NoDevices));
+        //Check if the next value is 0
+        assert_eq!(sdk.read_analog((analog_key+1) as u16, device_id).0, Ok(0.0));
+
+        //Check that it does code mapping
+        sdk.keycode_mode = KeycodeType::ScanCode1;
+        assert_eq!(sdk.read_analog( hid_to_code( analog_key as u16, &sdk.keycode_mode).unwrap(), device_id).0, Ok(f_analog_val));
+        sdk.keycode_mode = KeycodeType::HID;
+
+
+        let buffer_len = 5;
+        let mut code_buffer: Vec<u16> = vec![0;buffer_len];
+        let mut analog_buffer: Vec<f32> = vec![0.0;buffer_len];
+        //Check it reads buffer properly with no device id
+        assert_eq!(sdk.read_full_buffer(code_buffer.as_mut(), analog_buffer.as_mut(), 0).0, Ok(1));
+        assert_eq!(code_buffer[0], analog_key as u16);
+        assert_eq!(analog_buffer[0], f_analog_val);
+
+        //Check it reads buffer properly with proper device_id
+        assert_eq!(sdk.read_full_buffer(code_buffer.as_mut(), analog_buffer.as_mut(), device_id).0, Ok(1));
+        assert_eq!(code_buffer[0], analog_key as u16);
+        assert_eq!(analog_buffer[0], f_analog_val);
+
+        //Clean the first part of buffer to make sure it isn't written into
+        code_buffer[0] = 0;
+        analog_buffer[0] = 0.0;
+        //Check it errors on read buffer with invalid device_id
+        assert_eq!(sdk.read_full_buffer(code_buffer.as_mut(), analog_buffer.as_mut(), device_id + 1).0, Err(WootingAnalogResult::NoDevices));
+        assert_eq!(code_buffer[0], 0);
+        assert_eq!(analog_buffer[0], 0.0);
+
+        //Check that it does code mapping
+        sdk.keycode_mode = KeycodeType::ScanCode1;
+        assert_eq!(sdk.read_full_buffer(code_buffer.as_mut(), analog_buffer.as_mut(), device_id).0, Ok(1));
+        assert_eq!(code_buffer[0], hid_to_code( analog_key as u16, &sdk.keycode_mode).unwrap());
+        assert_eq!(analog_buffer[0], f_analog_val);
+        sdk.keycode_mode = KeycodeType::HID;
+
+        {
+            let mut shared_state = get_wlock(&mut shmem);
+            shared_state.analog_values[analog_key] = 0;
+        }
+        ::std::thread::sleep(Duration::from_secs(1));
+
+        assert_eq!(sdk.read_full_buffer(code_buffer.as_mut(), analog_buffer.as_mut(), device_id).0, Ok(0));
+        assert_eq!(sdk.read_analog(analog_key as u16, 0).0, Ok(0.0));
+
+        sdk.clear_device_event_cb();
+        {
+            let mut shared_state = get_wlock(&mut shmem);
+            shared_state.device_connected = false;
+        }
+        ::std::thread::sleep(Duration::from_secs(1));
+        //This shouldn't have updated if the cb is not there
+        assert!(*Arc::clone(&got_connected).lock().unwrap());
+    }
 
     #[test]
     fn unitialised_sdk_functions_new() {

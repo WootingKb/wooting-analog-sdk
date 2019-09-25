@@ -32,6 +32,8 @@ pub struct DeviceInfo {
     pub device_name: *const c_char,
     /// Unique device ID, which should be generated using `generate_device_id`
     pub device_id: DeviceID,
+    /// Hardware type of the Device
+    pub device_type: DeviceType
 }
 
 impl DeviceInfo {
@@ -57,6 +59,7 @@ impl DeviceInfo {
         manufacturer_name: &str,
         device_name: &str,
         device_id: DeviceID,
+        device_type: DeviceType
     ) -> Self {
         DeviceInfo {
             vendor_id,
@@ -64,6 +67,7 @@ impl DeviceInfo {
             manufacturer_name: CString::new(manufacturer_name).unwrap().into_raw(),
             device_name: CString::new(device_name).unwrap().into_raw(),
             device_id,
+            device_type
         }
     }
 
@@ -117,7 +121,7 @@ impl DeviceInfoPointer {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     #[repr(C)]
     pub enum KeycodeType {
         /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
@@ -134,7 +138,20 @@ enum_from_primitive! {
 pub type DeviceID = u64;
 
 enum_from_primitive! {
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
+    #[repr(C)]
+    pub enum DeviceType  {
+        /// Device is of type Keyboard
+        Keyboard = 1,
+        /// Device is of type Keypad
+        Keypad,
+        /// Device
+        Other
+    }
+}
+
+enum_from_primitive! {
+    #[derive(Debug, PartialEq, Clone)]
     #[repr(C)]
     pub enum DeviceEventType  {
         /// Device has been connected
@@ -145,7 +162,7 @@ enum_from_primitive! {
 }
 
 enum_from_primitive! {
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     #[repr(C)]
     pub enum WootingAnalogResult {
         Ok = 1,

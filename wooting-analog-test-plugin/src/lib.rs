@@ -4,7 +4,7 @@ extern crate wooting_analog_plugin_dev;
 extern crate log;
 extern crate env_logger;
 use wooting_analog_plugin_dev::*;
-use wooting_analog_common::*;
+use wooting_analog_plugin_dev::wooting_analog_common::*;
 use std::collections::HashMap;
 use shared_memory::*;
 use std::os::raw::{c_char};
@@ -34,6 +34,8 @@ struct SharedState {
     /// Unique device ID, which should be generated using `generate_device_id`
     pub device_id: DeviceID,
 
+    pub device_type: DeviceType,
+
     pub device_connected: bool,
     pub dirty_device_info: bool,
 
@@ -44,7 +46,9 @@ unsafe impl SharedMemCast for SharedState {}
 
 impl WootingAnalogTestPlugin{
     fn new() -> Self {
-        env_logger::try_init();
+        use env_logger::Env;
+        let env = Env::new().default_filter_or("trace");
+        env_logger::try_init_from_env(env);
 
         let device: Arc<Mutex<Option<DeviceInfoPointer>>> = Arc::new(Mutex::new(None));
         let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -95,6 +99,7 @@ impl WootingAnalogTestPlugin{
                 shared_state.vendor_id = 0x03eb;
                 shared_state.product_id = 0xFFFF;
                 shared_state.device_id = 1;
+                shared_state.device_type = DeviceType::Keyboard;
                 shared_state.device_connected = false;
                 shared_state.dirty_device_info = false;
                 let src = b"Wooting\x00";
@@ -122,6 +127,8 @@ impl WootingAnalogTestPlugin{
                             from_ut8f_to_null(&state.manufacturer_name[..], state.manufacturer_name.len()),
                             from_ut8f_to_null(&state.device_name[..], state.device_name.len()),
                             state.device_id,
+                            state.device_type.clone()
+                            
                         ).to_ptr();
                         *t_device_id.lock().unwrap() = state.device_id;
                         t_device.lock().unwrap().replace(dev);
