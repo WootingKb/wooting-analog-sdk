@@ -7,7 +7,7 @@ main() {
     local cargo=cargo
     local test_command=test
     if [ $TRAVIS_OS_NAME = linux ] || [ $TRAVIS_OS_NAME = osx ]; then
-      cargo=cross
+      #cargo=cross
       test_command=test-flow
     fi
 
