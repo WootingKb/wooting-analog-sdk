@@ -20,6 +20,21 @@ typedef enum {
 
 typedef enum {
   /**
+   * Device is of type Keyboard
+   */
+  WootingAnalog_DeviceType_Keyboard = 1,
+  /**
+   * Device is of type Keypad
+   */
+  WootingAnalog_DeviceType_Keypad,
+  /**
+   * Device
+   */
+  WootingAnalog_DeviceType_Other,
+} WootingAnalog_DeviceType;
+
+typedef enum {
+  /**
    * USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
    */
   WootingAnalog_KeycodeType_HID,
@@ -104,4 +119,8 @@ typedef struct {
    * Unique device ID, which should be generated using `generate_device_id`
    */
   WootingAnalog_DeviceID device_id;
+  /**
+   * Hardware type of the Device
+   */
+  WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo;

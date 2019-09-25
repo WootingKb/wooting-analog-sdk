@@ -474,9 +474,10 @@ mod tests {
         shared_init();
 
 
-        let dir = "../test-plugins";
+        let dir = "../wooting-analog-test-plugin/target/".to_owned() + std::env::var("TARGET").unwrap_or("".to_owned()).as_str();
+        info!("Loading plugins from: {:?}", dir);
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise_with_plugin_path(dir), WootingAnalogResult::NoDevices);
+        assert_eq!(sdk.initialise_with_plugin_path(dir.as_str()), WootingAnalogResult::NoDevices);
         assert!(sdk.initialised);
 
 

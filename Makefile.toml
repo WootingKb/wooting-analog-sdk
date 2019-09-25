@@ -23,19 +23,7 @@ script = [
 [tasks.test]
 command = "${CARGO_COMMAND}"
 args = ["test", "--all-features", "${@}"]
-dependencies = [ "cargo-args", "setup-test-plugin" ]
-
-[tasks.setup-test-plugin]
-script_runner = "@shell"
-script = [
-'''
-sudo mkdir -p "./test-plugins"
-sudo mkdir -p "./test-plugins/test-plugin1"
-
-sudo cp "./wooting-analog-test-plugin/target/${TARGET}/debug/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "./test-plugins/test-plugin1/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
-'''
-]
-dependencies = ["build-test-plugin"]
+dependencies = [ "cargo-args" ]
 
 [tasks.install-test-plugin]
 script_runner = "@shell"
