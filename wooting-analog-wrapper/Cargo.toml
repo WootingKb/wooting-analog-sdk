@@ -10,4 +10,4 @@ libloading = "0.5.1"
 wooting-analog-common = { path = "../wooting-analog-common"}
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib", "rlib", "staticlib"]

@@ -75,7 +75,12 @@ To get the virtual keyboard, right now there are only Windows builds available f
 
 ### How to Build
 Everything can be built using this command. All the outputs will be under `target/debug`
-```
+```bash
+#Build debug
+cargo make build
+#Build release
+cargo make build -- --release
+#Build & run tests (To verify headers you'll need the nightly toolchain installed)
 cargo make
 ```
 
