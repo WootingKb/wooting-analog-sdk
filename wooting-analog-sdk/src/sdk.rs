@@ -480,6 +480,8 @@ mod tests {
         assert_eq!(sdk.initialise_with_plugin_path(dir.as_str()), WootingAnalogResult::NoDevices);
         assert!(sdk.initialised);
 
+        //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
+        ::std::thread::sleep(Duration::from_millis(500));
 
         let mut shmem = match SharedMem::open_linked(std::env::temp_dir().join("wooting-test-plugin.link").as_os_str()) {
             Ok(v) => v,
