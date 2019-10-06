@@ -14,6 +14,7 @@ use gio::prelude::*;
 
 use std::env;
 use gtk::BoxBuilder;
+use wooting_analog_common::DeviceType;
 
 struct SharedState {
     pub vendor_id: u16,

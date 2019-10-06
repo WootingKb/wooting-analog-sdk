@@ -69,8 +69,8 @@ impl WootingAnalogTestPlugin{
                     Ok(v) => v,
                     Err(e) => {
                         if link_path.exists() {
-                            error!("Error : {}", e);
-                            error!("Failed to open SharedMem...");
+                            warn!("Error : {}", e);
+                            warn!("Attempted to open exist SharedMemFailed... Falling back to creation");
                             if let Err(e) = std::fs::remove_file(&link_path) {
                                 error!("Could not delete old link file: {}", e);
                             }
