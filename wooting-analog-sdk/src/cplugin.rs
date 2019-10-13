@@ -91,14 +91,6 @@ impl CPlugin {
 
 impl Plugin for CPlugin {
     fn name(&mut self) -> SDKResult<&'static str> {
-        /*let s = self.c_name();
-        let c_str = unsafe {
-            assert!(!s.is_null());
-
-            CStr::from_ptr(s)
-        };
-
-        c_str.to_str().unwrap()*/
         self._name().0.map(|s| s.as_str()).into()
     }
 
@@ -142,13 +134,11 @@ impl Plugin for CPlugin {
     }
 
     lib_wrap! {
-        fn initialise() -> WootingAnalogResult;
         fn is_initialised() -> bool;
         fn unload();
-        fn set_device_event_cb(cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> WootingAnalogResult;
-        fn clear_device_event_cb() -> WootingAnalogResult;
     }
     lib_wrap_option! {
+        fn initialise(callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> i32;
         fn read_analog(code: u16, device: DeviceID) -> f32;
         //fn neg(x: u32, y: u32) -> u32;
     }

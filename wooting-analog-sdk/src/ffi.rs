@@ -1,27 +1,21 @@
 use crate::sdk::*;
-use std::sync::Mutex;
 use wooting_analog_common::enum_primitive::FromPrimitive;
 //use ffi_support::FfiStr;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::slice;
 use wooting_analog_common::*;
 
-lazy_static! {
-    static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
-}
-
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
 ///
 /// # Expected Returns
-/// * `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
-/// * `NoDevices`: Meaning the SDK initialised successfully, but no devices are connected
+/// * `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 ///
 #[no_mangle]
-pub extern "C" fn wooting_analog_initialise() -> WootingAnalogResult {
+pub extern "C" fn wooting_analog_initialise() -> i32 {
     env_logger::init();
-    ANALOG_SDK.lock().unwrap().initialise()
+    ANALOG_SDK.lock().unwrap().initialise().into()
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
@@ -136,7 +130,7 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 pub extern "C" fn wooting_analog_set_device_event_cb(
     cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
 ) -> WootingAnalogResult {
-    ANALOG_SDK.lock().unwrap().set_device_event_cb(cb)
+    ANALOG_SDK.lock().unwrap().set_device_event_cb(cb).into()
 }
 
 /// Clears the device event callback that has been set
@@ -146,7 +140,7 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
 /// * `UnInitialized`: The SDK is not initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult {
-    ANALOG_SDK.lock().unwrap().clear_device_event_cb()
+    ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
 }
 
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
@@ -231,9 +225,23 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_full_buffer(codes, analog, device_id)
-        .into()
+    match ANALOG_SDK.lock().unwrap().read_full_buffer(len as usize, device_id).0 {
+        Ok(analog_data) => {
+            //Fill up given slices
+            let mut count: usize = 0;
+            for (code, val) in analog_data.iter() {
+                if count >= codes.len() {
+                    break;
+                }
+
+                codes[count] = *code;
+                analog[count] = *val;
+                count += 1;
+            }
+            (count as c_int)
+        },
+        Err(e) => {
+            e as c_int
+        }
+    }
 }

@@ -93,7 +93,10 @@ impl WootingAnalogTestPlugin{
             {
                 let mut shared_state = match my_shmem.wlock::<SharedState>(0) {
                     Ok(v) => v,
-                    Err(_) => panic!("Failed to acquire write lock !"),
+                    Err(_) => {
+                        error!("Test plugin Failed to acquire write lock! Stopping...");
+                        return;
+                    }
                 };
                 shared_state.vendor_id = 0x03eb;
                 shared_state.product_id = 0xFFFF;
@@ -128,7 +131,7 @@ impl WootingAnalogTestPlugin{
                             state.device_id,
                             state.device_type.clone()
                             
-                        ).to_ptr();
+                        ).convert_to_ptr();
                         *t_device_id.lock().unwrap() = state.device_id;
                         t_device.lock().unwrap().replace(dev);
 
@@ -191,72 +194,20 @@ impl Plugin for WootingAnalogTestPlugin {
         Ok("Wooting Analog Test Plugin").into()
     }
 
-    fn initialise(&mut self) -> WootingAnalogResult {
-        if *self.device_connected.lock().unwrap() { WootingAnalogResult::Ok } else { WootingAnalogResult::NoDevices }
+    fn initialise(&mut self, cb: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<i32> {
+        info!("init");
+        self.device_event_cb.lock().unwrap().replace(cb);
+        if *self.device_connected.lock().unwrap() { Ok(1) } else { Ok(0) }.into()
     }
 
     fn is_initialised(&mut self) -> bool {
         true
     }
 
-    fn set_device_event_cb(
-        &mut self,
-        cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
-    ) -> WootingAnalogResult {
-        //if !self.initialised {
-        //    return WootingAnalogResult::UnInitialized;
-        //}
-
-        debug!("disconnected cb set");
-        self.device_event_cb.lock().unwrap().replace(cb);
-        WootingAnalogResult::Ok
-    }
-
-    fn clear_device_event_cb(&mut self) -> WootingAnalogResult {
-        //if !self.initialised {
-        //    return WootingAnalogResult::UnInitialized;
-        //}
-
-        debug!("disconnected cb cleared");
-        self.device_event_cb.lock().unwrap().take();
-        WootingAnalogResult::Ok
-    }
-
     fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<i32> {
         if !*self.device_connected.lock().unwrap() {
             return WootingAnalogResult::NoDevices.into();
         }
-
-        //if !self.initialised {
-        //    return WootingAnalogResult::UnInitialized.into();
-        //}
-        /*let shared_state = self.shmem.rlock::<SharedState>(0);
-
-
-        let dev_ptr: DeviceInfoPointer = match shared_state {
-            Ok(state) => {
-                if state.dirty_device_info || self.device.is_none() {
-                    let dev = DeviceInfo::new_with_id(
-                        state.vendor_id,
-                        state.product_id,
-                        from_ut8f_to_null(&state.manufacturer_name[..], state.manufacturer_name.len()),
-                        from_ut8f_to_null(&state.device_name[..], state.device_name.len()),
-                        state.device_id,
-                    ).to_ptr();
-                    self.device = Some(dev);
-                }
-
-                self.device.as_ref().unwrap()
-            },
-            Err(_e) => {
-                match &self.device {
-                    Some(ptr) => ptr,
-                    None => {
-                        return WootingAnalogResult::Failure.into();
-                    }
-                }
-            }
-        }.clone();*/
         let dev_ptr = self.device.lock().unwrap().clone().unwrap();
         buffer[0] = dev_ptr;
 
@@ -270,26 +221,11 @@ impl Plugin for WootingAnalogTestPlugin {
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
-
-            //WootingAnalogResult::Failure.into()
-
             Ok(self.buffer.lock().unwrap().get(&code).cloned().or(Some(0.0)).unwrap()).into()
         }
         else {
             WootingAnalogResult::NoDevices.into()
         }
-        /*let shared_state = self.shmem.rlock::<SharedState>(0);
-
-        if let Ok(state) = shared_state {
-            if device == 0 || device == state.device_id {
-                (f32::from(state.analog_values[code as usize]) / 255_f32).into()
-            }else {
-                WootingAnalogResult::NoDevices.into()
-            }
-        }
-        else {
-            WootingAnalogResult::Failure.into()
-        }*/
     }
 
     fn read_full_buffer(&mut self, max_length: usize, device: u64) -> SDKResult<HashMap<u16, f32>> {
@@ -304,30 +240,6 @@ impl Plugin for WootingAnalogTestPlugin {
         else {
             WootingAnalogResult::NoDevices.into()
         }
-
-        /*let mut vals = vec![0; 0xFF];
-        let shared_state = self.shmem.rlock::<SharedState>(0);
-        if let Ok(state) = shared_state {
-            if device == 0 || device == state.device_id {
-                vals.copy_from_slice(&state.analog_values[..]);
-                drop(state);
-
-                let analog: HashMap<u16, f32> = vals.iter().enumerate().filter_map(|(i, &val)| {
-                    if val > 0 {
-                        Some((i as u16, f32::from(val) / 255_f32))
-                    }else {
-                        None
-                    }
-                } ).collect();
-                Ok(analog).into()
-            }else {
-                WootingAnalogResult::NoDevices.into()
-            }
-        }
-        else {
-            WootingAnalogResult::Failure.into()
-        }*/
-        //WootingAnalogResult::Failure.into()
     }
 }
 
