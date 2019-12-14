@@ -19,7 +19,8 @@ struct WootingAnalogTestPlugin {
     device_event_cb: Arc<Mutex<Option<extern "C" fn(DeviceEventType, DeviceInfoPointer)>>>,
     device: Arc<Mutex<Option<DeviceInfoPointer>>>,
     buffer: Arc<Mutex<HashMap<u16, f32>>>,
-    device_id: Arc<Mutex<DeviceID>>
+    device_id: Arc<Mutex<DeviceID>>,
+    pressed_keys: Vec<u16>
 }
 
 struct SharedState {
@@ -47,7 +48,8 @@ unsafe impl SharedMemCast for SharedState {}
 impl WootingAnalogTestPlugin{
     fn new() -> Self {
         use env_logger::Env;
-        env_logger::try_init();
+        env_logger::from_env(Env::default().default_filter_or("trace")).try_init();
+
 
         let device: Arc<Mutex<Option<DeviceInfoPointer>>> = Arc::new(Mutex::new(None));
         let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
@@ -78,8 +80,8 @@ impl WootingAnalogTestPlugin{
                         match SharedMem::create_linked(link_path.as_os_str(), LockType::Mutex, 4096) {
                             Ok(m) => m,
                             Err(e) => {
-                                error!("Error : {}", e);
-                                error!("Failed to create SharedMem !");
+                                error!("Test Plugin Error : {}", e);
+                                error!("Test Plugin Failed to create SharedMem closing!");
                                 //return;
                                 return;
                             }
@@ -139,7 +141,10 @@ impl WootingAnalogTestPlugin{
                     }
                     if *t_device_connected.lock().unwrap() != state.device_connected {
                         *t_device_connected.lock().unwrap() = state.device_connected;
-                        t_device_event_cb.lock().unwrap().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected } else {DeviceEventType::Disconnected} , t_device.lock().unwrap().clone().unwrap());Some(0)});
+                        let device = {
+                            t_device.lock().unwrap().clone().unwrap()
+                        };
+                        t_device_event_cb.lock().unwrap().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected } else {DeviceEventType::Disconnected}, device);Some(0)});
                     }
 
                     if !state.device_connected {
@@ -174,7 +179,8 @@ impl WootingAnalogTestPlugin{
             device_event_cb,
             device,
             buffer,
-            device_id
+            device_id,
+            pressed_keys: vec!()
         }
     }
 }
@@ -194,25 +200,28 @@ impl Plugin for WootingAnalogTestPlugin {
         Ok("Wooting Analog Test Plugin").into()
     }
 
-    fn initialise(&mut self, cb: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<i32> {
+    fn initialise(&mut self, cb: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<u32> {
         info!("init");
+        let ret = if *self.device_connected.lock().unwrap() { Ok(1) } else { Ok(0) }.into();
         self.device_event_cb.lock().unwrap().replace(cb);
-        if *self.device_connected.lock().unwrap() { Ok(1) } else { Ok(0) }.into()
+        ret
     }
 
     fn is_initialised(&mut self) -> bool {
         true
     }
 
-    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<i32> {
-        if !*self.device_connected.lock().unwrap() {
-            return WootingAnalogResult::NoDevices.into();
+    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfoPointer>> {
+        debug!("asked for devices {:?}", *self.device_connected.lock().unwrap());
+
+        let mut devices = vec![];
+        if *self.device_connected.lock().unwrap() {
+            let dev_ptr = self.device.lock().unwrap().clone().unwrap();
+            devices.push(dev_ptr);
         }
-        let dev_ptr = self.device.lock().unwrap().clone().unwrap();
-        buffer[0] = dev_ptr;
+        debug!("Finished with devices");
 
-
-        1.into()
+        Ok(devices).into()
     }
 
     fn read_analog(&mut self, code: u16, device: u64) -> SDKResult<f32> {
@@ -234,8 +243,21 @@ impl Plugin for WootingAnalogTestPlugin {
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
+            let mut buffer = self.buffer.lock().unwrap().clone();
+            //Collect the new pressed keys
+            let new_pressed_keys: Vec<u16> = buffer.keys().map(|x| *x).collect();
 
-            Ok(self.buffer.lock().unwrap().clone()).into()
+            //Put the old pressed keys into the buffer
+            for key in self.pressed_keys.drain(..) {
+                if !buffer.contains_key(&key) {
+                    buffer.insert(key, 0.0);
+                }
+            }
+
+            //Store the newPressedKeys for the next call
+            self.pressed_keys = new_pressed_keys;
+
+            Ok(buffer).into()
         }
         else {
             WootingAnalogResult::NoDevices.into()

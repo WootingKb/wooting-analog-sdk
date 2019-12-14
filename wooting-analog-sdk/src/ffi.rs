@@ -130,7 +130,7 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 pub extern "C" fn wooting_analog_set_device_event_cb(
     cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
 ) -> WootingAnalogResult {
-    ANALOG_SDK.lock().unwrap().set_device_event_cb(cb).into()
+    ANALOG_SDK.lock().unwrap().set_device_event_cb(move |event, device| cb(event, device)).into()
 }
 
 /// Clears the device event callback that has been set
@@ -157,13 +157,28 @@ pub unsafe extern "C" fn wooting_analog_get_connected_devices_info(
     buffer: *mut DeviceInfoPointer,
     len: c_uint,
 ) -> c_int {
-    let buff = {
-        assert!(!buffer.is_null());
 
-        slice::from_raw_parts_mut(buffer, len as usize)
-    };
 
-    ANALOG_SDK.lock().unwrap().get_device_info(buff).into()
+    match ANALOG_SDK.lock().unwrap().get_device_info().0 {
+        Ok(mut devices) => {
+            let device_no = (len as usize).min(devices.len());
+
+            let buff = {
+                assert!(!buffer.is_null());
+
+                slice::from_raw_parts_mut(buffer, device_no)
+            };
+
+            devices.truncate(device_no);
+            buff.swap_with_slice(devices.as_mut());
+
+            device_no as i32
+        },
+        Err(e) => {
+            e.into()
+        }
+
+    }
 }
 
 /// Reads all the analog values for pressed keys for all devices and combines their values, filling up `code_buffer` with the

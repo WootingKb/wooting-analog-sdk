@@ -11,13 +11,18 @@ use wooting_analog_common::*;
 #[no_mangle]
 pub static ANALOG_SDK_PLUGIN_ABI_VERSION: u32 = 1;
 
+#[no_mangle]
+pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+
+
 /// The core Plugin trait which needs to be implemented for an Analog Plugin to function
 pub trait Plugin {
     /// Get a name describing the `Plugin`.
     fn name(&mut self) -> SDKResult<&'static str>;
 
     /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
-    fn initialise(&mut self, callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<i32>;
+    fn initialise(&mut self, callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<u32>;
 
     /// A function fired to check if the plugin is currently initialised
     fn is_initialised(&mut self) -> bool;
@@ -28,7 +33,7 @@ pub trait Plugin {
     /// # Notes
     ///
     /// Although, the client should be copying any data they want to use for a prolonged time as there is no lifetime guarantee on the data.
-    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<i32>;
+    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfoPointer>>;
 
     /// A callback fired immediately before the plugin is unloaded. Use this if
     /// you need to do any cleanup.
@@ -67,8 +72,15 @@ macro_rules! declare_plugin {
             let boxed: Box<$crate::Plugin> = Box::new(object);
             Box::into_raw(boxed)
         }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_version() -> &'static str {
+            ANALOG_SDK_PLUGIN_VERSION
+        }
     };
 }
+
+
 
 pub fn generate_device_id(serial_number: &str, vendor_id: u16, product_id: u16) -> DeviceID {
     use std::collections::hash_map::DefaultHasher;

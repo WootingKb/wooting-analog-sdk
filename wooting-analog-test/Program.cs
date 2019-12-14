@@ -6,142 +6,10 @@ using System.Threading;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using WootingAnalogSDKNET;
 
 namespace analog_sdk_test
 {
-    class Native {
-        public enum KeycodeType {
-            HID,
-            ScanCode1,
-            VirtualKey,
-            VirtualKeyTranslate
-        }
-        
-        public enum AnalogSDKError  {
-            Ok = 1,
-            UnInitialized = -2000,
-            NoDevices,
-            DeviceDisconnected,
-            //Generic Failure
-            Failure,
-            InvalidArgument,
-            NoPlugins,
-            FunctionNotFound,
-            //No Keycode mapping to HID was found for the given Keycode
-            NoMapping
-
-        }
-        
-        public enum DeviceEventType  {
-            Connected = 1,
-            Disconnected
-        }
-        
-        [StructLayout(LayoutKind.Sequential)]
-        public struct DeviceInfo {
-            public readonly ushort vendor_id;
-            public readonly ushort product_id;
-            public readonly string manufacturer_name;
-            public readonly string device_name;
-            public readonly ulong device_id;
-
-            public override string ToString()
-            {
-                return JsonConvert.SerializeObject(
-                    this, Formatting.Indented);
-            }
-        }
-
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate void DeviceEventCb(DeviceEventType eventType, IntPtr deviceInfo);
-
-        public const string SdkLib = "wooting_analog_wrapper";
-
-        [DllImport(SdkLib)]
-        public static extern AnalogSDKError wooting_analog_initialise();
-
-        [DllImport(SdkLib)]
-        public static extern bool wooting_analog_is_initialised();
-
-        [DllImport(SdkLib)]
-        public static extern AnalogSDKError wooting_analog_uninitialise();
-
-        [DllImport(SdkLib)]
-        public static extern AnalogSDKError wooting_analog_set_keycode_mode(KeycodeType mode);
-        
-        [DllImport(SdkLib)]
-        public static extern float wooting_analog_read_analog(ushort code);
-        
-        [DllImport(SdkLib)]
-        public static extern float wooting_analog_read_analog_device(ushort code, ulong deviceId);
-
-        public static (float, AnalogSDKError) ReadAnalog(ushort code, ulong deviceId = 0)
-        {
-            float res = wooting_analog_read_analog_device(code, deviceId);
-            if (res >= 0)
-                return (res, AnalogSDKError.Ok);
-            else
-                return (-1.0f, (AnalogSDKError) (int) res);
-        }
-
-        
-        [DllImport(SdkLib)]
-        public static extern AnalogSDKError wooting_analog_set_device_event_cb(DeviceEventCb cb);
-
-        [DllImport(SdkLib)]
-        public static extern AnalogSDKError wooting_analog_clear_device_event_cb();
-
-        //fn wooting_analog_device_info(buffer: *mut Void, len: c_uint) -> c_int;
-        //fn wooting_analog_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
-
-        [DllImport(SdkLib)]
-        public static extern int wooting_analog_read_full_buffer([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len);
-        
-        [DllImport(SdkLib)]
-        public static extern int wooting_analog_read_full_buffer_device([In][Out][MarshalAs(UnmanagedType.LPArray)] short[] codeBuffer, [In][Out][MarshalAs(UnmanagedType.LPArray)] float[] analogBuffer, uint len, ulong deviceID);
-
-        public static (List<(short, float)>, AnalogSDKError) ReadFullBuffer(uint length, ulong deviceID = 0)
-        {
-            short[] codeBuffer = new short[length];
-            float[] analogBuffer = new float[length];
-            int count = wooting_analog_read_full_buffer_device(codeBuffer, analogBuffer, length, deviceID);
-
-            if (count < 0)
-                return (null, (AnalogSDKError)count);
-
-            List<(short, float)> data = new List<(short, float)>();
-            for (int i = 0; i < count; i++)
-            {
-                data.Add( (codeBuffer[i], analogBuffer[i]) );
-            }
-            data.Sort((u, v) => u.Item1.CompareTo(v.Item1));
-            return (data, AnalogSDKError.Ok);
-        }
-
-        [DllImport(SdkLib)]
-        public static extern int wooting_analog_get_connected_devices_info([In][Out][MarshalAs(UnmanagedType.LPArray)] IntPtr[] buffer, uint len);
-
-        public static (List<DeviceInfo>, AnalogSDKError) GetConnectedDevicesInfo(){
-            IntPtr[] buffer = new IntPtr[40];
-            int count = wooting_analog_get_connected_devices_info(buffer, (uint)buffer.Length);
-            if (count > 0)
-            {
-                return (buffer.Select<IntPtr, DeviceInfo?>((ptr) =>
-                {
-                    if (ptr != IntPtr.Zero)
-                    {
-                        return (DeviceInfo)Marshal.PtrToStructure(
-                                   ptr,
-                                   typeof(DeviceInfo));
-                    }
-                    return null;
-                }).Where(s => s != null).Cast<DeviceInfo>().ToList(), AnalogSDKError.Ok);
-            }
-            else
-                return (new List<DeviceInfo>(), (AnalogSDKError)count);
-        }
-    }
-
     class Program
     {
         [DllImport("user32.dll")]
@@ -155,11 +23,21 @@ namespace analog_sdk_test
         const uint MAPVK_VSC_TO_VK_EX = 0x03;
         const uint MAPVK_VK_TO_VSC_EX = 0x04;
 
-        static void device_event_cb(Native.DeviceEventType eventType, IntPtr deviceInfo) {
-            var dev = (Native.DeviceInfo)Marshal.PtrToStructure(
-                deviceInfo,
-                typeof(Native.DeviceInfo));
-            Console.WriteLine($"Device event cb called with: {eventType} {dev}");
+        static void device_event_cb(DeviceEventType eventType, DeviceInfo deviceInfo) {
+            Console.WriteLine($"Device event cb called with: {eventType} {deviceInfo}");
+
+            if (eventType == DeviceEventType.Connected) {
+                Console.WriteLine($"Attempted read analog in callback, got value: {WootingAnalogSDK.ReadAnalog(30)}");
+            }
+
+            Console.WriteLine("Attempting to read connected devices in callback");
+            var (devices, infoErr) = WootingAnalogSDK.GetConnectedDevicesInfo();
+            foreach (DeviceInfo device in devices)
+            {
+                Console.WriteLine($"Device info has: {device}, {infoErr}");
+
+            }
+            Console.WriteLine("Finished attempting to read connected devices in callback");
         }
 
         static void TestSpeedN<T>(Stopwatch sw, Func<T> call, string name, int n){
@@ -176,10 +54,10 @@ namespace analog_sdk_test
         }
     
         
-        static List<(Native.KeycodeType, ushort)> code_map = new List<(Native.KeycodeType,ushort)>()
+        static List<(KeycodeType, ushort)> code_map = new List<(KeycodeType,ushort)>()
         {
-            (Native.KeycodeType.HID, 0x14),
-            (Native.KeycodeType.ScanCode1, 0x50),
+            (KeycodeType.HID, 0x14),
+            (KeycodeType.ScanCode1, 0x50),
             //(Native.KeycodeType.VirtualKey, (ushort)VirtualKeys.Numpad7),
             //(Native.KeycodeType.VirtualKeyTranslate, (ushort)VirtualKeys.Down),
         };
@@ -188,31 +66,33 @@ namespace analog_sdk_test
         static void timer_cb(object state)
         {
             _index = (_index + 1) % code_map.Count;
-            var ret = Native.wooting_analog_set_keycode_mode(code_map[_index].Item1);
+            var ret = WootingAnalogSDK.SetKeycodeMode(code_map[_index].Item1);
             Console.WriteLine($"Switched to {code_map[_index]}, ret: {ret}");
-            var (rets, error) = Native.ReadAnalog(code_map[_index].Item2);
+            var (rets, error) = WootingAnalogSDK.ReadAnalog(code_map[_index].Item2);
             Console.WriteLine($"{rets}, {error}");
         }
         
         static void Main(string[] args)
         {
-            Native.AnalogSDKError err = Native.wooting_analog_initialise();
-            if (err == Native.AnalogSDKError.Ok || err == Native.AnalogSDKError.NoDevices){
-                Console.WriteLine("SDK Successfully initialised!");
-                if (err == Native.AnalogSDKError.NoDevices)
-                    Console.WriteLine("But we got no devices");
-                Native.wooting_analog_set_device_event_cb(device_event_cb);
+            if (WootingAnalogSDK.IsInitialised){
+                Console.WriteLine("SDK Already initialised!");
+            }
+
+            var (deviceNo, err) = WootingAnalogSDK.Initialise();
+            if (deviceNo >= 0){
+                Console.WriteLine($"SDK Successfully initialised with {err} devices!");
+                WootingAnalogSDK.DeviceEvent += device_event_cb;
                 //Console.WriteLine($"Yo yo yo 9+10={Native.wooting_analog_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
-                TestSpeedN(sw, () => Native.ReadAnalog(4), $"read analog HID", 5);
+                TestSpeedN(sw, () => WootingAnalogSDK.ReadAnalog(4), $"read analog HID", 5);
                 TestSpeedN(sw, () =>
                 {
-                    Native.wooting_analog_set_keycode_mode(Native.KeycodeType.ScanCode1);
-                    return Native.ReadAnalog(30);
+                    WootingAnalogSDK.SetKeycodeMode(KeycodeType.ScanCode1);
+                    return WootingAnalogSDK.ReadAnalog(30);
                 }, $"read analog SC", 5);
-                TestSpeedN(sw, () => Native.ReadFullBuffer(20), $"read_full_buffer", 5);
-                var (devices, infoErr) = Native.GetConnectedDevicesInfo();
-                foreach (Native.DeviceInfo dev in devices)
+                TestSpeedN(sw, () => WootingAnalogSDK.ReadFullBuffer(20), $"read_full_buffer", 5);
+                var (devices, infoErr) = WootingAnalogSDK.GetConnectedDevicesInfo();
+                foreach (DeviceInfo dev in devices)
                 {
                     Console.WriteLine($"Device info has: {dev}, {infoErr}");
 
@@ -221,13 +101,13 @@ namespace analog_sdk_test
                 //testSpeedN(sw, () => Native.wooting_analog_read_analog_vk(VirtualKeys.A, false), $"Local read analog VK (no translate)", 5);
                 float val = 0;
                 string output = "";
-                Native.wooting_analog_set_keycode_mode(code_map[_index].Item1);
+                WootingAnalogSDK.SetKeycodeMode(code_map[_index].Item1);
                 Timer t = new Timer(timer_cb, _index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
                 while (true)
                 {
                     //var ret = Native.wooting_analog_read_analog_vk(VirtualKeys.A, false);
                     sw.Restart();
-                    var (ret, error) = Native.ReadAnalog(code_map[_index].Item2);//, devices.First().device_id);
+                    var (ret, error) = WootingAnalogSDK.ReadAnalog(code_map[_index].Item2);//, devices.First().device_id);
                     sw.Stop();
                     //if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
                     //    Console.WriteLine($"Warning: ReadAnalog {sw.ElapsedMilliseconds}ms");
@@ -237,20 +117,20 @@ namespace analog_sdk_test
                     }
 
                     sw.Restart();
-                    var (read, readErr) = Native.ReadFullBuffer(20);
+                    var (read, readErr) = WootingAnalogSDK.ReadFullBuffer(20);
                     sw.Stop();
                     //if (error == Native.AnalogSDKError.Ok && sw.ElapsedMilliseconds > 0)
                     //    Console.WriteLine($"Warning: ReadFullBuffer {sw.ElapsedMilliseconds}ms");
                     string freshOutput = "";
-                    if (readErr == Native.AnalogSDKError.Ok)
+                    if (readErr == WootingAnalogResult.Ok)
                     {
                         foreach (var analog in read)
                         {
                             //VirtualKeys vk = (VirtualKeys)MapVirtualKey((uint)analog.Item1, MAPVK_VSC_TO_VK_EX);
                             //uint scan = MapVirtualKey((uint)VirtualKeys.RightControl, MAPVK_VK_TO_VSC_EX);
 
-                            if (code_map[_index].Item1 == Native.KeycodeType.VirtualKey ||
-                                code_map[_index].Item1 == Native.KeycodeType.VirtualKeyTranslate)
+                            if (code_map[_index].Item1 == KeycodeType.VirtualKey ||
+                                code_map[_index].Item1 == KeycodeType.VirtualKeyTranslate)
                                 freshOutput += $"({(VirtualKeys) analog.Item1},{analog.Item2})";
                             else
                                 freshOutput += $"(0x{analog.Item1.ToString("X4")},{analog.Item2})";
@@ -268,7 +148,7 @@ namespace analog_sdk_test
                     //Thread.Sleep(250);
                 }
 
-                Native.wooting_analog_uninitialise();
+                WootingAnalogSDK.UnInitialise();
             }
             else{
                 Console.WriteLine($"SDK couldn't be initialised, err {err}!");
