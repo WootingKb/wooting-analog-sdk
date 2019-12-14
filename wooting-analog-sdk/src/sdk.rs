@@ -636,10 +636,15 @@ mod tests {
             shared_state.analog_values[analog_key] = 0;
         }
         ::std::thread::sleep(Duration::from_secs(1));
+        let analog_data = get_sdk().read_full_buffer(buffer_len, device_id).0.unwrap();
+        assert_eq!(analog_data.len(), 1);
+        assert_eq!(analog_data[&(analog_key as u16)], 0.0);
+
+        assert_eq!(get_sdk().read_analog(analog_key as u16, 0).0, Ok(0.0));
+
         let analog_data = get_sdk().read_full_buffer(buffer_len, device_id).0;
         assert_eq!(analog_data.unwrap().len(), 0);
 
-        assert_eq!(get_sdk().read_analog(analog_key as u16, 0).0, Ok(0.0));
 
         get_sdk().clear_device_event_cb();
         {
