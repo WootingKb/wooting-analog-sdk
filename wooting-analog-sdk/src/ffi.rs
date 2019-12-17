@@ -11,7 +11,6 @@ use wooting_analog_common::*;
 /// # Expected Returns
 /// * `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
-///
 #[no_mangle]
 pub extern "C" fn wooting_analog_initialise() -> i32 {
     env_logger::init();
@@ -120,8 +119,8 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 /// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
 ///
 /// # Notes
-/// There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory
-/// will be freed immediately after the callback, so it's best to copy any data you wish to use.
+/// * There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+/// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
 ///
 /// # Expected Returns
 /// * `Ok`: The callback was set successfully
@@ -186,10 +185,11 @@ pub unsafe extern "C" fn wooting_analog_get_connected_devices_info(
 /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
 ///
 /// # Notes
-/// `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+/// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
 /// key & analog value pairs that can be filled in.
-/// The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
-/// If two devices have the same key pressed, the greater value will be given
+/// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * If two devices have the same key pressed, the greater value will be given
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 ///
 /// # Expected Returns
 /// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
@@ -211,16 +211,17 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer(
 /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
 ///
 /// # Notes
-/// `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+/// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
 /// key & analog value pairs that can be filled in.
-/// The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 ///
 /// # Expected Returns
 /// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
 /// Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
-/// .* `>=0` means the value indicates how many keys & analog values have been read into the buffers
-/// .* `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-/// .* `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
+/// * `>=0` means the value indicates how many keys & analog values have been read into the buffers
+/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+/// * `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
 #[no_mangle]
 pub unsafe extern "C" fn wooting_analog_read_full_buffer_device(
     code_buffer: *mut c_ushort,
