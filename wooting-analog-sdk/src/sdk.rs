@@ -5,22 +5,22 @@ use libloading::{Library, Symbol};
 use log::{error, info, warn};
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::fs;
+use std::{fs, thread};
 use std::os::raw::{c_float, c_int, c_ushort};
 use std::path::{Path, PathBuf};
 use wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
+use std::sync::{Mutex, MutexGuard, Arc};
 
 unsafe impl Send for AnalogSDK {}
 
 pub struct AnalogSDK {
     pub initialised: bool,
-    //pub disconnected_callback: Option<extern fn(FfiStr)>,
     pub keycode_mode: KeycodeType,
 
-    plugins: Vec<Box<Plugin>>,
+    plugins: Vec<Box<dyn Plugin>>,
     loaded_libraries: Vec<Library>,
-    //pub device_info: *mut DeviceInfo
+    device_event_callback: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>>>>
 }
 
 #[cfg(target_os = "macos")]
@@ -30,26 +30,46 @@ static LIB_EXT: &str = "so";
 #[cfg(target_os = "windows")]
 static LIB_EXT: &str = "dll";
 
-//const ENV_PLUGIN_DIR_KEY: &str = "WOOTING_ANALOG_SDK_PLUGINS_PATH";
+lazy_static! {
+    pub static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
+}
 
+pub fn get_sdk() -> MutexGuard<'static, AnalogSDK> {
+    ANALOG_SDK.lock().unwrap()
+}
 
+extern "C" fn device_event_cb(event: DeviceEventType, device: DeviceInfoPointer) {
+    let opt_cb = {
+        //debug!("device event cb {:?}", ANALOG_SDK.lock().unwrap().device_event_callback);
+        ANALOG_SDK.lock().unwrap().device_event_callback.clone()
+    };
+    thread::spawn(move || {
+        debug!("device event cb thread running");
+
+        opt_cb.lock().unwrap().as_ref().and_then(|cb|  {
+            debug!("calling og callback");
+            cb(event, device);
+            Some(0)
+        });
+    });
+}
 
 impl AnalogSDK {
-    pub fn new() -> AnalogSDK {
+    fn new() -> AnalogSDK {
         AnalogSDK {
             plugins: Vec::new(),
             loaded_libraries: Vec::new(),
             initialised: false,
-            //disconnected_callback: None,
-            keycode_mode: KeycodeType::HID, //device_info: Box::into_raw(Box::new(DeviceInfo { name: b"Device Yeet\0" as *const u8, val:20 }))
+            keycode_mode: KeycodeType::HID,
+            device_event_callback: Arc::new(Mutex::new(None))
         }
     }
 
-    pub fn initialise(&mut self) -> WootingAnalogResult {
+    pub fn initialise(&mut self) -> SDKResult<u32> {
         self.initialise_with_plugin_path(DEFAULT_PLUGIN_DIR)
     }
 
-    pub fn initialise_with_plugin_path(&mut self, plugin_dir: &str) -> WootingAnalogResult {
+    pub fn initialise_with_plugin_path(&mut self, plugin_dir: &str) -> SDKResult<u32> {
         if self.initialised {
             self.unload();
         }
@@ -57,7 +77,7 @@ impl AnalogSDK {
         let plugin_dir = PathBuf::from(plugin_dir);
         if !plugin_dir.is_dir() {
             error!("The plugin directory '{}' does not exist! Make sure you have it created and have plugins in there", DEFAULT_PLUGIN_DIR);
-            return WootingAnalogResult::NoPlugins;
+            return WootingAnalogResult::NoPlugins.into();
         }
         /*let mut plugin_dir = match plugin_dir {
             Ok(v) => {
@@ -105,25 +125,22 @@ impl AnalogSDK {
         }
 
         let mut plugins_initialised = 0;
-        let mut has_devices = false;
+        let mut device_no:u32 = 0;
         for p in self.plugins.iter_mut() {
-            let ret = p.initialise();
-            if ret.is_ok_or_no_device()  {
+            let ret = p.initialise(device_event_cb);
+            info!("{:?}", ret);
+            if let Ok(num) = ret.0  {
                 plugins_initialised += 1;
-                if ret.is_ok() {
-                    has_devices = true;
-                }
+                device_no += num;
             }
         }
         info!("{} plugins successfully initialised", plugins_initialised);
 
         self.initialised = plugins_initialised > 0;
         if !self.initialised {
-            WootingAnalogResult::NoPlugins
-        } else if !has_devices {
-            WootingAnalogResult::NoDevices
+            WootingAnalogResult::NoPlugins.into()
         } else {
-            WootingAnalogResult::Ok
+            Ok(device_no).into()
         }
     }
 
@@ -156,7 +173,8 @@ impl AnalogSDK {
             return Err("Path is directory!".into());
         }
 
-        type PluginCreate = unsafe extern "C" fn() -> *mut Plugin;
+        type PluginCreate = unsafe extern "C" fn() -> *mut dyn Plugin;
+        type PluginVersion = unsafe extern "C" fn() -> &'static str;
 
         let lib = Library::new(filename.as_os_str()).chain_err(|| "Unable to load the plugin")?;
 
@@ -170,6 +188,13 @@ impl AnalogSDK {
         let version: Option<Symbol<*mut u32>> = lib.get(b"ANALOG_SDK_PLUGIN_ABI_VERSION").ok();
         if let Some(ver) = version {
             info!("We got version: {}", **ver);
+        }
+        let full_version: Option<Symbol<PluginVersion>> = lib.get(b"plugin_version").ok();
+        if let Some(ver) = full_version {
+            info!("We got sem version: {}", ver());
+        }
+        else{
+            info!("No symbol");
         }
 
         let constructor: Option<Symbol<PluginCreate>> = lib
@@ -201,50 +226,48 @@ impl AnalogSDK {
 
     pub fn set_device_event_cb(
         &mut self,
-        cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
-    ) -> WootingAnalogResult {
-        if !self.initialised {
-            return WootingAnalogResult::UnInitialized;
-        }
-
-        let mut result = WootingAnalogResult::Ok;
-        for p in self.plugins.iter_mut() {
-            let ret = p.set_device_event_cb(cb);
-            if ret != WootingAnalogResult::Ok {
-                result = ret;
-            }
-        }
-        result
-    }
-
-    pub fn clear_device_event_cb(&mut self) -> WootingAnalogResult {
-        if !self.initialised {
-            return WootingAnalogResult::UnInitialized;
-        }
-
-        let mut result = WootingAnalogResult::Ok;
-        for p in self.plugins.iter_mut() {
-            let ret = p.clear_device_event_cb();
-            if ret != WootingAnalogResult::Ok {
-                result = ret;
-            }
-        }
-        result
-    }
-
-    pub fn get_device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<c_int> {
+        cb: impl Fn(DeviceEventType, DeviceInfoPointer) + 'static + Send,
+    ) -> SDKResult<()> {
         if !self.initialised {
             return WootingAnalogResult::UnInitialized.into();
         }
-        let mut count: usize = 0;
+        self.device_event_callback.lock().unwrap().replace(Box::new(cb));
+
+        Ok(()).into()
+    }
+
+    pub fn clear_device_event_cb(&mut self) -> SDKResult<()> {
+        if !self.initialised {
+            return WootingAnalogResult::UnInitialized.into();
+        }
+        self.device_event_callback.lock().unwrap().take();
+
+        Ok(()).into()
+    }
+
+    pub fn get_device_info(&mut self) -> SDKResult<Vec<DeviceInfoPointer>> {
+        if !self.initialised {
+            return WootingAnalogResult::UnInitialized.into();
+        }
+        let mut devices: Vec<DeviceInfoPointer> = vec![];
+        let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
         for p in self.plugins.iter_mut() {
             //Give a reference to the buffer at the point where there is free space
-            let num = p.device_info(&mut buffer[count..]).0.unwrap_or(0) as usize;
-            if num > 0 {
-                count += num
+            match p.device_info().0 {
+                Ok(mut p_devices) => {
+                    devices.append(p_devices.as_mut());
+                },
+                Err(e) => {
+                    error!("Plugin {:?} failed to fetch devices with error {:?}", p.name(), e);
+                    error = e;
+                }
             }
         }
-        (count as c_int).into()
+        if devices.is_empty() && !error.is_ok() {
+            Err(error).into()
+        }else {
+            Ok(devices).into()
+        }
     }
 
     pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
@@ -278,35 +301,31 @@ impl AnalogSDK {
                 return err.into();
             }
 
-            return value.into();
+            value.into()
         } else {
-            return WootingAnalogResult::NoMapping.into();
+            WootingAnalogResult::NoMapping.into()
         }
     }
 
     pub fn read_full_buffer(
         &mut self,
-        code_buffer: &mut [c_ushort],
-        analog_buffer: &mut [c_float],
+        max_length: usize,
         device_id: DeviceID,
-    ) -> SDKResult<c_int> {
+    ) -> SDKResult<HashMap<c_ushort, c_float>> {
         if !self.initialised {
             return WootingAnalogResult::UnInitialized.into();
         }
 
-        let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(code_buffer.len());
+        let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(max_length);
 
         let mut err = WootingAnalogResult::Ok;
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            let plugin_data = p.read_full_buffer(code_buffer.len(), device_id).into();
+            let plugin_data = p.read_full_buffer(max_length-analog_data.len(), device_id).into();
             match plugin_data {
                 Ok(mut data) => {
                     for (hid_code, analog) in data.drain() {
-                        if analog == 0.0 {
-                            continue;
-                        }
                         let code = hid_to_code(hid_code, &self.keycode_mode);
                         if let Some(code) = code {
                             let mut total_analog = analog;
@@ -339,18 +358,7 @@ impl AnalogSDK {
             return err.into();
         }
 
-        //Fill up given slices
-        let mut count: usize = 0;
-        for (code, analog) in analog_data.drain() {
-            if count >= code_buffer.len() {
-                break;
-            }
-
-            code_buffer[count] = code;
-            analog_buffer[count] = analog;
-            count += 1;
-        }
-        (count as c_int).into()
+        Ok(analog_data).into()
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire
@@ -425,8 +433,9 @@ mod tests {
         let dir = "./test_np";
         ::std::fs::create_dir(dir);
 
+        //Don't need to use the Singleton instance of the SDK here as we're not actually gonna initialise it
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise_with_plugin_path(dir), WootingAnalogResult::NoPlugins);
+        assert_eq!(sdk.initialise_with_plugin_path(dir).0, Err(WootingAnalogResult::NoPlugins));
         assert!(!sdk.initialised);
         ::std::fs::remove_dir(dir);
     }
@@ -438,8 +447,9 @@ mod tests {
         let dir = "./test_n";
         ::std::fs::remove_dir(dir);
 
+        //Don't need to use the Singleton instance of the SDK here as we're not actually gonna initialise it
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise_with_plugin_path(dir), WootingAnalogResult::NoPlugins);
+        assert_eq!(sdk.initialise_with_plugin_path(dir).0, Err(WootingAnalogResult::NoPlugins));
         assert!(!sdk.initialised)
     }
 
@@ -452,9 +462,19 @@ mod tests {
 
     lazy_static! { static ref got_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false)); }
     extern "C" fn connect_cb(event: DeviceEventType, device: DeviceInfoPointer) {
-        info!("Got cb {:?}", event);
+        debug!("Got cb {:?}", event);
 
         *Arc::clone(&got_connected).lock().unwrap() = event == DeviceEventType::Connected;
+        if event == DeviceEventType::Connected {
+            debug!("Started reading");
+            assert_eq!(get_sdk().read_analog(1, 0).0, Ok(0.0));
+            assert_eq!(get_sdk().get_device_info().0.map(|dev| dev.len()), Ok(1));
+            debug!("Finished reading");
+        }
+    }
+
+    fn connect_cb_wrap(event: DeviceEventType, device: DeviceInfoPointer) {
+        connect_cb(event, device);
     }
 
     fn wait_for_connected(attempts: u32, connected: bool) {
@@ -470,15 +490,15 @@ mod tests {
     }
 
     #[test]
-    fn initialise_test_plugin() {
+     fn initialise_test_plugin() {
         shared_init();
 
 
         let dir = "../wooting-analog-test-plugin/target/".to_owned() + std::env::var("TARGET").unwrap_or("".to_owned()).as_str();
         info!("Loading plugins from: {:?}", dir);
-        let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise_with_plugin_path(dir.as_str()), WootingAnalogResult::NoDevices);
-        assert!(sdk.initialised);
+        assert!(!get_sdk().initialised);
+        assert_eq!(get_sdk().initialise_with_plugin_path(dir.as_str()).0, Ok(0));
+        assert!(get_sdk().initialised);
 
         //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
         ::std::thread::sleep(Duration::from_millis(500));
@@ -493,7 +513,7 @@ mod tests {
             }
         };
 
-        sdk.set_device_event_cb(connect_cb);
+        get_sdk().set_device_event_cb(connect_cb_wrap);
 
         //Check the connected cb is called
         {
@@ -506,8 +526,7 @@ mod tests {
 
         //Check that we now have one device
         {
-            let mut device_infos: Vec<DeviceInfoPointer> = vec![Default::default(), Default::default()];
-            assert_eq!(sdk.get_device_info(device_infos.as_mut()).0, Ok(1));
+            assert_eq!(get_sdk().get_device_info().0.map(|dev| dev.len()), Ok(1));
         }
 
         //Check the cb is called with disconnected
@@ -521,8 +540,7 @@ mod tests {
 
         //Check that we now have no devices
         {
-            let mut device_infos: Vec<DeviceInfoPointer> = vec![Default::default(), Default::default()];
-            assert_eq!(sdk.get_device_info(device_infos.as_mut()).0, Ok(0));
+            assert_eq!(get_sdk().get_device_info().0.map(|dev| dev.len()), Ok(0));
         }
 
 
@@ -541,21 +559,21 @@ mod tests {
         wait_for_connected(5,true);
 
         //Check we get the val with no id specified
-        assert_eq!(sdk.read_analog(analog_key as u16, 0).0, Ok(f_analog_val));
+        assert_eq!(get_sdk().read_analog(analog_key as u16, 0).0, Ok(f_analog_val));
         //Check we get the val with the device_id we use
-        assert_eq!(sdk.read_analog(analog_key as u16, device_id).0, Ok(f_analog_val));
+        assert_eq!(get_sdk().read_analog(analog_key as u16, device_id).0, Ok(f_analog_val));
         //Check we don't get a val with invalid device id
-        assert_eq!(sdk.read_analog(analog_key as u16, device_id+1).0, Err(WootingAnalogResult::NoDevices));
+        assert_eq!(get_sdk().read_analog(analog_key as u16, device_id+1).0, Err(WootingAnalogResult::NoDevices));
         //Check if the next value is 0
-        assert_eq!(sdk.read_analog((analog_key+1) as u16, device_id).0, Ok(0.0));
+        assert_eq!(get_sdk().read_analog((analog_key+1) as u16, device_id).0, Ok(0.0));
 
         //Check that it does code mapping
-        sdk.keycode_mode = KeycodeType::ScanCode1;
-        assert_eq!(sdk.read_analog( hid_to_code( analog_key as u16, &sdk.keycode_mode).unwrap(), device_id).0, Ok(f_analog_val));
-        sdk.keycode_mode = KeycodeType::HID;
+        get_sdk().keycode_mode = KeycodeType::ScanCode1;
+        assert_eq!(get_sdk().read_analog(hid_to_code(analog_key as u16, &KeycodeType::ScanCode1).unwrap(), device_id).0, Ok(f_analog_val));
+        get_sdk().keycode_mode = KeycodeType::HID;
 
-
-        let buffer_len = 5;
+        //This bit may want to be reused to make tests for the ffi
+        /*let buffer_len = 5;
         let mut code_buffer: Vec<u16> = vec![0;buffer_len];
         let mut analog_buffer: Vec<f32> = vec![0.0;buffer_len];
         //Check it reads buffer properly with no device id
@@ -589,10 +607,46 @@ mod tests {
         }
         ::std::thread::sleep(Duration::from_secs(1));
 
-        assert_eq!(sdk.read_full_buffer(code_buffer.as_mut(), analog_buffer.as_mut(), device_id).0, Ok(0));
-        assert_eq!(sdk.read_analog(analog_key as u16, 0).0, Ok(0.0));
+        assert_eq!(sdk.read_full_buffer(code_buffer.as_mut(), analog_buffer.as_mut(), device_id).0, Ok(0));*/
+        let buffer_len = 5;
+        let analog_data = get_sdk().read_full_buffer(buffer_len, 0).0.unwrap();
+        //Check it reads buffer properly with no device id
+        assert_eq!(analog_data.len(), 1);
+        assert_eq!(analog_data.iter().next(), Some((&(analog_key as u16), &f_analog_val)));
 
-        sdk.clear_device_event_cb();
+        let analog_data = get_sdk().read_full_buffer(buffer_len, device_id).0.unwrap();
+        //Check it reads buffer properly with proper device_id
+        assert_eq!(analog_data.len(), 1);
+        assert_eq!(analog_data.iter().next(), Some((&(analog_key as u16), &f_analog_val)));
+
+
+        //Check it errors on read buffer with invalid device_id
+        assert_eq!(get_sdk().read_full_buffer(buffer_len, device_id + 1).0, Err(WootingAnalogResult::NoDevices));
+
+
+        //Check that it does code mapping
+        get_sdk().keycode_mode = KeycodeType::ScanCode1;
+        let analog_data = get_sdk().read_full_buffer(buffer_len, device_id).0.unwrap();
+        assert_eq!(analog_data.len(), 1);
+        assert_eq!(analog_data.iter().next(), Some((&hid_to_code( analog_key as u16, &KeycodeType::ScanCode1).unwrap(), &f_analog_val)));
+        get_sdk().keycode_mode = KeycodeType::HID;
+
+        {
+            let mut shared_state = get_wlock(&mut shmem);
+            shared_state.analog_values[analog_key] = 0;
+        }
+        ::std::thread::sleep(Duration::from_secs(1));
+        let analog_data = get_sdk().read_full_buffer(buffer_len, device_id).0.unwrap();
+        assert_eq!(analog_data.len(), 1);
+        assert_eq!(analog_data[&(analog_key as u16)], 0.0);
+
+        assert_eq!(get_sdk().read_analog(analog_key as u16, 0).0, Ok(0.0));
+
+        let analog_data = get_sdk().read_full_buffer(buffer_len, device_id).0;
+        assert_eq!(analog_data.unwrap().len(), 0);
+
+
+        get_sdk().clear_device_event_cb();
         {
             let mut shared_state = get_wlock(&mut shmem);
             shared_state.device_connected = false;
@@ -625,31 +679,32 @@ mod tests {
         uninitialised_sdk_functions(&mut sdk);
     }*/
 
-    extern "C" fn cb(event: DeviceEventType, device: DeviceInfoPointer) {}
+    fn cb(event: DeviceEventType, device: DeviceInfoPointer) {}
 
     fn uninitialised_sdk_functions(sdk: &mut AnalogSDK) {
         assert_eq!(
-            sdk.set_device_event_cb(cb),
-            WootingAnalogResult::UnInitialized
+            sdk.initialised,
+            false
         );
         assert_eq!(
-            sdk.clear_device_event_cb(),
-            WootingAnalogResult::UnInitialized
+            sdk.set_device_event_cb(cb).0,
+            Err(WootingAnalogResult::UnInitialized)
+        );
+        assert_eq!(
+            sdk.clear_device_event_cb().0,
+            Err(WootingAnalogResult::UnInitialized)
         );
         assert_eq!(
             sdk.read_analog(0, 0).0,
             Err(WootingAnalogResult::UnInitialized)
         );
-        let mut buf = vec![];
         assert_eq!(
-            sdk.get_device_info(buf.as_mut()).0,
-            Err(WootingAnalogResult::UnInitialized)
+            sdk.get_device_info().0.err(),
+            Some(WootingAnalogResult::UnInitialized)
         );
 
-        let mut buf = vec![];
-        let mut buf2 = vec![];
         assert_eq!(
-            sdk.read_full_buffer(buf.as_mut(), buf2.as_mut(), 0).0,
+            sdk.read_full_buffer(0, 0).0,
             Err(WootingAnalogResult::UnInitialized)
         );
     }

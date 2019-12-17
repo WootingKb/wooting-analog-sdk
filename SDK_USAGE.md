@@ -25,15 +25,13 @@ By default the SDK will use the [USB HID codes (see table 10.6)](https://www.win
 WootingAnalogResult wooting_analog_initialise(void);
 ```
 
-Initialises the Analog SDK, this needs to be successfully called before any other functions of the SDK can be called
+Initialises the Analog SDK, this needs to be successfully called before any other functions
+of the SDK can be called
 
 ### Expected Returns
-
-* `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
-* `NoDevices`: Meaning the SDK initialised successfully, but no devices are connected
+* `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
 * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
-* `FunctionNotFound`: Indicates that the SDK was not found, either it is not installed or it hasn't been added to the PATH
-
+        
 ## Is Initialised
 ```c
 bool wooting_analog_is_initialised(void);
@@ -131,15 +129,13 @@ WootingAnalogResult wooting_analog_set_device_event_cb(void (*cb)(wooting_analog
 ```
 
 Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
-
-The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to.
+The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
 
 ### Notes
-
-There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+* There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+* The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
 
 ### Expected Returns
-
 * `Ok`: The callback was set successfully
 * `UnInitialized`: The SDK is not initialised
 
@@ -183,20 +179,20 @@ int wooting_analog_read_full_buffer(unsigned short *code_buffer,
                            unsigned int len);
 ```
 
-Reads all the analog values for pressed keys for all devices and combines their values, filling up `code_buffer` with the keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
+Reads all the analog values for pressed keys for all devices and combines their values, filling up `code_buffer` with the
+keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
+value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
 
 ### Notes
-
-`len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of key & analog value pairs that can be filled in.
-
-The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode.
-
-If two devices have the same key pressed, the greater value will be given.
+* `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+key & analog value pairs that can be filled in.
+* The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+* If two devices have the same key pressed, the greater value will be given
+* When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 
 ### Expected Returns
-
-Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want. Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
-
+Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
+Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
 * `>=0` means the value indicates how many keys & analog values have been read into the buffers
 * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
 * `WootingAnalogResult::NoDevices`: Indicates no devices are connected
@@ -210,17 +206,19 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                   wooting_analog_DeviceID device_id);
 ```
 
-Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
+Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
+keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
+value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
 
 ### Notes
-
-`len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of key & analog value pairs that can be filled in.
-The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode.
+* `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+key & analog value pairs that can be filled in.
+* The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+* When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 
 ### Expected Returns
-
-Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want. Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
-
+Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
+Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
 * `>=0` means the value indicates how many keys & analog values have been read into the buffers
 * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
 * `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected

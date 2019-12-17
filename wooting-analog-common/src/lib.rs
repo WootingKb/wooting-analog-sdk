@@ -71,7 +71,7 @@ impl DeviceInfo {
         }
     }
 
-    pub fn to_ptr(self) -> DeviceInfoPointer {
+    pub fn convert_to_ptr(self) -> DeviceInfoPointer {
         Box::into_raw(Box::new(self)).into()
     }
 }
@@ -256,6 +256,21 @@ impl Into<c_int> for WootingAnalogResult {
     }
 }
 
+impl From<u32> for SDKResult<u32> {
+    fn from(res: u32) -> Self {
+        Ok(res).into()
+    }
+}
+
+impl Into<i32> for SDKResult<u32> {
+    fn into(self) -> i32{
+        match self.0 {
+            Ok(v) => v as i32,
+            Err(e) => e.into(),
+        }
+    }
+}
+
 impl Into<c_int> for SDKResult<c_int> {
     fn into(self) -> c_int {
         match self.0 {
@@ -286,6 +301,19 @@ impl Into<f32> for SDKResult<f32> {
         match self.0 {
             Ok(v) => v,
             Err(e) => e.into(),
+        }
+    }
+}
+
+impl Into<WootingAnalogResult> for SDKResult<()> {
+    fn into(self) -> WootingAnalogResult {
+        match self.0 {
+            Ok(_) => {
+                WootingAnalogResult::Ok
+            },
+            Err(e) => {
+                e
+            }
         }
     }
 }

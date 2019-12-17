@@ -82,6 +82,7 @@ impl CPlugin {
 
     lib_wrap_option! {
         //c_name has to be over here due to it not being part of the Plugin trait
+        fn _initialise(callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> i32;
         fn _name() -> FfiStr<'static>;
 
         fn _read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
@@ -91,15 +92,11 @@ impl CPlugin {
 
 impl Plugin for CPlugin {
     fn name(&mut self) -> SDKResult<&'static str> {
-        /*let s = self.c_name();
-        let c_str = unsafe {
-            assert!(!s.is_null());
-
-            CStr::from_ptr(s)
-        };
-
-        c_str.to_str().unwrap()*/
         self._name().0.map(|s| s.as_str()).into()
+    }
+
+    fn initialise(&mut self, callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<u32>{
+        self._initialise(callback).0.map(|res| res as u32).into()
     }
 
     fn read_full_buffer(
@@ -137,16 +134,23 @@ impl Plugin for CPlugin {
         Ok(analog_data).into()
     }
 
-    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<c_int> {
-        self._device_info(buffer.as_mut_ptr(), buffer.len() as c_uint)
+    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfoPointer>> {
+        let mut device_infos: Vec<DeviceInfoPointer> = vec![Default::default(); 10];
+
+        match self._device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint).0.map(|no| no as u32) {
+            Ok(num) => {
+                device_infos.truncate(num as usize);
+                Ok(device_infos).into()
+            },
+            Err(e) =>{
+                Err(e).into()
+            }
+        }
     }
 
     lib_wrap! {
-        fn initialise() -> WootingAnalogResult;
         fn is_initialised() -> bool;
         fn unload();
-        fn set_device_event_cb(cb: extern fn(DeviceEventType, DeviceInfoPointer)) -> WootingAnalogResult;
-        fn clear_device_event_cb() -> WootingAnalogResult;
     }
     lib_wrap_option! {
         fn read_analog(code: u16, device: DeviceID) -> f32;

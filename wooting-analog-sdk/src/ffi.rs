@@ -1,27 +1,20 @@
 use crate::sdk::*;
-use std::sync::Mutex;
 use wooting_analog_common::enum_primitive::FromPrimitive;
 //use ffi_support::FfiStr;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::slice;
 use wooting_analog_common::*;
 
-lazy_static! {
-    static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
-}
-
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
 ///
 /// # Expected Returns
-/// * `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
-/// * `NoDevices`: Meaning the SDK initialised successfully, but no devices are connected
+/// * `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
-///
 #[no_mangle]
-pub extern "C" fn wooting_analog_initialise() -> WootingAnalogResult {
+pub extern "C" fn wooting_analog_initialise() -> i32 {
     env_logger::init();
-    ANALOG_SDK.lock().unwrap().initialise()
+    ANALOG_SDK.lock().unwrap().initialise().into()
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
@@ -126,8 +119,8 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 /// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
 ///
 /// # Notes
-/// There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory
-/// will be freed immediately after the callback, so it's best to copy any data you wish to use.
+/// * There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+/// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
 ///
 /// # Expected Returns
 /// * `Ok`: The callback was set successfully
@@ -136,7 +129,7 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 pub extern "C" fn wooting_analog_set_device_event_cb(
     cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
 ) -> WootingAnalogResult {
-    ANALOG_SDK.lock().unwrap().set_device_event_cb(cb)
+    ANALOG_SDK.lock().unwrap().set_device_event_cb(move |event, device| cb(event, device)).into()
 }
 
 /// Clears the device event callback that has been set
@@ -146,7 +139,7 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
 /// * `UnInitialized`: The SDK is not initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult {
-    ANALOG_SDK.lock().unwrap().clear_device_event_cb()
+    ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
 }
 
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
@@ -163,13 +156,28 @@ pub unsafe extern "C" fn wooting_analog_get_connected_devices_info(
     buffer: *mut DeviceInfoPointer,
     len: c_uint,
 ) -> c_int {
-    let buff = {
-        assert!(!buffer.is_null());
 
-        slice::from_raw_parts_mut(buffer, len as usize)
-    };
 
-    ANALOG_SDK.lock().unwrap().get_device_info(buff).into()
+    match ANALOG_SDK.lock().unwrap().get_device_info().0 {
+        Ok(mut devices) => {
+            let device_no = (len as usize).min(devices.len());
+
+            let buff = {
+                assert!(!buffer.is_null());
+
+                slice::from_raw_parts_mut(buffer, device_no)
+            };
+
+            devices.truncate(device_no);
+            buff.swap_with_slice(devices.as_mut());
+
+            device_no as i32
+        },
+        Err(e) => {
+            e.into()
+        }
+
+    }
 }
 
 /// Reads all the analog values for pressed keys for all devices and combines their values, filling up `code_buffer` with the
@@ -177,10 +185,11 @@ pub unsafe extern "C" fn wooting_analog_get_connected_devices_info(
 /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
 ///
 /// # Notes
-/// `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+/// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
 /// key & analog value pairs that can be filled in.
-/// The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
-/// If two devices have the same key pressed, the greater value will be given
+/// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * If two devices have the same key pressed, the greater value will be given
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 ///
 /// # Expected Returns
 /// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
@@ -202,16 +211,17 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer(
 /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
 ///
 /// # Notes
-/// `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+/// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
 /// key & analog value pairs that can be filled in.
-/// The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 ///
 /// # Expected Returns
 /// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
 /// Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
-/// .* `>=0` means the value indicates how many keys & analog values have been read into the buffers
-/// .* `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-/// .* `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
+/// * `>=0` means the value indicates how many keys & analog values have been read into the buffers
+/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+/// * `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
 #[no_mangle]
 pub unsafe extern "C" fn wooting_analog_read_full_buffer_device(
     code_buffer: *mut c_ushort,
@@ -231,9 +241,23 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_full_buffer(codes, analog, device_id)
-        .into()
+    match ANALOG_SDK.lock().unwrap().read_full_buffer(len as usize, device_id).0 {
+        Ok(analog_data) => {
+            //Fill up given slices
+            let mut count: usize = 0;
+            for (code, val) in analog_data.iter() {
+                if count >= codes.len() {
+                    break;
+                }
+
+                codes[count] = *code;
+                analog[count] = *val;
+                count += 1;
+            }
+            (count as c_int)
+        },
+        Err(e) => {
+            e as c_int
+        }
+    }
 }

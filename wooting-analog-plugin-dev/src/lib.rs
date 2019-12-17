@@ -4,33 +4,28 @@ pub extern crate wooting_analog_common;
 use ffi_support::FfiStr;
 use std::collections::HashMap;
 use std::hash::Hasher;
-use std::os::raw::{c_float, c_int, c_ushort};
+use std::os::raw::{c_float, c_ushort};
 use wooting_analog_common::*;
 
 /// Version number of the plugin ABI which is exported in plugins so the SDK can determine how to handle the plugin based on which ABI version it's on
 #[no_mangle]
 pub static ANALOG_SDK_PLUGIN_ABI_VERSION: u32 = 1;
 
+#[no_mangle]
+pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+
+
 /// The core Plugin trait which needs to be implemented for an Analog Plugin to function
 pub trait Plugin {
     /// Get a name describing the `Plugin`.
     fn name(&mut self) -> SDKResult<&'static str>;
 
-    /// A callback fired immediately after the plugin is loaded. Usually used
-    /// for initialization.
-    fn initialise(&mut self) -> WootingAnalogResult;
+    /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
+    fn initialise(&mut self, callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<u32>;
 
     /// A function fired to check if the plugin is currently initialised
     fn is_initialised(&mut self) -> bool;
-
-    /// Set a callback which should be fired when a device handled by the `Plugin` is connected or disconnected
-    fn set_device_event_cb(
-        &mut self,
-        cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
-    ) -> WootingAnalogResult;
-
-    /// Clear the device event callback
-    fn clear_device_event_cb(&mut self) -> WootingAnalogResult;
 
     /// This function is fired by the SDK to collect up all Device Info structs. The memory for the struct should be retained and only dropped
     /// when the device is disconnected or the plugin is unloaded. This ensures that the Device Info is not garbled when it's being accessed by the client.
@@ -38,7 +33,7 @@ pub trait Plugin {
     /// # Notes
     ///
     /// Although, the client should be copying any data they want to use for a prolonged time as there is no lifetime guarantee on the data.
-    fn device_info(&mut self, buffer: &mut [DeviceInfoPointer]) -> SDKResult<c_int>;
+    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfoPointer>>;
 
     /// A callback fired immediately before the plugin is unloaded. Use this if
     /// you need to do any cleanup.
@@ -77,8 +72,15 @@ macro_rules! declare_plugin {
             let boxed: Box<$crate::Plugin> = Box::new(object);
             Box::into_raw(boxed)
         }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_version() -> &'static str {
+            ANALOG_SDK_PLUGIN_VERSION
+        }
     };
 }
+
+
 
 pub fn generate_device_id(serial_number: &str, vendor_id: u16, product_id: u16) -> DeviceID {
     use std::collections::hash_map::DefaultHasher;

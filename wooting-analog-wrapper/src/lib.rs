@@ -33,6 +33,9 @@ macro_rules! dynamic_extern {
     ) => {
         lazy_static! {
             static ref LIB : Option<libl::Library> = {
+                #[cfg(target_arch="x86")]
+                let lib_path = concat!($lib, "32");
+
                 #[cfg(all(unix, not(target_os = "macos")))]
                 let lib_path = concat!("lib", $lib, ".so");
                 #[cfg(all(unix, target_os = "macos"))]
@@ -80,15 +83,9 @@ dynamic_extern! {
         /// Initialises the Analog SDK, this needs to be successfully called before any other functions
         /// of the SDK can be called
         ///
-        /// # Notes
-        /// The SDK will use the semi-colon separated list of directories in the environment variable `WOOTING_ANALOG_SDK_PLUGINS_PATH` to search for Plugins.
-        /// Plugins must have the extension `.dll` on Windows, `.so` on Linux and `.dylib` on MacOS
-        ///
         /// # Expected Returns
-        /// * `Ok`: Meaning the SDK initialised successfully (currently also means that there is at least one plugin initialised with at least one device connected)
-        /// * `NoDevices`: Meaning the SDK initialised successfully, but no devices are connected
+        /// * `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
         /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
-        /// * `FunctionNotFound`: Indicates that the SDK was not found, either it is not installed or it hasn't been added to the PATH
         fn wooting_analog_initialise() -> WootingAnalogResult;
 
         /// Returns a bool indicating if the Analog SDK has been initialised
@@ -157,8 +154,8 @@ dynamic_extern! {
         /// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
         ///
         /// # Notes
-        /// There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory
-        /// will be freed immediately after the callback, so it's best to copy any data you wish to use.
+        /// * There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+        /// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
         ///
         /// # Expected Returns
         /// * `Ok`: The callback was set successfully
@@ -188,10 +185,11 @@ dynamic_extern! {
         /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
         ///
         /// # Notes
-        /// `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+        /// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
         /// key & analog value pairs that can be filled in.
-        /// The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
-        /// If two devices have the same key pressed, the greater value will be given
+        /// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+        /// * If two devices have the same key pressed, the greater value will be given
+        /// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
         ///
         /// # Expected Returns
         /// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
@@ -206,9 +204,10 @@ dynamic_extern! {
         /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
         ///
         /// # Notes
-        /// `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+        /// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
         /// key & analog value pairs that can be filled in.
-        /// The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+        /// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+        /// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
         ///
         /// # Expected Returns
         /// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
