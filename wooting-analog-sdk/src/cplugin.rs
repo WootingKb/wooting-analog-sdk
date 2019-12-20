@@ -67,6 +67,8 @@ macro_rules! lib_wrap_option {
     };
 }
 
+const CPLUGIN_ABI_VERSION: u32 = 0;
+
 pub struct CPlugin {
     lib: Library,
     //funcs: HashMap<&'static str, Option<Symbol>>

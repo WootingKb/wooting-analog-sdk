@@ -66,10 +66,10 @@ impl AnalogSDK {
     }
 
     pub fn initialise(&mut self) -> SDKResult<u32> {
-        self.initialise_with_plugin_path(DEFAULT_PLUGIN_DIR)
+        self.initialise_with_plugin_path(DEFAULT_PLUGIN_DIR, true)
     }
 
-    pub fn initialise_with_plugin_path(&mut self, plugin_dir: &str) -> SDKResult<u32> {
+    pub fn initialise_with_plugin_path(&mut self, plugin_dir: &str, nested: bool) -> SDKResult<u32> {
         if self.initialised {
             self.unload();
         }
@@ -95,31 +95,40 @@ impl AnalogSDK {
                 vec![PathBuf::from(String::from(DEFAULT_PLUGIN_DIR))]
             }
         };*/
-        for dir in plugin_dir.read_dir().expect("Could not read dir") {
-            match dir {
-                Ok(dir) => {
-                    if dir.path().is_file() {
-                        continue;
-                    }
-
-                    match self.load_plugins(&dir.path()) {
-                        Ok(0) => {
-                            warn!("Failed to load any plugins from {:?}!", dir);
-                            //self.initialised = false;
-                            //WootingAnalogResult::NoPlugins
-                        }
-                        Ok(i) => {
-                            info!("Loaded {} plugins from {:?}", i, dir);
-                            //WootingAnalogResult::Ok
-                        }
-                        Err(e) => {
-                            error!("Error: {:?}", e);
-                            //self.initialised = false;
-                        }
-                    }
-                },
+        let mut load_plugins = |dir: &Path| {
+            match self.load_plugins(dir) {
+                Ok(0) => {
+                    warn!("Failed to load any plugins from {:?}!", dir);
+                    //self.initialised = false;
+                    //WootingAnalogResult::NoPlugins
+                }
+                Ok(i) => {
+                    info!("Loaded {} plugins from {:?}", i, dir);
+                    //WootingAnalogResult::Ok
+                }
                 Err(e) => {
-                    error!("Error reading directory: {}", e);
+                    error!("Error: {:?}", e);
+                    //self.initialised = false;
+                }
+            }
+
+        };
+
+        load_plugins(plugin_dir.as_path());
+
+        if nested {
+            for dir in plugin_dir.read_dir().expect("Could not read dir") {
+                match dir {
+                    Ok(dir) => {
+                        if dir.path().is_file() {
+                            continue;
+                        }
+
+                        load_plugins(&dir.path());
+                    },
+                    Err(e) => {
+                        error!("Error reading directory: {}", e);
+                    }
                 }
             }
         }
@@ -156,9 +165,10 @@ impl AnalogSDK {
                     if ext == LIB_EXT {
                         info!("Attempting to load plugin: \"{}\"", path.display());
                         unsafe {
-                            self.load_plugin(&path)?; //.map_err(|e| error!("{:?}", e));
+                            if self.load_plugin(&path).map_err(|e| error!("{:?}", e)).is_ok() {
+                                i += 1;
+                            }
                         }
-                        i += 1;
                     }
                 }
             }
@@ -185,16 +195,12 @@ impl AnalogSDK {
 
         let lib = self.loaded_libraries.last().unwrap();
 
-        let version: Option<Symbol<*mut u32>> = lib.get(b"ANALOG_SDK_PLUGIN_ABI_VERSION").ok();
-        if let Some(ver) = version {
-            info!("We got version: {}", **ver);
-        }
         let full_version: Option<Symbol<PluginVersion>> = lib.get(b"plugin_version").ok();
         if let Some(ver) = full_version {
-            info!("We got sem version: {}", ver());
+            info!("Plugin got plugin-dev sem version: {}", ver());
         }
         else{
-            info!("No symbol");
+            debug!("No symbol");
         }
 
         let constructor: Option<Symbol<PluginCreate>> = lib
@@ -213,13 +219,28 @@ impl AnalogSDK {
             None => {
                 warn!("Didn't find _plugin_create, assuming it's a c plugin");
                 let lib = self.loaded_libraries.pop().unwrap();
-                Box::new(CPlugin::new(lib))
+                if lib.get::<unsafe extern "C" fn() -> i32>(b"_initialise").is_ok() {
+                    Box::new(CPlugin::new(lib))
+                } else {
+                    return Err("Plugin isn't a valid C or Rust plugin, couldn't find entry point".into());
+                }
             }
         };
+        let name = plugin.name();
+        match name.0 {
+            Ok(name) => {
+                info!("Loaded plugin: {:?}", name);
+                //plugin.on_plugin_load();
+                self.plugins.push(plugin);
+            }
+            Err(WootingAnalogResult::FunctionNotFound) => {
+                return Err("Plugin isn't a valid plugin, name function not found".into());
+            },
+            Err(e) => {
+                return Err(format!("Plugin failed with unhandled error {:?}", e).into());
+            }
+        }
 
-        info!("Loaded plugin: {:?}", plugin.name());
-        //plugin.on_plugin_load();
-        self.plugins.push(plugin);
 
         Ok(())
     }
@@ -374,14 +395,14 @@ impl AnalogSDK {
         for lib in self.loaded_libraries.drain(..) {
             drop(lib);
         }
+
+        self.device_event_callback.lock().unwrap().take();
     }
 }
 
 impl Drop for AnalogSDK {
     fn drop(&mut self) {
-        if !self.plugins.is_empty() || !self.loaded_libraries.is_empty() {
-            self.unload();
-        }
+        self.unload();
     }
 }
 
@@ -435,7 +456,7 @@ mod tests {
 
         //Don't need to use the Singleton instance of the SDK here as we're not actually gonna initialise it
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise_with_plugin_path(dir).0, Err(WootingAnalogResult::NoPlugins));
+        assert_eq!(sdk.initialise_with_plugin_path(dir, true).0, Err(WootingAnalogResult::NoPlugins));
         assert!(!sdk.initialised);
         ::std::fs::remove_dir(dir);
     }
@@ -449,7 +470,7 @@ mod tests {
 
         //Don't need to use the Singleton instance of the SDK here as we're not actually gonna initialise it
         let mut sdk = AnalogSDK::new();
-        assert_eq!(sdk.initialise_with_plugin_path(dir).0, Err(WootingAnalogResult::NoPlugins));
+        assert_eq!(sdk.initialise_with_plugin_path(dir, true).0, Err(WootingAnalogResult::NoPlugins));
         assert!(!sdk.initialised)
     }
 
@@ -494,10 +515,10 @@ mod tests {
         shared_init();
 
 
-        let dir = "../wooting-analog-test-plugin/target/".to_owned() + std::env::var("TARGET").unwrap_or("".to_owned()).as_str();
+        let dir = "../wooting-analog-test-plugin/target/".to_owned() + std::env::var("TARGET").unwrap_or("".to_owned()).as_str() + "/debug";
         info!("Loading plugins from: {:?}", dir);
         assert!(!get_sdk().initialised);
-        assert_eq!(get_sdk().initialise_with_plugin_path(dir.as_str()).0, Ok(0));
+        assert_eq!(get_sdk().initialise_with_plugin_path(dir.as_str(), false).0, Ok(0));
         assert!(get_sdk().initialised);
 
         //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
@@ -654,6 +675,8 @@ mod tests {
         ::std::thread::sleep(Duration::from_secs(1));
         //This shouldn't have updated if the cb is not there
         assert!(*Arc::clone(&got_connected).lock().unwrap());
+
+        get_sdk().unload();
     }
 
     #[test]
@@ -662,6 +685,28 @@ mod tests {
 
         let mut sdk = AnalogSDK::new();
         uninitialised_sdk_functions(&mut sdk);
+    }
+
+    const TEST_PLUGIN_DIR: &str = "test_c_plugin";
+    /// Basic test to ensure the plugin.h is up to date and to ensure the CPlugin interface is working correctly
+    #[test]
+    fn test_c_plugin_interface() {
+        shared_init();
+        let mut sdk = AnalogSDK::new();
+
+        cmake::Config::new(TEST_PLUGIN_DIR).target("x86_64-unknown-linux-gnu").no_build_target(true).profile("Debug").build();
+        let dir = format!("./{}/build/", TEST_PLUGIN_DIR);
+        info!("Loading plugins from: {:?}", dir);
+        assert!(!sdk.initialised);
+        assert_eq!(sdk.initialise_with_plugin_path(dir.as_str(), false).0, Ok(1));
+        assert!(sdk.initialised);
+
+        assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
+        assert_eq!(sdk.read_full_buffer(30, 0).0.unwrap().get(&5), Some(&0.4));
+        let device = sdk.get_device_info().0.unwrap().first().unwrap().clone();
+        unsafe {
+            assert_eq!((*device.0).device_id, 7);
+        }
     }
 
     /*#[test]

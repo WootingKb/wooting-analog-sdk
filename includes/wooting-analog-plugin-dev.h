@@ -8,10 +8,6 @@
 #include <stdlib.h>
 #include "wooting-analog-common.h"
 
-extern const uint32_t ANALOG_SDK_PLUGIN_ABI_VERSION;
-
-extern const WootingAnalog_str* ANALOG_SDK_PLUGIN_VERSION;
-
 WootingAnalog_DeviceID generate_device_id(const char* serial_number,
                                           uint16_t vendor_id,
                                           uint16_t product_id);

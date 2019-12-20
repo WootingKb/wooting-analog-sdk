@@ -4,14 +4,9 @@ pub extern crate wooting_analog_common;
 use ffi_support::FfiStr;
 use std::collections::HashMap;
 use std::hash::Hasher;
-use std::os::raw::{c_float, c_ushort};
+use std::os::raw::{c_float, c_ushort, c_char};
 use wooting_analog_common::*;
 
-/// Version number of the plugin ABI which is exported in plugins so the SDK can determine how to handle the plugin based on which ABI version it's on
-#[no_mangle]
-pub static ANALOG_SDK_PLUGIN_ABI_VERSION: u32 = 1;
-
-#[no_mangle]
 pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 
