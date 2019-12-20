@@ -515,10 +515,10 @@ mod tests {
         shared_init();
 
 
-        let dir = "../wooting-analog-test-plugin/target/".to_owned() + std::env::var("TARGET").unwrap_or("".to_owned()).as_str() + "/debug";
+        let dir = format!("../wooting-analog-test-plugin/target/{}", std::env::var("TARGET").unwrap_or("/debug".to_owned()));
         info!("Loading plugins from: {:?}", dir);
         assert!(!get_sdk().initialised);
-        assert_eq!(get_sdk().initialise_with_plugin_path(dir.as_str(), false).0, Ok(0));
+        assert_eq!(get_sdk().initialise_with_plugin_path(dir.as_str(), !dir.ends_with("debug")).0, Ok(0));
         assert!(get_sdk().initialised);
 
         //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
