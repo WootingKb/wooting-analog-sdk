@@ -5,7 +5,7 @@ static WootingAnalog_DeviceInfo deviceInfo;
 
 
 /// Get a name describing the `Plugin`.
-ANALOGSDK_API const char* _name() {
+const char* _name() {
     return "C Test plugin";
 }
 
@@ -13,7 +13,7 @@ ANALOGSDK_API const char* _name() {
 
 /// A callback fired immediately after the plugin is loaded. Usually used
 /// for initialization.
-ANALOGSDK_API WootingAnalogResult _initialise(device_event cb) {
+int _initialise(device_event cb) {
     initialised = true;
     deviceInfo.vendor_id = 5;
     deviceInfo.product_id = 6;
@@ -24,20 +24,20 @@ ANALOGSDK_API WootingAnalogResult _initialise(device_event cb) {
 }
 
 /// A function fired to check if the plugin is currently initialised
-ANALOGSDK_API bool is_initialised(){
+bool is_initialised(){
     return initialised;
 }
 
 /// A callback fired immediately before the plugin is unloaded. Use this if
 /// you need to do any cleanup.
-ANALOGSDK_API void unload() {
+void unload() {
 
 }
 
 /// Function called to get the full analog read buffer for a particular device with ID `device`. `len` is the maximum amount
 /// of keys that can be accepted, any more beyond this will be ignored by the SDK.
 /// If `device` is 0 then no specific device is specified and the data should be read from all devices and combined
-ANALOGSDK_API int _read_full_buffer(uint16_t code_buffer[], float analog_buffer[], int len, WootingAnalog_DeviceID device){
+int _read_full_buffer(uint16_t code_buffer[], float analog_buffer[], int len, WootingAnalog_DeviceID device){
     code_buffer[0] = 5;
     analog_buffer[0] = 0.4f;
     return 1;
@@ -49,13 +49,13 @@ ANALOGSDK_API int _read_full_buffer(uint16_t code_buffer[], float analog_buffer[
 /// # Notes
 ///
 /// Although, the client should be copying any data they want to use for a prolonged time as there is no lifetime guarantee on the data.
-ANALOGSDK_API int _device_info(WootingAnalog_DeviceInfo* buffer[], int len) {
+int _device_info(WootingAnalog_DeviceInfo* buffer[], int len) {
     buffer[0] = &deviceInfo;
     return 1;
 }
 
 /// Function called to get the analog value for a particular HID key `code` from the device with ID `device`.
 /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
-ANALOGSDK_API float read_analog(uint16_t code, WootingAnalog_DeviceID device) {
+float read_analog(uint16_t code, WootingAnalog_DeviceID device) {
     return 0.56f;
 }
