@@ -21,8 +21,6 @@ extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate shared_memory;
 
-#[cfg(test)]
-extern crate cmake;
 
 //library modules
 mod cplugin;

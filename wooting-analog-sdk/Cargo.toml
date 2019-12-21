@@ -8,6 +8,7 @@ description = "Wooting Analog SDK"
 repository = "https://github.com/WootingKb/wooting-analog-sdk"
 homepage = "https://github.com/WootingKb/wooting-analog-sdk"
 keywords = [ "wooting", "keyboard", "analog", "sdk" ]
+build = "build.rs"
 #categories = []
 #license-file = "../LICENSE"
 
@@ -25,7 +26,10 @@ wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 
 [dev-dependencies]
 shared_memory = "0.8.2"
+
+[build-dependencies]
 cmake = "0.1"
+
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.7", features = ["winuser"] }

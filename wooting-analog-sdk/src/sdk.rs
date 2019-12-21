@@ -694,7 +694,6 @@ mod tests {
         shared_init();
         let mut sdk = AnalogSDK::new();
 
-        cmake::Config::new(TEST_PLUGIN_DIR).target("x86_64-unknown-linux-gnu").no_build_target(true).profile("Debug").build();
         let dir = format!("./{}/build/", TEST_PLUGIN_DIR);
         info!("Loading plugins from: {:?}", dir);
         assert!(!sdk.initialised);
