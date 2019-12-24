@@ -9,11 +9,16 @@ const char* _name() {
     return "C Test plugin";
 }
 
-
+static void* cb_data;
+static device_event cb;
 
 /// A callback fired immediately after the plugin is loaded. Usually used
 /// for initialization.
-int _initialise(device_event cb) {
+int _initialise(void* callback_data, device_event callback) {
+
+    cb_data = callback_data;
+    cb = callback;
+
     initialised = true;
     deviceInfo.vendor_id = 5;
     deviceInfo.product_id = 6;
@@ -57,5 +62,9 @@ int _device_info(WootingAnalog_DeviceInfo* buffer[], int len) {
 /// Function called to get the analog value for a particular HID key `code` from the device with ID `device`.
 /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
 float read_analog(uint16_t code, WootingAnalog_DeviceID device) {
+    printf("Calling cb, cb: %p, cb_data: %p, devInfo: %p\n", cb, cb_data, &deviceInfo);
+    cb(cb_data, WootingAnalog_DeviceEventType_Connected, &deviceInfo);
+
+
     return 0.56f;
 }

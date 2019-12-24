@@ -47,3 +47,15 @@ bash ../ci/codesign.sh
 dependencies = ["build-release", "build-test-plugin", "build-wooting-plugin"]
 command = "cargo"
 args = ["deb", "${@}"]
+
+[tasks.clean]
+dependencies = ["clean-test-c-plugin"]
+
+
+[tasks.clean-test-c-plugin]
+script_runner = "@shell"
+script = [
+'''
+rm -rf test_c_plugin/build
+'''
+]

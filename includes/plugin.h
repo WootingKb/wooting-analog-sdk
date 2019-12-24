@@ -18,14 +18,14 @@
 const uint32_t ANALOG_SDK_PLUGIN_ABI_VERSION = 0;
 
 
-typedef void(*device_event)(WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo*);
+typedef void(*device_event)(void*, WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo*);
 
 /// Get a name describing the `Plugin`.
 ANALOGSDK_API const char* _name();
 
 /// A callback fired immediately after the plugin is loaded. Usually used
 /// for initialization.
-ANALOGSDK_API int _initialise(device_event cb);
+ANALOGSDK_API int _initialise(void* callback_data, device_event callback);
 
 /// A function fired to check if the plugin is currently initialised
 ANALOGSDK_API bool is_initialised();

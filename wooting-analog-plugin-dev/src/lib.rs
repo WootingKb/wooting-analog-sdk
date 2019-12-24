@@ -17,7 +17,7 @@ pub trait Plugin {
     fn name(&mut self) -> SDKResult<&'static str>;
 
     /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
-    fn initialise(&mut self, callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<u32>;
+    fn initialise(&mut self, callback: Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>) -> SDKResult<u32>;
 
     /// A function fired to check if the plugin is currently initialised
     fn is_initialised(&mut self) -> bool;
@@ -105,3 +105,6 @@ mod ffi {
         super::generate_device_id(&serial, vendor_id, product_id)
     }
 }
+
+
+

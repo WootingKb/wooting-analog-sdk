@@ -2,9 +2,10 @@ use ffi_support::FfiStr;
 use libloading::{Library, Symbol};
 use log::*;
 use std::collections::HashMap;
-use std::os::raw::{c_float, c_int, c_uint, c_ushort};
+use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
 use wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
+
 
 macro_rules! lib_wrap {
     //(@as_item $i:item) => {$i};
@@ -84,11 +85,32 @@ impl CPlugin {
 
     lib_wrap_option! {
         //c_name has to be over here due to it not being part of the Plugin trait
-        fn _initialise(callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> i32;
+        fn _initialise(data: *mut c_void, callback: extern "C" fn(*mut c_void, DeviceEventType, DeviceInfoPointer)) -> i32;
         fn _name() -> FfiStr<'static>;
 
         fn _read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
         fn _device_info(buffer: *mut DeviceInfoPointer, len: c_uint) -> c_int;
+    }
+}
+
+extern "C" fn call_closure(
+    data: *mut c_void,
+    event: DeviceEventType,
+    device: DeviceInfoPointer
+)
+{
+    debug!("Got into the callclosure");
+    unsafe {
+        if data.is_null() {
+            error!("We got a null data pointer in call_closure!");
+            return;
+        }
+
+        let callback_ptr = Box::from_raw(data as *mut Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>);
+
+        (*callback_ptr)(event, device);
+        //Throw it back into raw to prevent it being dropped so the callback can be called multiple times
+        Box::into_raw(callback_ptr);
     }
 }
 
@@ -97,8 +119,9 @@ impl Plugin for CPlugin {
         self._name().0.map(|s| s.as_str()).into()
     }
 
-    fn initialise(&mut self, callback: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<u32>{
-        self._initialise(callback).0.map(|res| res as u32).into()
+    fn initialise(&mut self, callback: Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>) -> SDKResult<u32>{
+        let data = Box::into_raw(Box::new(callback));
+        self._initialise(data as *mut _, call_closure).0.map(|res| res as u32).into()
     }
 
     fn read_full_buffer(

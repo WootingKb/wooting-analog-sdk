@@ -21,7 +21,6 @@ extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate shared_memory;
 
-
 //library modules
 mod cplugin;
 pub mod ffi;

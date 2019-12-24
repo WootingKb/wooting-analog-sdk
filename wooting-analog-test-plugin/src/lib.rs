@@ -16,7 +16,7 @@ use std::path::Path;
 struct WootingAnalogTestPlugin {
     //shmem: SharedMem,
     device_connected: Arc<Mutex<bool>>,
-    device_event_cb: Arc<Mutex<Option<extern "C" fn(DeviceEventType, DeviceInfoPointer)>>>,
+    device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>>>>,
     device: Arc<Mutex<Option<DeviceInfoPointer>>>,
     buffer: Arc<Mutex<HashMap<u16, f32>>>,
     device_id: Arc<Mutex<DeviceID>>,
@@ -54,7 +54,7 @@ impl WootingAnalogTestPlugin{
         let device: Arc<Mutex<Option<DeviceInfoPointer>>> = Arc::new(Mutex::new(None));
         let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
         let device_id: Arc<Mutex<DeviceID>> = Arc::new(Mutex::new(1));
-        let device_event_cb: Arc<Mutex<Option<extern "C" fn(DeviceEventType, DeviceInfoPointer)>>> = Arc::new(Mutex::new(None));
+        let device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>>>> = Arc::new(Mutex::new(None));
         let device_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
         let t_buffer = Arc::clone(&buffer);
@@ -144,7 +144,7 @@ impl WootingAnalogTestPlugin{
                         let device = {
                             t_device.lock().unwrap().clone().unwrap()
                         };
-                        t_device_event_cb.lock().unwrap().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected } else {DeviceEventType::Disconnected}, device);Some(0)});
+                        t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected } else {DeviceEventType::Disconnected}, device);Some(0)});
                     }
 
                     if !state.device_connected {
@@ -200,7 +200,7 @@ impl Plugin for WootingAnalogTestPlugin {
         Ok("Wooting Analog Test Plugin").into()
     }
 
-    fn initialise(&mut self, cb: extern "C" fn(DeviceEventType, DeviceInfoPointer)) -> SDKResult<u32> {
+    fn initialise(&mut self, cb: Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>) -> SDKResult<u32> {
         info!("init");
         let ret = if *self.device_connected.lock().unwrap() { Ok(1) } else { Ok(0) }.into();
         self.device_event_cb.lock().unwrap().replace(cb);

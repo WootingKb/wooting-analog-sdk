@@ -3,7 +3,7 @@
 
 ### CMake ###
 CMakeLists.txt.user
-CMakeCache.txt
+build/CMakeCache.txt
 CMakeFiles
 CMakeScripts
 Testing

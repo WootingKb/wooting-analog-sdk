@@ -32,7 +32,7 @@ script = [
 sudo mkdir -p "${PLUGIN_INSTALL_PATH}"
 sudo mkdir -p "${PLUGIN_INSTALL_PATH}/wooting-test-plugin"
 
-sudo cp "./wooting-analog-test-plugin/target/debug/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "${PLUGIN_INSTALL_PATH}/wooting-test-plugin/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
+sudo cp "./wooting-analog-test-plugin/target/debug/${LIBRARY_cFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "${PLUGIN_INSTALL_PATH}/wooting-test-plugin/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
 '''
 ]
 dependencies = ["build-test-plugin"]
@@ -85,3 +85,13 @@ dependencies=["verify-headers"] # TODO: Add testing of crates excluded from work
 command="${CARGO_COMMAND}"
 args = ["run", "--manifest-path", "wooting-analog-virtual-control/Cargo.toml"]
 
+[tasks.clean]
+dependencies = ["clean-test-c-plugin"]
+
+[tasks.clean-test-c-plugin]
+script_runner = "@shell"
+script = [
+'''
+rm -rf wooting-analog-sdk/test_c_plugin/build
+'''
+]
