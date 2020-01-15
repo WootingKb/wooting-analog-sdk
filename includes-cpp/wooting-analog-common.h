@@ -58,19 +58,43 @@ enum class WootingAnalogResult {
 
 using WootingAnalog_DeviceID = uint64_t;
 
-/// The core `DeviceInfo` struct which contains all the interesting information
-/// for a particular device
 struct WootingAnalog_DeviceInfo {
+
+};
+
+/// The core `DeviceInfo` struct which contains all the interesting information
+/// for a particular device. This is the version which the consumer of the SDK will receive
+/// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
+/// DeviceInfo is for
+struct WootingAnalog_DeviceInfo_C {
   /// Device Vendor ID `vid`
   uint16_t vendor_id;
   /// Device Product ID `pid`
   uint16_t product_id;
   /// Device Manufacturer name
-  const char *manufacturer_name;
+  char *manufacturer_name;
   /// Device name
-  const char *device_name;
+  char *device_name;
   /// Unique device ID, which should be generated using `generate_device_id`
   WootingAnalog_DeviceID device_id;
   /// Hardware type of the Device
   WootingAnalog_DeviceType device_type;
 };
+
+extern "C" {
+
+/// Drops the given `DeviceInfo`
+void drop_device_info(WootingAnalog_DeviceInfo *device);
+
+/// Create a new device info struct. This is only for use in Plugins that are written in C
+/// Rust plugins should use the native constructor
+/// The memory for the struct has been allocated in Rust. So `drop_device_info` must be called
+/// for the memory to be properly released
+WootingAnalog_DeviceInfo *new_device_info(uint16_t vendor_id,
+                                          uint16_t product_id,
+                                          char *manufacturer_name,
+                                          char *device_name,
+                                          WootingAnalog_DeviceID device_id,
+                                          WootingAnalog_DeviceType device_type);
+
+} // extern "C"

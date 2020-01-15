@@ -1,10 +1,12 @@
 use crate::sdk::*;
 use wooting_analog_common::enum_primitive::FromPrimitive;
 //use ffi_support::FfiStr;
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::slice;
+use std::sync::{Arc, Mutex, MutexGuard};
 use wooting_analog_common::*;
-use std::sync::{Mutex, MutexGuard, Arc};
 
 lazy_static! {
     pub static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
@@ -33,6 +35,17 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
 /// * `Ok`: Indicates that the SDK was successfully uninitialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
+    //Drop the memory that was being kept for the connected devices info call
+    CONNECTED_DEVICES.with(|devs| {
+        let mut old = (*devs.borrow_mut()).take();
+        if let Some(mut old_devices) = old {
+            for dev in old_devices.drain(..) {
+                unsafe {
+                    Box::from_raw(dev);
+                }
+            }
+        }
+    });
     ANALOG_SDK.lock().unwrap().unload();
     WootingAnalogResult::Ok
 }
@@ -124,7 +137,7 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 /// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
 ///
 /// # Notes
-/// * There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+/// * You must copy the DeviceInfo struct or its data if you wish to use it after the callback has completed, as the memory will be freed straight after
 /// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
 ///
 /// # Expected Returns
@@ -132,9 +145,22 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 /// * `UnInitialized`: The SDK is not initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_set_device_event_cb(
-    cb: extern "C" fn(DeviceEventType, DeviceInfoPointer),
+    cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_C),
 ) -> WootingAnalogResult {
-    ANALOG_SDK.lock().unwrap().set_device_event_cb(move |event, device| cb(event, device)).into()
+    ANALOG_SDK
+        .lock()
+        .unwrap()
+        .set_device_event_cb(move |event, device: DeviceInfo| {
+            // Create pointer to the C version of Device Info to pass to the callback
+            let device_box: Box<DeviceInfo_C> = Box::new(device.into());
+            let device_raw = Box::into_raw(device_box);
+            cb(event, device_raw);
+            //We need to box up the pointer again to ensure it is properly dropped
+            unsafe {
+                Box::from_raw(device_raw);
+            }
+        })
+        .into()
 }
 
 /// Clears the device event callback that has been set
@@ -147,10 +173,12 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
     ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
 }
 
+thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_C>>> = RefCell::new(None));
+
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
 ///
 /// # Notes
-/// There is no guarenteed lifetime of the DeviceInfo structs given back, so if you wish to use any data from them, please copy it.
+/// * The memory of the returned structs will only be kept until the next call of `get_connected_devices_info`, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling `get_connected_devices_info` again.
 ///
 /// # Expected Returns
 /// Similar to wooting_analog_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type WootingAnalogResult
@@ -158,12 +186,11 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
 /// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_get_connected_devices_info(
-    buffer: *mut DeviceInfoPointer,
+    buffer: *mut *mut DeviceInfo_C,
     len: c_uint,
 ) -> c_int {
-
-
-    match ANALOG_SDK.lock().unwrap().get_device_info().0 {
+    let result: SDKResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
+    match result.0 {
         Ok(mut devices) => {
             let device_no = (len as usize).min(devices.len());
 
@@ -174,14 +201,28 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
             };
 
             devices.truncate(device_no);
-            buff.swap_with_slice(devices.as_mut());
+            // Convert all the DeviceInfo's into DeviceInfo_C pointers
+            let mut c_devices: Vec<*mut DeviceInfo_C> = devices
+                .drain(..)
+                .map(|dev| Box::into_raw(Box::new(dev.into())))
+                .collect();
 
+            buff.swap_with_slice(c_devices.clone().as_mut());
+            //We want to keep track of the structs that we've allocated and free up the last set that had been
+            //given
+            CONNECTED_DEVICES.with(|devs| {
+                let mut old = (*devs.borrow_mut()).replace(c_devices);
+                if let Some(mut old_devices) = old {
+                    for dev in old_devices.drain(..) {
+                        unsafe {
+                            Box::from_raw(dev);
+                        }
+                    }
+                }
+            });
             device_no as i32
-        },
-        Err(e) => {
-            e.into()
         }
-
+        Err(e) => e.into(),
     }
 }
 
@@ -246,7 +287,12 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    match ANALOG_SDK.lock().unwrap().read_full_buffer(len as usize, device_id).0 {
+    match ANALOG_SDK
+        .lock()
+        .unwrap()
+        .read_full_buffer(len as usize, device_id)
+        .0
+    {
         Ok(analog_data) => {
             //Fill up given slices
             let mut count: usize = 0;
@@ -260,21 +306,20 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
                 count += 1;
             }
             (count as c_int)
-        },
-        Err(e) => {
-            e as c_int
         }
+        Err(e) => e as c_int,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
-    use shared_memory::{SharedMem, WriteLockGuard, WriteLockable, ReadLockGuard, ReadLockable, SharedMemCast};
     use crate::keycode::hid_to_code;
+    use shared_memory::{
+        ReadLockGuard, ReadLockable, SharedMem, SharedMemCast, WriteLockGuard, WriteLockable,
+    };
     use std::ffi::CString;
-
+    use std::time::Duration;
 
     struct SharedState {
         pub vendor_id: u16,
@@ -293,18 +338,19 @@ mod tests {
         pub device_connected: bool,
         pub dirty_device_info: bool,
 
-        pub analog_values: [u8; 0xFF]
+        pub analog_values: [u8; 0xFF],
     }
 
     unsafe impl SharedMemCast for SharedState {}
-
 
     pub fn get_sdk() -> MutexGuard<'static, AnalogSDK> {
         ANALOG_SDK.lock().unwrap()
     }
 
-    lazy_static! { static ref got_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false)); }
-    extern "C" fn connect_cb(event: DeviceEventType, device: DeviceInfoPointer) {
+    lazy_static! {
+        static ref got_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+    }
+    extern "C" fn connect_cb(event: DeviceEventType, device: *mut DeviceInfo_C) {
         info!("Got cb {:?}", event);
 
         *Arc::clone(&got_connected).lock().unwrap() = event == DeviceEventType::Connected;
@@ -314,14 +360,16 @@ mod tests {
         let mut n = 0;
         while *Arc::clone(&got_connected).lock().unwrap() != connected {
             if n > attempts {
-                panic!("Waiting for device to be connected status: {:?} timed out!", connected);
+                panic!(
+                    "Waiting for device to be connected status: {:?} timed out!",
+                    connected
+                );
             }
             ::std::thread::sleep(Duration::from_millis(500));
-            n+=1;
+            n += 1;
         }
         info!("Got {:?} after {} attempts", connected, n);
     }
-
 
     fn get_wlock(shmem: &mut SharedMem) -> WriteLockGuard<SharedState> {
         match shmem.wlock::<SharedState>(0) {
@@ -351,16 +399,28 @@ mod tests {
         let lock = TEST_PLUGIN_LOCK.lock().unwrap();
 
         let mut mode;
-        let dir = format!("../wooting-analog-test-plugin/target/{}", std::env::var("TARGET").unwrap_or("/debug".to_owned()));
+        let dir = format!(
+            "../wooting-analog-test-plugin/target/{}",
+            std::env::var("TARGET").unwrap_or("/debug".to_owned())
+        );
         info!("Loading plugins from: {:?}", dir);
         assert!(!wooting_analog_is_initialised());
-        assert_eq!(get_sdk().initialise_with_plugin_path(dir.as_str(), !dir.ends_with("debug")).0, Ok(0));
+        assert_eq!(
+            get_sdk()
+                .initialise_with_plugin_path(dir.as_str(), !dir.ends_with("debug"))
+                .0,
+            Ok(0)
+        );
         assert!(wooting_analog_is_initialised());
 
         //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
         ::std::thread::sleep(Duration::from_millis(500));
 
-        let mut shmem = match SharedMem::open_linked(std::env::temp_dir().join("wooting-test-plugin.link").as_os_str()) {
+        let mut shmem = match SharedMem::open_linked(
+            std::env::temp_dir()
+                .join("wooting-test-plugin.link")
+                .as_os_str(),
+        ) {
             Ok(v) => v,
             Err(e) => {
                 println!("Error : {}", e);
@@ -370,7 +430,6 @@ mod tests {
             }
         };
 
-
         wooting_analog_set_device_event_cb(connect_cb);
 
         //Check the connected cb is called
@@ -379,24 +438,31 @@ mod tests {
                 let mut shared_state = get_wlock(&mut shmem);
                 shared_state.device_connected = true;
             }
-            wait_for_connected(5,true);
+            wait_for_connected(5, true);
         }
 
         //Check that we now have one device
         {
-            let mut device_infos: Vec<DeviceInfoPointer> = vec![Default::default(), Default::default()];
-            assert_eq!(wooting_analog_get_connected_devices_info(device_infos.as_mut_ptr(), device_infos.len() as u32), 1);
-//            unsafe {
-//                debug!("comparing stoof");
-//                let shared_state = get_rlock(&mut shmem);
-//                assert_eq!(device_infos[0].0.read().device_id, shared_state.device_id);
-//                assert!(CString::from_raw(device_infos[0].0.read().device_name as *mut i8).eq(&CString::from_raw(shared_state.device_name.as_ptr() as *mut i8)));
-//                assert!(CString::from_raw(device_infos[0].0.read().manufacturer_name as *mut i8).eq(&CString::from_raw(shared_state.manufacturer_name.as_ptr() as *mut i8)));
-//                assert_eq!(device_infos[0].0.read().product_id, shared_state.product_id);
-//                assert_eq!(device_infos[0].0.read().vendor_id, shared_state.vendor_id);
-//                assert_eq!(device_infos[0].0.read().device_type, shared_state.device_type);
-//                debug!("done comparing stoof");
-//            }
+            let mut device_infos: Vec<*mut DeviceInfo_C> =
+                vec![std::ptr::null_mut(); 2];
+            assert_eq!(
+                wooting_analog_get_connected_devices_info(
+                    device_infos.as_mut_ptr(),
+                    device_infos.len() as u32
+                ),
+                1
+            );
+            //            unsafe {
+            //                debug!("comparing stoof");
+            //                let shared_state = get_rlock(&mut shmem);
+            //                assert_eq!(device_infos[0].0.read().device_id, shared_state.device_id);
+            //                assert!(CString::from_raw(device_infos[0].0.read().device_name as *mut i8).eq(&CString::from_raw(shared_state.device_name.as_ptr() as *mut i8)));
+            //                assert!(CString::from_raw(device_infos[0].0.read().manufacturer_name as *mut i8).eq(&CString::from_raw(shared_state.manufacturer_name.as_ptr() as *mut i8)));
+            //                assert_eq!(device_infos[0].0.read().product_id, shared_state.product_id);
+            //                assert_eq!(device_infos[0].0.read().vendor_id, shared_state.vendor_id);
+            //                assert_eq!(device_infos[0].0.read().device_type, shared_state.device_type);
+            //                debug!("done comparing stoof");
+            //            }
         }
 
         //Check the cb is called with disconnected
@@ -405,57 +471,91 @@ mod tests {
                 let mut shared_state = get_wlock(&mut shmem);
                 shared_state.device_connected = false;
             }
-            wait_for_connected(5,false);
+            wait_for_connected(5, false);
         }
 
         //Check that we now have no devices
         {
-            let mut device_infos: Vec<DeviceInfoPointer> = vec![Default::default(), Default::default()];
-            assert_eq!(wooting_analog_get_connected_devices_info(device_infos.as_mut_ptr(), device_infos.len() as u32), 0);
+            let mut device_infos: Vec<*mut DeviceInfo_C> =
+                vec![std::ptr::null_mut(); 2];
+            assert_eq!(
+                wooting_analog_get_connected_devices_info(
+                    device_infos.as_mut_ptr(),
+                    device_infos.len() as u32
+                ),
+                0
+            );
         }
-
 
         let analog_val = 0xF4;
         let f_analog_val = f32::from(analog_val) / 255_f32;
         let analog_key = 5;
         //Connect the device again, set a keycode to a val
-        let device_id =
-            {
-                let mut shared_state = get_wlock(&mut shmem);
-                shared_state.analog_values[analog_key] = analog_val;
-                shared_state.device_connected = true;
-                shared_state.device_id
-            };
+        let device_id = {
+            let mut shared_state = get_wlock(&mut shmem);
+            shared_state.analog_values[analog_key] = analog_val;
+            shared_state.device_connected = true;
+            shared_state.device_id
+        };
 
-        wait_for_connected(5,true);
+        wait_for_connected(5, true);
 
         //Check we get the val with no id specified
         assert_eq!(wooting_analog_read_analog(analog_key as u16), f_analog_val);
         //Check we get the val with the device_id we use
-        assert_eq!(wooting_analog_read_analog_device(analog_key as u16, device_id), f_analog_val);
+        assert_eq!(
+            wooting_analog_read_analog_device(analog_key as u16, device_id),
+            f_analog_val
+        );
         //Check we don't get a val with invalid device id
-        assert_eq!(wooting_analog_read_analog_device(analog_key as u16, device_id+1), WootingAnalogResult::NoDevices.into());
+        assert_eq!(
+            wooting_analog_read_analog_device(analog_key as u16, device_id + 1),
+            WootingAnalogResult::NoDevices.into()
+        );
         //Check if the next value is 0
-        assert_eq!(wooting_analog_read_analog_device((analog_key+1) as u16, device_id), 0.0);
+        assert_eq!(
+            wooting_analog_read_analog_device((analog_key + 1) as u16, device_id),
+            0.0
+        );
 
         //Check that it does code mapping
         mode = KeycodeType::ScanCode1;
         wooting_analog_set_keycode_mode(mode.clone() as u32);
-        assert_eq!(wooting_analog_read_analog_device( hid_to_code( analog_key as u16, &mode).unwrap(), device_id), f_analog_val);
+        assert_eq!(
+            wooting_analog_read_analog_device(
+                hid_to_code(analog_key as u16, &mode).unwrap(),
+                device_id
+            ),
+            f_analog_val
+        );
         mode = KeycodeType::HID;
         wooting_analog_set_keycode_mode(mode.clone() as u32);
 
-
         let buffer_len = 5;
-        let mut code_buffer: Vec<u16> = vec![0;buffer_len];
-        let mut analog_buffer: Vec<f32> = vec![0.0;buffer_len];
+        let mut code_buffer: Vec<u16> = vec![0; buffer_len];
+        let mut analog_buffer: Vec<f32> = vec![0.0; buffer_len];
         //Check it reads buffer properly with no device id
-        assert_eq!(wooting_analog_read_full_buffer(code_buffer.as_mut_ptr(), analog_buffer.as_mut_ptr(), buffer_len as u32), 1);
+        assert_eq!(
+            wooting_analog_read_full_buffer(
+                code_buffer.as_mut_ptr(),
+                analog_buffer.as_mut_ptr(),
+                buffer_len as u32
+            ),
+            1
+        );
         assert_eq!(code_buffer[0], analog_key as u16);
         assert_eq!(analog_buffer[0], f_analog_val);
 
         //Check it reads buffer properly with proper device_id
-        assert_eq!(wooting_analog_read_full_buffer_device(code_buffer.as_mut_ptr(), analog_buffer.as_mut_ptr(), buffer_len as u32, device_id), 1);
+        assert_eq!(
+            wooting_analog_read_full_buffer_device(
+                code_buffer.as_mut_ptr(),
+                analog_buffer.as_mut_ptr(),
+                buffer_len as u32,
+                device_id
+            ),
+            1
+        );
         assert_eq!(code_buffer[0], analog_key as u16);
         assert_eq!(analog_buffer[0], f_analog_val);
 
@@ -463,14 +563,33 @@ mod tests {
         code_buffer[0] = 0;
         analog_buffer[0] = 0.0;
         //Check it errors on read buffer with invalid device_id
-        assert_eq!(wooting_analog_read_full_buffer_device(code_buffer.as_mut_ptr(), analog_buffer.as_mut_ptr(), buffer_len as u32, device_id + 1), WootingAnalogResult::NoDevices.into());
+        assert_eq!(
+            wooting_analog_read_full_buffer_device(
+                code_buffer.as_mut_ptr(),
+                analog_buffer.as_mut_ptr(),
+                buffer_len as u32,
+                device_id + 1
+            ),
+            WootingAnalogResult::NoDevices.into()
+        );
         assert_eq!(code_buffer[0], 0);
         assert_eq!(analog_buffer[0], 0.0);
 
         //Check that it does code mapping
         wooting_analog_set_keycode_mode(mode.clone() as u32);
-        assert_eq!(wooting_analog_read_full_buffer_device(code_buffer.as_mut_ptr(), analog_buffer.as_mut_ptr(), buffer_len as u32, device_id), 1);
-        assert_eq!(code_buffer[0], hid_to_code( analog_key as u16, &mode).unwrap());
+        assert_eq!(
+            wooting_analog_read_full_buffer_device(
+                code_buffer.as_mut_ptr(),
+                analog_buffer.as_mut_ptr(),
+                buffer_len as u32,
+                device_id
+            ),
+            1
+        );
+        assert_eq!(
+            code_buffer[0],
+            hid_to_code(analog_key as u16, &mode).unwrap()
+        );
         assert_eq!(analog_buffer[0], f_analog_val);
         mode = KeycodeType::HID;
         wooting_analog_set_keycode_mode(mode.clone() as u32);
@@ -483,16 +602,34 @@ mod tests {
 
         code_buffer[0] = 0;
         //Check that it returns the now released key with 0 analog in the next call
-        assert_eq!(wooting_analog_read_full_buffer_device(code_buffer.as_mut_ptr(), analog_buffer.as_mut_ptr(), buffer_len as u32, device_id), 1);
+        assert_eq!(
+            wooting_analog_read_full_buffer_device(
+                code_buffer.as_mut_ptr(),
+                analog_buffer.as_mut_ptr(),
+                buffer_len as u32,
+                device_id
+            ),
+            1
+        );
         assert_eq!(code_buffer[0], analog_key as u16);
         assert_eq!(analog_buffer[0], 0.0);
         assert_eq!(wooting_analog_read_analog(analog_key as u16), 0.0);
 
         //Check that the freshly released key is no longer returned
-        assert_eq!(wooting_analog_read_full_buffer_device(code_buffer.as_mut_ptr(), analog_buffer.as_mut_ptr(), buffer_len as u32, device_id), 0);
+        assert_eq!(
+            wooting_analog_read_full_buffer_device(
+                code_buffer.as_mut_ptr(),
+                analog_buffer.as_mut_ptr(),
+                buffer_len as u32,
+                device_id
+            ),
+            0
+        );
 
-
-        assert_eq!(wooting_analog_clear_device_event_cb(), WootingAnalogResult::Ok);
+        assert_eq!(
+            wooting_analog_clear_device_event_cb(),
+            WootingAnalogResult::Ok
+        );
         {
             let mut shared_state = get_wlock(&mut shmem);
             shared_state.device_connected = false;

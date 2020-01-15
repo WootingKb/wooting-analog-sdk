@@ -7,7 +7,7 @@ use std::ops::Deref;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 //use std::ptr;
 pub use wooting_analog_common::{
-    DeviceEventType, DeviceID, DeviceInfo, KeycodeType, WootingAnalogResult,
+    DeviceEventType, DeviceID, DeviceInfo_C, KeycodeType, WootingAnalogResult,
 };
 
 /*pub struct Void(*mut c_void);
@@ -154,13 +154,13 @@ dynamic_extern! {
         /// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
         ///
         /// # Notes
-        /// * There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+        /// * You must copy the DeviceInfo struct or its data if you wish to use it after the callback has completed, as the memory will be freed straight after
         /// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
         ///
         /// # Expected Returns
         /// * `Ok`: The callback was set successfully
         /// * `UnInitialized`: The SDK is not initialised
-        fn wooting_analog_set_device_event_cb(cb: extern fn(DeviceEventType, *mut DeviceInfo)) -> WootingAnalogResult;
+        fn wooting_analog_set_device_event_cb(cb: extern fn(DeviceEventType, *mut DeviceInfo_C)) -> WootingAnalogResult;
 
         /// Clears the device event callback that has been set
         ///
@@ -172,13 +172,13 @@ dynamic_extern! {
         /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
         ///
         /// # Notes
-        /// There is no guarenteed lifetime of the DeviceInfo structs given back, so if you wish to use any data from them, please copy it.
+        /// * The memory of the returned structs will only be kept until the next call of `get_connected_devices_info`, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling `get_connected_devices_info` again.
         ///
         /// # Expected Returns
         /// Similar to wooting_analog_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type WootingAnalogResult
         /// * `ret>=0`: The number of connected devices that have been filled into the buffer
         /// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-        fn wooting_analog_get_connected_devices_info(buffer: *mut *mut DeviceInfo, len: c_uint) -> c_int;
+        fn wooting_analog_get_connected_devices_info(buffer: *mut *mut DeviceInfo_C, len: c_uint) -> c_int;
 
         /// Reads all the analog values for pressed keys for all devices and combines their values, filling up `code_buffer` with the
         /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog

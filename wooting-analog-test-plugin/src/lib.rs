@@ -12,12 +12,13 @@ use log::{error, info};
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::path::Path;
+use std::string::ToString;
 
 struct WootingAnalogTestPlugin {
     //shmem: SharedMem,
     device_connected: Arc<Mutex<bool>>,
-    device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>>>>,
-    device: Arc<Mutex<Option<DeviceInfoPointer>>>,
+    device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>>,
+    device: Arc<Mutex<Option<DeviceInfo>>>,
     buffer: Arc<Mutex<HashMap<u16, f32>>>,
     device_id: Arc<Mutex<DeviceID>>,
     pressed_keys: Vec<u16>
@@ -51,10 +52,10 @@ impl WootingAnalogTestPlugin{
         env_logger::from_env(Env::default().default_filter_or("trace")).try_init();
 
 
-        let device: Arc<Mutex<Option<DeviceInfoPointer>>> = Arc::new(Mutex::new(None));
+        let device: Arc<Mutex<Option<DeviceInfo>>> = Arc::new(Mutex::new(None));
         let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
         let device_id: Arc<Mutex<DeviceID>> = Arc::new(Mutex::new(1));
-        let device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>>>> = Arc::new(Mutex::new(None));
+        let device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>> = Arc::new(Mutex::new(None));
         let device_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
         let t_buffer = Arc::clone(&buffer);
@@ -128,12 +129,12 @@ impl WootingAnalogTestPlugin{
                         let dev = DeviceInfo::new_with_id(
                             state.vendor_id,
                             state.product_id,
-                            from_ut8f_to_null(&state.manufacturer_name[..], state.manufacturer_name.len()),
-                            from_ut8f_to_null(&state.device_name[..], state.device_name.len()),
+                            from_ut8f_to_null(&state.manufacturer_name[..], state.manufacturer_name.len()).to_string(),
+                            from_ut8f_to_null(&state.device_name[..], state.device_name.len()).to_string(),
                             state.device_id,
                             state.device_type.clone()
                             
-                        ).convert_to_ptr();
+                        );
                         *t_device_id.lock().unwrap() = state.device_id;
                         t_device.lock().unwrap().replace(dev);
 
@@ -141,10 +142,9 @@ impl WootingAnalogTestPlugin{
                     }
                     if *t_device_connected.lock().unwrap() != state.device_connected {
                         *t_device_connected.lock().unwrap() = state.device_connected;
-                        let device = {
-                            t_device.lock().unwrap().clone().unwrap()
-                        };
-                        t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected } else {DeviceEventType::Disconnected}, device);Some(0)});
+                        if let Some(device) = t_device.lock().unwrap().as_ref() {
+                            t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {cb(if state.device_connected {DeviceEventType::Connected } else {DeviceEventType::Disconnected}, device);Some(0)});
+                        }
                     }
 
                     if !state.device_connected {
@@ -200,7 +200,7 @@ impl Plugin for WootingAnalogTestPlugin {
         Ok("Wooting Analog Test Plugin").into()
     }
 
-    fn initialise(&mut self, cb: Box<dyn Fn(DeviceEventType, DeviceInfoPointer) + Send>) -> SDKResult<u32> {
+    fn initialise(&mut self, cb: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>) -> SDKResult<u32> {
         info!("init");
         let ret = if *self.device_connected.lock().unwrap() { Ok(1) } else { Ok(0) }.into();
         self.device_event_cb.lock().unwrap().replace(cb);
@@ -211,7 +211,7 @@ impl Plugin for WootingAnalogTestPlugin {
         true
     }
 
-    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfoPointer>> {
+    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
         debug!("asked for devices {:?}", *self.device_connected.lock().unwrap());
 
         let mut devices = vec![];

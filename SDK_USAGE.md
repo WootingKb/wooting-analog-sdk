@@ -82,7 +82,7 @@ Reads the Analog value of the key with identifier `code` from any connected devi
 
 ### Examples
 
-```rust
+```C
 wooting_analog_set_mode(KeycodeType::ScanCode1);
 wooting_analog_read_analog(0x10); //This will get you the value for the key which is Q in the standard US layout (The key just right to tab)
 
@@ -132,7 +132,7 @@ Set the callback which is called when there is a DeviceEvent. Currently these ev
 The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
 
 ### Notes
-* There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+* You must copy the DeviceInfo struct or its data if you wish to use it after the callback has completed, as the memory will be freed straight after
 * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
 
 ### Expected Returns
@@ -162,7 +162,7 @@ Fills up the given `buffer`(that has length `len`) with pointers to the DeviceIn
 
 ### Notes
 
-There is no guarenteed lifetime of the DeviceInfo structs given back, so if you wish to use any data from them, please copy it.
+* The memory of the returned structs will only be kept until the next call of `get_connected_devices_info`, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling `get_connected_devices_info` again.
 
 ### Expected Returns
 

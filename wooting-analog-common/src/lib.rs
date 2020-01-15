@@ -6,7 +6,7 @@ extern crate ffi_support;
 
 pub use enum_primitive::FromPrimitive;
 use ffi_support::FfiStr;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
 
@@ -19,106 +19,193 @@ pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device
-#[repr(C)]
+#[derive(Clone)]
 pub struct DeviceInfo {
     /// Device Vendor ID `vid`
     pub vendor_id: u16,
     /// Device Product ID `pid`
     pub product_id: u16,
-    //TODO: Consider switching these to FFiStr
     /// Device Manufacturer name
-    pub manufacturer_name: *const c_char,
+    pub manufacturer_name: String,
     /// Device name
-    pub device_name: *const c_char,
+    pub device_name: String,
     /// Unique device ID, which should be generated using `generate_device_id`
     pub device_id: DeviceID,
     /// Hardware type of the Device
-    pub device_type: DeviceType
+    pub device_type: DeviceType,
+}
+
+/// This is an empty struct that is used to ensure the generated C headers have a blank struct to use in place of the actual
+/// DeviceInfo struct. A bit hacky, if you know a better way to do this please let me know!
+#[repr(C)]
+pub struct DeviceInfoBlank();
+
+/// The core `DeviceInfo` struct which contains all the interesting information
+/// for a particular device. This is the version which the consumer of the SDK will receive
+/// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
+/// DeviceInfo is for
+#[repr(C)]
+pub struct DeviceInfo_C {
+    /// Device Vendor ID `vid`
+    pub vendor_id: u16,
+    /// Device Product ID `pid`
+    pub product_id: u16,
+    /// Device Manufacturer name
+    pub manufacturer_name: *mut c_char,
+    /// Device name
+    pub device_name: *mut c_char,
+    /// Unique device ID, which should be generated using `generate_device_id`
+    pub device_id: DeviceID,
+    /// Hardware type of the Device
+    pub device_type: DeviceType,
+}
+
+impl From<DeviceInfo> for DeviceInfo_C {
+    fn from(device: DeviceInfo) -> Self {
+        DeviceInfo_C {
+            vendor_id: device.vendor_id,
+            product_id: device.product_id,
+            manufacturer_name: CString::new(device.manufacturer_name).unwrap().into_raw(),
+            device_name: CString::new(device.device_name).unwrap().into_raw(),
+            device_id: device.device_id,
+            device_type: device.device_type,
+        }
+    }
+}
+
+//impl DeviceInfo_C {
+//    fn into_device(&self) -> DeviceInfo {
+//        DeviceInfo {
+//            vendor_id: self.vendor_id,
+//            product_id: self.product_id,
+//            manufacturer_name: unsafe { CStr::from_ptr(self.manufacturer_name).to_string_lossy().into_owned() },
+//            device_name: unsafe { CStr::from_ptr(self.device_name).to_string_lossy().into_owned() },
+//            device_id: self.device_id,
+//            device_type: self.device_type.clone(),
+//        }
+//    }
+//}
+
+impl Drop for DeviceInfo_C {
+    fn drop(&mut self) {
+        //Ensure we properly drop the memory for the char pointers
+        unsafe {
+            CString::from_raw(self.manufacturer_name);
+            CString::from_raw(self.device_name);
+        }
+    }
 }
 
 impl DeviceInfo {
-    /*pub fn new(
-        vendor_id: u16,
-        product_id: u16,
-        manufacturer_name: &str,
-        device_name: &str,
-        serial_number: &str,
-    ) -> Self {
-        DeviceInfo {
-            vendor_id,
-            product_id,
-            manufacturer_name: CString::new(manufacturer_name).unwrap().into_raw(),
-            device_name: CString::new(device_name).unwrap().into_raw(),
-            device_id: generate_device_id(serial_number, vendor_id, product_id),
-        }
-    }*/
+    //    pub fn new(
+    //        vendor_id: u16,
+    //        product_id: u16,
+    //        manufacturer_name: &str,
+    //        device_name: &str,
+    //        serial_number: &str,
+    //        device_type: DeviceType,
+    //    ) -> Self {
+    //        DeviceInfo {
+    //            vendor_id,
+    //            product_id,
+    //            manufacturer_name,
+    //            device_name,
+    //            device_id: generate_device_id(serial_number, vendor_id, product_id),
+    //            device_type
+    //        }
+    //    }
 
     pub fn new_with_id(
         vendor_id: u16,
         product_id: u16,
-        manufacturer_name: &str,
-        device_name: &str,
+        manufacturer_name: String,
+        device_name: String,
         device_id: DeviceID,
-        device_type: DeviceType
+        device_type: DeviceType,
     ) -> Self {
         DeviceInfo {
             vendor_id,
             product_id,
-            manufacturer_name: CString::new(manufacturer_name).unwrap().into_raw(),
-            device_name: CString::new(device_name).unwrap().into_raw(),
+            manufacturer_name,
+            device_name,
             device_id,
-            device_type
+            device_type,
         }
     }
 
-    pub fn convert_to_ptr(self) -> DeviceInfoPointer {
-        Box::into_raw(Box::new(self)).into()
-    }
+    //    pub fn convert_to_ptr(self) -> DeviceInfoPointer {
+    //        Box::into_raw(Box::new(self)).into()
+    //    }
 }
 
-#[derive(Clone)]
-pub struct DeviceInfoPointer(pub *mut DeviceInfo);
-
-unsafe impl Send for DeviceInfoPointer {}
-
-impl Default for DeviceInfoPointer {
-    fn default() -> Self {
-        DeviceInfoPointer(std::ptr::null_mut())
-    }
+/// Create a new device info struct. This is only for use in Plugins that are written in C
+/// Rust plugins should use the native constructor
+/// The memory for the struct has been allocated in Rust. So `drop_device_info` must be called
+/// for the memory to be properly released
+#[no_mangle]
+pub extern "C" fn new_device_info(vendor_id: u16,
+                                  product_id: u16,
+                                  manufacturer_name: *mut c_char,
+                                  device_name: *mut c_char,
+                                  device_id: DeviceID,
+                                  device_type: DeviceType) -> *mut DeviceInfo {
+    Box::into_raw(Box::new(DeviceInfo::new_with_id(vendor_id,
+                                                   product_id,
+                                                   unsafe { CStr::from_ptr(manufacturer_name).to_string_lossy().into_owned() },
+                                                   unsafe { CStr::from_ptr(device_name).to_string_lossy().into_owned() },
+                                                   device_id,
+                                                   device_type)))
 }
 
-impl From<*mut DeviceInfo> for DeviceInfoPointer {
-    fn from(ptr: *mut DeviceInfo) -> Self {
-        DeviceInfoPointer(ptr)
-    }
+/// Drops the given `DeviceInfo`
+#[no_mangle]
+pub unsafe extern "C" fn drop_device_info(device: *mut DeviceInfo) {
+    Box::from_raw(device);
 }
 
-impl Into<*mut DeviceInfo> for DeviceInfoPointer {
-    fn into(self) -> *mut DeviceInfo {
-        self.0
-    }
-}
+// #[derive(Clone)]
+// pub struct DeviceInfoPointer(pub *mut DeviceInfo);
 
-impl DeviceInfoPointer {
-    pub fn drop(self) {
-        debug!("Dropping DeviceInfoPointer");
+// unsafe impl Send for DeviceInfoPointer {}
 
-        if self.0.is_null() {
-            debug!("DeviceInfoPointer is null, ignoring");
-            return;
-        }
+// impl Default for DeviceInfoPointer {
+//     fn default() -> Self {
+//         DeviceInfoPointer(std::ptr::null_mut())
+//     }
+// }
 
-        unsafe {
-            let dev: Box<DeviceInfo> = Box::from_raw(self.into());
-            if !dev.device_name.is_null() {
-                CString::from_raw(dev.device_name as *mut c_char);
-            }
-            if !dev.manufacturer_name.is_null() {
-                CString::from_raw(dev.manufacturer_name as *mut c_char);
-            }
-        }
-    }
-}
+// impl From<*mut DeviceInfo> for DeviceInfoPointer {
+//     fn from(ptr: *mut DeviceInfo) -> Self {
+//         DeviceInfoPointer(ptr)
+//     }
+// }
+
+// impl Into<*mut DeviceInfo> for DeviceInfoPointer {
+//     fn into(self) -> *mut DeviceInfo {
+//         self.0
+//     }
+// }
+
+// impl DeviceInfoPointer {
+//     pub fn drop(self) {
+//         debug!("Dropping DeviceInfoPointer");
+
+//         if self.0.is_null() {
+//             debug!("DeviceInfoPointer is null, ignoring");
+//             return;
+//         }
+
+//         unsafe {
+//             let dev: Box<DeviceInfo> = Box::from_raw(self.into());
+//             if !dev.device_name.is_null() {
+//                 CString::from_raw(dev.device_name as *mut c_char);
+//             }
+//             if !dev.manufacturer_name.is_null() {
+//                 CString::from_raw(dev.manufacturer_name as *mut c_char);
+//             }
+//         }
+//     }
+// }
 
 enum_from_primitive! {
     #[derive(Debug, PartialEq, Clone)]
@@ -263,7 +350,7 @@ impl From<u32> for SDKResult<u32> {
 }
 
 impl Into<i32> for SDKResult<u32> {
-    fn into(self) -> i32{
+    fn into(self) -> i32 {
         match self.0 {
             Ok(v) => v as i32,
             Err(e) => e.into(),
@@ -308,12 +395,8 @@ impl Into<f32> for SDKResult<f32> {
 impl Into<WootingAnalogResult> for SDKResult<()> {
     fn into(self) -> WootingAnalogResult {
         match self.0 {
-            Ok(_) => {
-                WootingAnalogResult::Ok
-            },
-            Err(e) => {
-                e
-            }
+            Ok(_) => WootingAnalogResult::Ok,
+            Err(e) => e,
         }
     }
 }
