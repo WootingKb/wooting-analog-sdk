@@ -29,6 +29,8 @@ shared_memory = "0.8.2"
 
 [build-dependencies]
 cmake = "0.1"
+wooting-analog-common = { path = "../wooting-analog-common"}
+wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 
 
 [target.'cfg(windows)'.dependencies]
