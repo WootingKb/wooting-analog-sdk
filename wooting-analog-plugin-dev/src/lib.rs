@@ -4,7 +4,7 @@ pub extern crate wooting_analog_common;
 use ffi_support::FfiStr;
 use std::collections::HashMap;
 use std::hash::Hasher;
-use std::os::raw::{c_char, c_float, c_ushort};
+use std::os::raw::{c_float, c_ushort};
 use wooting_analog_common::*;
 
 pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");

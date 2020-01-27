@@ -5,9 +5,8 @@ use libloading::{Library, Symbol};
 use log::{error, info, warn};
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::os::raw::{c_float, c_int, c_ushort};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::{fs, thread};
 use wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
@@ -346,12 +345,12 @@ impl AnalogSDK {
         &mut self,
         max_length: usize,
         device_id: DeviceID,
-    ) -> SDKResult<HashMap<c_ushort, c_float>> {
+    ) -> SDKResult<HashMap<u16, f32>> {
         if !self.initialised {
             return WootingAnalogResult::UnInitialized.into();
         }
 
-        let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(max_length);
+        let mut analog_data: HashMap<u16, f32> = HashMap::with_capacity(max_length);
 
         let mut err = WootingAnalogResult::Ok;
         let mut any_success = false;

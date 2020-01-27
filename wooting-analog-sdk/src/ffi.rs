@@ -1,11 +1,9 @@
 use crate::sdk::*;
 use wooting_analog_common::enum_primitive::FromPrimitive;
-//use ffi_support::FfiStr;
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::slice;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Mutex};
 use wooting_analog_common::*;
 
 lazy_static! {
@@ -19,7 +17,7 @@ lazy_static! {
 /// * `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[no_mangle]
-pub extern "C" fn wooting_analog_initialise() -> i32 {
+pub extern "C" fn wooting_analog_initialise() -> c_int {
     env_logger::init();
     ANALOG_SDK.lock().unwrap().initialise().into()
 }
@@ -37,7 +35,7 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
 pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
     //Drop the memory that was being kept for the connected devices info call
     CONNECTED_DEVICES.with(|devs| {
-        let mut old = (*devs.borrow_mut()).take();
+        let old = (*devs.borrow_mut()).take();
         if let Some(mut old_devices) = old {
             for dev in old_devices.drain(..) {
                 unsafe {
@@ -65,7 +63,7 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
 /// * `NotAvailable`: The given `KeycodeType` is present, but not supported on the current platform
 /// * `UnInitialized`: The SDK is not initialised
 #[no_mangle]
-pub extern "C" fn wooting_analog_set_keycode_mode(mode: u32) -> WootingAnalogResult {
+pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult {
     if !ANALOG_SDK.lock().unwrap().initialised {
         return WootingAnalogResult::UnInitialized;
     }
@@ -108,7 +106,7 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: u32) -> WootingAnalogRes
 /// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
 /// * `WootingAnalogResult::NoDevices`: There are no connected devices
 #[no_mangle]
-pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> f32 {
+pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
     wooting_analog_read_analog_device(code, 0)
 }
 
@@ -125,7 +123,7 @@ pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> f32 {
 /// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
 /// * `WootingAnalogResult::NoDevices`: There are no connected devices with id `device_id`
 #[no_mangle]
-pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: DeviceID) -> f32 {
+pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: DeviceID) -> c_float {
     ANALOG_SDK
         .lock()
         .unwrap()
@@ -202,7 +200,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
 
             devices.truncate(device_no);
             // Convert all the DeviceInfo's into DeviceInfo_C pointers
-            let mut c_devices: Vec<*mut DeviceInfo_FFI> = devices
+            let c_devices: Vec<*mut DeviceInfo_FFI> = devices
                 .drain(..)
                 .map(|dev| Box::into_raw(Box::new(dev.into())))
                 .collect();
@@ -211,7 +209,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
             //We want to keep track of the structs that we've allocated and free up the last set that had been
             //given
             CONNECTED_DEVICES.with(|devs| {
-                let mut old = (*devs.borrow_mut()).replace(c_devices);
+                let old = (*devs.borrow_mut()).replace(c_devices);
                 if let Some(mut old_devices) = old {
                     for dev in old_devices.drain(..) {
                         unsafe {
