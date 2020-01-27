@@ -23,7 +23,7 @@ script = [
 [tasks.test]
 command = "${CARGO_COMMAND}"
 args = ["test", "--all-features", "${@}"]
-dependencies = [ "cargo-args", "build" ] # Build is included here as we need to ensure that the test-plugin and the test-c-plugin have been properly compiled
+dependencies = [ "cargo-args" ]
 
 [tasks.install-test-plugin]
 script_runner = "@shell"

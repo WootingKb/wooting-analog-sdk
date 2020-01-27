@@ -145,14 +145,14 @@ pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: D
 /// * `UnInitialized`: The SDK is not initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_set_device_event_cb(
-    cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_C),
+    cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI),
 ) -> WootingAnalogResult {
     ANALOG_SDK
         .lock()
         .unwrap()
         .set_device_event_cb(move |event, device: DeviceInfo| {
             // Create pointer to the C version of Device Info to pass to the callback
-            let device_box: Box<DeviceInfo_C> = Box::new(device.into());
+            let device_box: Box<DeviceInfo_FFI> = Box::new(device.into());
             let device_raw = Box::into_raw(device_box);
             cb(event, device_raw);
             //We need to box up the pointer again to ensure it is properly dropped
@@ -173,7 +173,7 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
     ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
 }
 
-thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_C>>> = RefCell::new(None));
+thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = RefCell::new(None));
 
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
 ///
@@ -186,7 +186,7 @@ thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_C>>> 
 /// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_get_connected_devices_info(
-    buffer: *mut *mut DeviceInfo_C,
+    buffer: *mut *mut DeviceInfo_FFI,
     len: c_uint,
 ) -> c_int {
     let result: SDKResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
@@ -202,7 +202,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
 
             devices.truncate(device_no);
             // Convert all the DeviceInfo's into DeviceInfo_C pointers
-            let mut c_devices: Vec<*mut DeviceInfo_C> = devices
+            let mut c_devices: Vec<*mut DeviceInfo_FFI> = devices
                 .drain(..)
                 .map(|dev| Box::into_raw(Box::new(dev.into())))
                 .collect();
@@ -350,7 +350,7 @@ mod tests {
     lazy_static! {
         static ref got_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
     }
-    extern "C" fn connect_cb(event: DeviceEventType, device: *mut DeviceInfo_C) {
+    extern "C" fn connect_cb(event: DeviceEventType, device: *mut DeviceInfo_FFI) {
         info!("Got cb {:?}", event);
 
         *Arc::clone(&got_connected).lock().unwrap() = event == DeviceEventType::Connected;
@@ -443,7 +443,7 @@ mod tests {
 
         //Check that we now have one device
         {
-            let mut device_infos: Vec<*mut DeviceInfo_C> =
+            let mut device_infos: Vec<*mut DeviceInfo_FFI> =
                 vec![std::ptr::null_mut(); 2];
             assert_eq!(
                 wooting_analog_get_connected_devices_info(
@@ -476,7 +476,7 @@ mod tests {
 
         //Check that we now have no devices
         {
-            let mut device_infos: Vec<*mut DeviceInfo_C> =
+            let mut device_infos: Vec<*mut DeviceInfo_FFI> =
                 vec![std::ptr::null_mut(); 2];
             assert_eq!(
                 wooting_analog_get_connected_devices_info(

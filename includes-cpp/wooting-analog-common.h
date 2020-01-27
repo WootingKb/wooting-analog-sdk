@@ -56,17 +56,18 @@ enum class WootingAnalogResult {
   WootingAnalogResult_NotAvailable,
 };
 
+/// The core `DeviceInfo` struct which contains all the interesting information
+/// for a particular device. This is for use internally and should be ignored if you're
+/// trying to use it when trying to interact with the SDK using the wrapper
+struct WootingAnalog_DeviceInfo;
+
 using WootingAnalog_DeviceID = uint64_t;
-
-struct WootingAnalog_DeviceInfo {
-
-};
 
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is the version which the consumer of the SDK will receive
 /// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
 /// DeviceInfo is for
-struct WootingAnalog_DeviceInfo_C {
+struct WootingAnalog_DeviceInfo_FFI {
   /// Device Vendor ID `vid`
   uint16_t vendor_id;
   /// Device Product ID `pid`

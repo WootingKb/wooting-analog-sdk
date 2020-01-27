@@ -20,13 +20,13 @@ WootingAnalogResult wooting_analog_clear_device_event_cb();
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
 ///
 /// # Notes
-/// There is no guarenteed lifetime of the DeviceInfo structs given back, so if you wish to use any data from them, please copy it.
+/// * The memory of the returned structs will only be kept until the next call of `get_connected_devices_info`, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling `get_connected_devices_info` again.
 ///
 /// # Expected Returns
 /// Similar to wooting_analog_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type WootingAnalogResult
 /// * `ret>=0`: The number of connected devices that have been filled into the buffer
 /// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-int wooting_analog_get_connected_devices_info(WootingAnalog_DeviceInfo **buffer,
+int wooting_analog_get_connected_devices_info(WootingAnalog_DeviceInfo_FFI **buffer,
                                               unsigned int len);
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -125,13 +125,13 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
 /// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
 ///
 /// # Notes
-/// * There's no guarentee to the lifetime of the DeviceInfo pointer given during the callback, if it's a Disconnected event, it's likely the memory will be freed immediately after the callback, so it's best to copy any data you wish to use.
+/// * You must copy the DeviceInfo struct or its data if you wish to use it after the callback has completed, as the memory will be freed straight after
 /// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
 ///
 /// # Expected Returns
 /// * `Ok`: The callback was set successfully
 /// * `UnInitialized`: The SDK is not initialised
-WootingAnalogResult wooting_analog_set_device_event_cb(void (*cb)(WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo*));
+WootingAnalogResult wooting_analog_set_device_event_cb(void (*cb)(WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo_FFI*));
 
 /// Sets the type of Keycodes the Analog SDK will receive (in `read_analog`) and output (in `read_full_buffer`).
 ///

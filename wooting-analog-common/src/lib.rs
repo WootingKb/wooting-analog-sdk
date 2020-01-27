@@ -18,7 +18,8 @@ pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
 pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 
 /// The core `DeviceInfo` struct which contains all the interesting information
-/// for a particular device
+/// for a particular device. This is for use internally and should be ignored if you're
+/// trying to use it when trying to interact with the SDK using the wrapper
 #[derive(Clone)]
 pub struct DeviceInfo {
     /// Device Vendor ID `vid`
@@ -35,17 +36,12 @@ pub struct DeviceInfo {
     pub device_type: DeviceType,
 }
 
-/// This is an empty struct that is used to ensure the generated C headers have a blank struct to use in place of the actual
-/// DeviceInfo struct. A bit hacky, if you know a better way to do this please let me know!
-#[repr(C)]
-pub struct DeviceInfoBlank();
-
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is the version which the consumer of the SDK will receive
 /// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
 /// DeviceInfo is for
 #[repr(C)]
-pub struct DeviceInfo_C {
+pub struct DeviceInfo_FFI {
     /// Device Vendor ID `vid`
     pub vendor_id: u16,
     /// Device Product ID `pid`
@@ -60,9 +56,9 @@ pub struct DeviceInfo_C {
     pub device_type: DeviceType,
 }
 
-impl From<DeviceInfo> for DeviceInfo_C {
+impl From<DeviceInfo> for DeviceInfo_FFI {
     fn from(device: DeviceInfo) -> Self {
-        DeviceInfo_C {
+        DeviceInfo_FFI {
             vendor_id: device.vendor_id,
             product_id: device.product_id,
             manufacturer_name: CString::new(device.manufacturer_name).unwrap().into_raw(),
@@ -86,7 +82,7 @@ impl From<DeviceInfo> for DeviceInfo_C {
 //    }
 //}
 
-impl Drop for DeviceInfo_C {
+impl Drop for DeviceInfo_FFI {
     fn drop(&mut self) {
         //Ensure we properly drop the memory for the char pointers
         unsafe {

@@ -92,11 +92,14 @@ typedef enum {
   WootingAnalogResult_NotAvailable,
 } WootingAnalogResult;
 
+/**
+ * The core `DeviceInfo` struct which contains all the interesting information
+ * for a particular device. This is for use internally and should be ignored if you're
+ * trying to use it when trying to interact with the SDK using the wrapper
+ */
+typedef struct WootingAnalog_DeviceInfo WootingAnalog_DeviceInfo;
+
 typedef uint64_t WootingAnalog_DeviceID;
-
-typedef struct {
-
-} WootingAnalog_DeviceInfo;
 
 /**
  * The core `DeviceInfo` struct which contains all the interesting information
@@ -129,7 +132,7 @@ typedef struct {
    * Hardware type of the Device
    */
   WootingAnalog_DeviceType device_type;
-} WootingAnalog_DeviceInfo_C;
+} WootingAnalog_DeviceInfo_FFI;
 
 /**
  * Drops the given `DeviceInfo`
