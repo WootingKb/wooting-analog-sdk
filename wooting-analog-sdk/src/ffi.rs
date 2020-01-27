@@ -318,6 +318,7 @@ mod tests {
     };
     use std::ffi::CString;
     use std::time::Duration;
+    use std::sync::{Arc, MutexGuard};
 
     struct SharedState {
         pub vendor_id: u16,
