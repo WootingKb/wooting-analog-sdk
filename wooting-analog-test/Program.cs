@@ -80,7 +80,7 @@ namespace analog_sdk_test
 
             var (deviceNo, err) = WootingAnalogSDK.Initialise();
             if (deviceNo >= 0){
-                Console.WriteLine($"SDK Successfully initialised with {err} devices!");
+                Console.WriteLine($"SDK Successfully initialised with {deviceNo} devices!");
                 WootingAnalogSDK.DeviceEvent += device_event_cb;
                 //Console.WriteLine($"Yo yo yo 9+10={Native.wooting_analog_add(9,10)}!");
                 Stopwatch sw = new Stopwatch();
