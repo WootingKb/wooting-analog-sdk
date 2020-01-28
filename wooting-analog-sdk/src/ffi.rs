@@ -176,7 +176,7 @@ thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
 ///
 /// # Notes
-/// * The memory of the returned structs will only be kept until the next call of `get_connected_devices_info`, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling `get_connected_devices_info` again.
+/// * The memory of the returned structs will only be kept until the next call of this function, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling this function again.
 ///
 /// # Expected Returns
 /// Similar to wooting_analog_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type WootingAnalogResult
