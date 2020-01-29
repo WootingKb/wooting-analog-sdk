@@ -69,19 +69,6 @@ impl From<DeviceInfo> for DeviceInfo_FFI {
     }
 }
 
-//impl DeviceInfo_C {
-//    fn into_device(&self) -> DeviceInfo {
-//        DeviceInfo {
-//            vendor_id: self.vendor_id,
-//            product_id: self.product_id,
-//            manufacturer_name: unsafe { CStr::from_ptr(self.manufacturer_name).to_string_lossy().into_owned() },
-//            device_name: unsafe { CStr::from_ptr(self.device_name).to_string_lossy().into_owned() },
-//            device_id: self.device_id,
-//            device_type: self.device_type.clone(),
-//        }
-//    }
-//}
-
 impl Drop for DeviceInfo_FFI {
     fn drop(&mut self) {
         //Ensure we properly drop the memory for the char pointers
@@ -128,10 +115,6 @@ impl DeviceInfo {
             device_type,
         }
     }
-
-    //    pub fn convert_to_ptr(self) -> DeviceInfoPointer {
-    //        Box::into_raw(Box::new(self)).into()
-    //    }
 }
 
 /// Create a new device info struct. This is only for use in Plugins that are written in C
@@ -158,50 +141,6 @@ pub extern "C" fn new_device_info(vendor_id: u16,
 pub unsafe extern "C" fn drop_device_info(device: *mut DeviceInfo) {
     Box::from_raw(device);
 }
-
-// #[derive(Clone)]
-// pub struct DeviceInfoPointer(pub *mut DeviceInfo);
-
-// unsafe impl Send for DeviceInfoPointer {}
-
-// impl Default for DeviceInfoPointer {
-//     fn default() -> Self {
-//         DeviceInfoPointer(std::ptr::null_mut())
-//     }
-// }
-
-// impl From<*mut DeviceInfo> for DeviceInfoPointer {
-//     fn from(ptr: *mut DeviceInfo) -> Self {
-//         DeviceInfoPointer(ptr)
-//     }
-// }
-
-// impl Into<*mut DeviceInfo> for DeviceInfoPointer {
-//     fn into(self) -> *mut DeviceInfo {
-//         self.0
-//     }
-// }
-
-// impl DeviceInfoPointer {
-//     pub fn drop(self) {
-//         debug!("Dropping DeviceInfoPointer");
-
-//         if self.0.is_null() {
-//             debug!("DeviceInfoPointer is null, ignoring");
-//             return;
-//         }
-
-//         unsafe {
-//             let dev: Box<DeviceInfo> = Box::from_raw(self.into());
-//             if !dev.device_name.is_null() {
-//                 CString::from_raw(dev.device_name as *mut c_char);
-//             }
-//             if !dev.manufacturer_name.is_null() {
-//                 CString::from_raw(dev.manufacturer_name as *mut c_char);
-//             }
-//         }
-//     }
-// }
 
 enum_from_primitive! {
     #[derive(Debug, PartialEq, Clone)]
@@ -266,7 +205,9 @@ enum_from_primitive! {
         /// No Keycode mapping to HID was found for the given Keycode
         NoMapping,
         /// Indicates that it isn't available on this platform
-        NotAvailable
+        NotAvailable,
+        /// Indicates that the operation that is trying to be used is for an older version
+        IncompatibleVersion,
 
     }
 }

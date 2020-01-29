@@ -54,6 +54,8 @@ enum class WootingAnalogResult {
   WootingAnalogResult_NoMapping,
   /// Indicates that it isn't available on this platform
   WootingAnalogResult_NotAvailable,
+  /// Indicates that the operation that is trying to be used is for an older version
+  WootingAnalogResult_IncompatibleVersion,
 };
 
 /// The core `DeviceInfo` struct which contains all the interesting information

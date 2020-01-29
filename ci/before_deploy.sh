@@ -23,7 +23,7 @@ main() {
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="dylib"
-            cargo=cross
+            cargo=cargo
             ;;
         windows)
             stage=$(mktemp -d)

@@ -75,11 +75,22 @@ pub struct CPlugin {
 }
 
 impl CPlugin {
-    pub fn new(lib: Library) -> CPlugin {
-        CPlugin {
+    pub fn new(lib: Library) -> SDKResult<CPlugin> {
+        unsafe {
+            if let Some(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION").ok() {
+                let v = **ver;
+                info!("Got cplugin abi: {:?}", v);
+                if v != CPLUGIN_ABI_VERSION {
+                    error!("CPlugin ABI version does not match! Given: {}, Expected: {}", v, CPLUGIN_ABI_VERSION);
+                    return Err(WootingAnalogResult::IncompatibleVersion).into()
+                }
+            }
+        }
+
+        Ok(CPlugin {
             lib,
             //funcs: HashMap::new()
-        }
+        }).into()
     }
 
     lib_wrap_option! {

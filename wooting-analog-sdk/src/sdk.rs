@@ -166,7 +166,7 @@ impl AnalogSDK {
                         unsafe {
                             if self
                                 .load_plugin(&path)
-                                .map_err(|e| error!("{:?}", e))
+                                .map_err(|e| error!("Load Plugin failed: {:?}", e))
                                 .is_ok()
                             {
                                 i += 1;
@@ -199,10 +199,28 @@ impl AnalogSDK {
         let lib = self.loaded_libraries.last().unwrap();
 
         let full_version: Option<Symbol<PluginVersion>> = lib.get(b"plugin_version").ok();
-        if let Some(ver) = full_version {
-            info!("Plugin got plugin-dev sem version: {}", ver());
+        let mut got_ver = false;
+        if let Some(f_ver) = full_version {
+            got_ver = true;
+            let ver = f_ver();
+            info!("Plugin got plugin-dev sem version: {}. SDK: {}", ver, ANALOG_SDK_PLUGIN_VERSION);
+
+            if let Some(major_ver) = ANALOG_SDK_PLUGIN_VERSION.split('.').collect::<Vec<&str>>().first() {
+                if let Some(plugin_major_ver) = ver.split('.').collect::<Vec<&str>>().first() {
+                    if major_ver.eq(plugin_major_ver) {
+                        info!("Plugin and SDK are compatible!");
+                    } else {
+                        return Err(format!("Plugin has major version {}, which is incompatible with the SDK's: {}", plugin_major_ver, ANALOG_SDK_PLUGIN_VERSION).into());
+                    }
+                } else {
+                    return Err("Unable to get the Plugin's major version from SemVer".into());
+                }
+            } else {
+                return Err("Unable to get the SDK's Plugin major version from SemVer".into());
+            }
+
         } else {
-            debug!("No symbol");
+            info!("Unable to determine the Plugin's SemVer!");
         }
 
         let constructor: Option<Symbol<PluginCreate>> = lib
@@ -215,21 +233,31 @@ impl AnalogSDK {
 
         let mut plugin = match constructor {
             Some(f) => {
+                if !got_ver {
+                    return Err("Unable to determine the Plugin's SemVer!".into());
+                }
+
                 debug!("We got it and we're trying");
                 Box::from_raw(f())
             }
             None => {
                 warn!("Didn't find _plugin_create, assuming it's a c plugin");
                 let lib = self.loaded_libraries.pop().unwrap();
-                if lib
-                    .get::<unsafe extern "C" fn() -> i32>(b"_initialise")
-                    .is_ok()
-                {
-                    Box::new(CPlugin::new(lib))
-                } else {
-                    return Err(
-                        "Plugin isn't a valid C or Rust plugin, couldn't find entry point".into(),
-                    );
+                match CPlugin::new(lib).0 {
+                    Ok(cplugin) => {
+                        Box::new(cplugin)
+                    },
+                    Err(WootingAnalogResult::IncompatibleVersion) => {
+                        return Err(
+                            "Plugin is a C plugin which is incompatible with this version of the SDK".into(),
+                        );
+                    },
+                    Err(_) => {
+                        return Err(
+                            "Plugin isn't a valid C or Rust plugin".into(),
+                        );
+                    }
+
                 }
             }
         };
