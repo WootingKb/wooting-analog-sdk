@@ -19,6 +19,8 @@ impl Default for Void {
 }
 */
 
+const SDK_ABI_VERSION: c_int = 0;
+
 macro_rules! dynamic_extern {
     (@as_item $i:item) => {$i};
 
@@ -57,6 +59,11 @@ macro_rules! dynamic_extern {
                 pub unsafe extern fn $fn_names($($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     type FnPtr = unsafe extern $cconv fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
 
+                    if stringify!($fn_names) != "wooting_analog_version" && wooting_analog_version() != SDK_ABI_VERSION {
+                        println!("Cannot access Wooting Analog SDK function as this wrapper is for SDK major version {}, whereas the SDK has major version {}", SDK_ABI_VERSION, wooting_analog_version());
+                        return WootingAnalogResult::IncompatibleVersion.into()
+                    }
+
                     lazy_static! {
                         static ref FUNC: Option<libl::Symbol<'static, FnPtr>> = {
                             LIB.as_ref().and_then(|lib| unsafe {
@@ -80,6 +87,10 @@ macro_rules! dynamic_extern {
 dynamic_extern! {
     #[link="wooting_analog_sdk"]
     extern "C" {
+        /// Provides the major version of the SDK, a difference in this value to what is expected indicates that
+        /// there may be some breaking changes that have been made so the SDK should not be attempted to be used
+        fn wooting_analog_version() -> c_int;
+
         /// Initialises the Analog SDK, this needs to be successfully called before any other functions
         /// of the SDK can be called
         ///

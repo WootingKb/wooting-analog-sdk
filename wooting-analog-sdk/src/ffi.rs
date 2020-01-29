@@ -22,6 +22,13 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     ANALOG_SDK.lock().unwrap().initialise().into()
 }
 
+/// Provides the major version of the SDK, a difference in this value to what is expected indicates that
+/// there may be some breaking changes that have been made so the SDK should not be attempted to be used
+#[no_mangle]
+pub extern "C" fn wooting_analog_version() -> c_int {
+    env!("CARGO_PKG_VERSION").split('.').collect::<Vec<&str>>().first().and_then(|v| v.parse().ok()).unwrap()
+}
+
 /// Returns a bool indicating if the Analog SDK has been initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_is_initialised() -> bool {
@@ -393,6 +400,8 @@ mod tests {
     #[test]
     fn test_ffi_interface() {
         shared_init();
+
+        assert_eq!(wooting_analog_version(), 0);
 
         //Claim the mutex lock
         let lock = TEST_PLUGIN_LOCK.lock().unwrap();

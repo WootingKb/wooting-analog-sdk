@@ -10,6 +10,7 @@ documentation_style = "c++"
 [export]
 #include = ["DeviceInfo", "DeviceEventType", "WootingAnalogResult", "KeycodeType"]
 #exclude = ["Void"]
+exclude = ["wooting_analog_version"]
 prefix = "WootingAnalog_"
 renaming_overrides_prefixing = true
 

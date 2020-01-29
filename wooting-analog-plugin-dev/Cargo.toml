@@ -1,6 +1,6 @@
 [package]
 name = "wooting-analog-plugin-dev"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["simon-wh <simon@wooting.io>"]
 edition = "2018"
 license = "MPL-2.0"
@@ -16,7 +16,7 @@ documentation = "https://docs.rs/wooting-analog-plugin-dev"
 #use this for local development
 wooting-analog-common = { path = "../wooting-analog-common"}
 #Use this when publishing
-#wooting-analog-common = "0.3.0"
+#wooting-analog-common = "0.4.0"
 ffi-support = "0.3.5"
 
 

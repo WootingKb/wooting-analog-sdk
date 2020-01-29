@@ -7,11 +7,9 @@ use wooting_analog_plugin_dev::*;
 use wooting_analog_plugin_dev::wooting_analog_common::*;
 use std::collections::HashMap;
 use shared_memory::*;
-use std::os::raw::{c_char};
 use log::{error, info};
 use std::thread;
 use std::sync::{Arc, Mutex};
-use std::path::Path;
 use std::string::ToString;
 
 struct WootingAnalogTestPlugin {

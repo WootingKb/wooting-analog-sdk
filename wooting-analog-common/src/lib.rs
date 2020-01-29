@@ -343,3 +343,9 @@ impl<T> From<WootingAnalogResult> for SDKResult<T> {
         Err(res).into()
     }
 }
+
+impl Into<bool> for WootingAnalogResult {
+    fn into(self) -> bool {
+        self == WootingAnalogResult::Ok
+    }
+}
