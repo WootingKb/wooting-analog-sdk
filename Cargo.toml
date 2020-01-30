@@ -1,3 +1,9 @@
+[profile.dev]
+rpath = true
+
+[profile.release]
+rpath = true
+
 [workspace]
 
 members = [
