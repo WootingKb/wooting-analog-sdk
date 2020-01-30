@@ -33,7 +33,7 @@ int wooting_analog_get_connected_devices_info(WootingAnalog_DeviceInfo_FFI **buf
 /// # Expected Returns
 /// * `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
-WootingAnalogResult wooting_analog_initialise(void);
+int wooting_analog_initialise(void);
 
 /// Returns a bool indicating if the Analog SDK has been initialised
 bool wooting_analog_is_initialised(void);
