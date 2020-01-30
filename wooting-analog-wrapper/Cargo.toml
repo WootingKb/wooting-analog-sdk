@@ -1,6 +1,6 @@
 [package]
 name = "wooting-analog-wrapper"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
 edition = "2018"
 
@@ -11,6 +11,3 @@ wooting-analog-common = { path = "../wooting-analog-common"}
 
 [lib]
 crate-type = ["cdylib", "rlib", "staticlib"]
-
-[profile.release]
-rpath = true
