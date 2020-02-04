@@ -13,7 +13,8 @@ main() {
 
     #cross build --target $TARGET
     #cross build --target $TARGET --release
-    cargo make build -e CARGO_COMMAND=$cargo -- --target $TARGET --release
+    #cargo make build -e CARGO_COMMAND=$cargo -- --target $TARGET --release
+    cargo check
 
 
     if [ ! -z $DISABLE_TESTS ]; then
