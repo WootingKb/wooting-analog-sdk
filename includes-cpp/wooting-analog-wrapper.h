@@ -35,6 +35,8 @@ int wooting_analog_get_connected_devices_info(WootingAnalog_DeviceInfo_FFI **buf
 /// # Expected Returns
 /// * `ret>=0`: Meaning the SDK initialised successfully and the number indicates the number of devices that were found on plugin initialisation
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
+/// * `FunctionNotFound`: The SDK is either not installed or could not be found
+/// * `IncompatibleVersion`: The installed SDK is incompatible with this wrapper as they are on different Major versions
 int wooting_analog_initialise();
 
 /// Returns a bool indicating if the Analog SDK has been initialised
