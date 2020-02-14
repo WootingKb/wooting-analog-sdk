@@ -21,7 +21,8 @@ To install manually:
 ### Mac
 Currently there is no installer available for Mac, so you will have to install manually.
 * Download & Extract the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) `wooting-analog-sdk-v*.*.*-x86_64-apple-darwin.tar.gz`
-* Copy `$extract/wrapper/sdk/libwooting_analog_sdk.dylib` to `/Library`. (Or to some directory and add that path to the `DYLD_LIBRARY_PATH` environment variable)
+* Copy `$extract/wrapper/sdk/libwooting_analog_sdk.dylib` to `/usr/local/lib`. (Or to some directory and add that path to the `DYLD_LIBRARY_PATH` environment variable)
+* Additionally, you may need to adjust security settings for OSX to let it run. For [reference](https://github.com/hashicorp/terraform/issues/23033#issuecomment-542302933)
 * Follow the installation instructions for the [Wooting Analog Plugin](https://github.com/WootingKb/wooting-analog-plugin)
 
 ## Plugins
