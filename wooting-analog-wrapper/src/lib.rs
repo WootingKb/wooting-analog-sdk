@@ -59,7 +59,7 @@ macro_rules! dynamic_extern {
                 pub unsafe extern fn $fn_names($($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     type FnPtr = unsafe extern $cconv fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
 
-                    if stringify!($fn_names) != "wooting_analog_version" && wooting_analog_version() != SDK_ABI_VERSION {
+                    if stringify!($fn_names) != "wooting_analog_version" && wooting_analog_version() >= 0 && wooting_analog_version() != SDK_ABI_VERSION {
                         println!("Cannot access Wooting Analog SDK function as this wrapper is for SDK major version {}, whereas the SDK has major version {}", SDK_ABI_VERSION, wooting_analog_version());
                         return WootingAnalogResult::IncompatibleVersion.into()
                     }
