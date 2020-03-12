@@ -350,8 +350,7 @@ impl Sandbox for AppState {
             Ok(v) => v,
             Err(e) => {
                 info!("Error : {}", e);
-                info!("Failed to open SharedMem...");
-                panic!();
+                panic!("Failed to open SharedMem...");
             }
         };
 
