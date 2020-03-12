@@ -10,12 +10,15 @@ edition = "2018"
 wooting-analog-common = { path = "../wooting-analog-common"}
 shared_memory = "0.8.2"
 log = "0.4.7"
-gdk = "0.11.0"
+#gdk = "0.11.0"
+iced = { git = "https://github.com/hecrj/iced" }
+env_logger = "0.7.1"
+lazy_static = "*"
 
-[dependencies.gtk]
-version = "0.7.0"
-features = ["v3_16"]
-
-[dependencies.gio]
-version = ""
-features = ["v2_44"]
+#[dependencies.gtk]
+#version = "0.7.0"
+#features = ["v3_16"]
+#
+#[dependencies.gio]
+#version = ""
+#features = ["v2_44"]
