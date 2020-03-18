@@ -1,9 +1,9 @@
 use crate::sdk::*;
-use wooting_analog_common::enum_primitive::FromPrimitive;
 use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::slice;
-use std::sync::{Mutex};
+use std::sync::Mutex;
+use wooting_analog_common::enum_primitive::FromPrimitive;
 use wooting_analog_common::*;
 
 lazy_static! {
@@ -26,7 +26,12 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
 /// there may be some breaking changes that have been made so the SDK should not be attempted to be used
 #[no_mangle]
 pub extern "C" fn wooting_analog_version() -> c_int {
-    env!("CARGO_PKG_VERSION").split('.').collect::<Vec<&str>>().first().and_then(|v| v.parse().ok()).unwrap()
+    env!("CARGO_PKG_VERSION")
+        .split('.')
+        .collect::<Vec<&str>>()
+        .first()
+        .and_then(|v| v.parse().ok())
+        .unwrap()
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
@@ -130,7 +135,10 @@ pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
 /// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
 /// * `WootingAnalogResult::NoDevices`: There are no connected devices with id `device_id`
 #[no_mangle]
-pub extern "C" fn wooting_analog_read_analog_device(code: c_ushort, device_id: DeviceID) -> c_float {
+pub extern "C" fn wooting_analog_read_analog_device(
+    code: c_ushort,
+    device_id: DeviceID,
+) -> c_float {
     ANALOG_SDK
         .lock()
         .unwrap()
@@ -310,7 +318,7 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
                 analog[count] = *val;
                 count += 1;
             }
-            (count as c_int)
+            count as c_int
         }
         Err(e) => e as c_int,
     }
@@ -323,9 +331,9 @@ mod tests {
     use shared_memory::{
         ReadLockGuard, ReadLockable, SharedMem, SharedMemCast, WriteLockGuard, WriteLockable,
     };
-    use std::ffi::CString;
-    use std::time::Duration;
+
     use std::sync::{Arc, MutexGuard};
+    use std::time::Duration;
 
     struct SharedState {
         pub vendor_id: u16,
@@ -356,7 +364,7 @@ mod tests {
     lazy_static! {
         static ref got_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
     }
-    extern "C" fn connect_cb(event: DeviceEventType, device: *mut DeviceInfo_FFI) {
+    extern "C" fn connect_cb(event: DeviceEventType, _device: *mut DeviceInfo_FFI) {
         info!("Got cb {:?}", event);
 
         *Arc::clone(&got_connected).lock().unwrap() = event == DeviceEventType::Connected;
@@ -404,12 +412,12 @@ mod tests {
         assert_eq!(wooting_analog_version(), 0);
 
         //Claim the mutex lock
-        let lock = TEST_PLUGIN_LOCK.lock().unwrap();
+        let _lock = TEST_PLUGIN_LOCK.lock().unwrap();
 
         let mut mode;
         let dir = format!(
-            "../wooting-analog-test-plugin/target/{}",
-            std::env::var("TARGET").unwrap_or("/debug".to_owned())
+            "../target/{}/test-plugin",
+            std::env::var("TARGET").unwrap_or("debug".to_owned())
         );
         info!("Loading plugins from: {:?}", dir);
         assert!(!wooting_analog_is_initialised());
@@ -451,8 +459,7 @@ mod tests {
 
         //Check that we now have one device
         {
-            let mut device_infos: Vec<*mut DeviceInfo_FFI> =
-                vec![std::ptr::null_mut(); 2];
+            let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 2];
             assert_eq!(
                 wooting_analog_get_connected_devices_info(
                     device_infos.as_mut_ptr(),
@@ -484,8 +491,7 @@ mod tests {
 
         //Check that we now have no devices
         {
-            let mut device_infos: Vec<*mut DeviceInfo_FFI> =
-                vec![std::ptr::null_mut(); 2];
+            let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 2];
             assert_eq!(
                 wooting_analog_get_connected_devices_info(
                     device_infos.as_mut_ptr(),

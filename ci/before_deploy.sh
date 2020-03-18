@@ -16,14 +16,12 @@ main() {
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="so"
-            cargo=cargo
             ;;
         osx)
             stage=$(mktemp -d -t tmp)
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="dylib"
-            cargo=cargo
             ;;
         windows)
             stage=$(mktemp -d)
@@ -35,8 +33,7 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
-    # TODO Update this to build the artifacts that matter to you
-    cargo make build -e CARGO_COMMAND=$cargo -- --target $TARGET --release
+    cargo make build-target-release
 
 
     mkdir $stage/plugins
@@ -51,8 +48,8 @@ main() {
     mkdir $stage/wrapper/sdk
 
     # Copy Plugin items
-    cp target/$TARGET/release/${lib_prefix}wooting_analog_common.$lib_ext $stage/plugins/lib
-    cp target/$TARGET/release/${lib_prefix}wooting_analog_plugin_dev.$lib_ext $stage/plugins/lib
+    cp target/release-artifacts/${lib_prefix}wooting_analog_common.$lib_ext $stage/plugins/lib
+    cp target/release-artifacts/${lib_prefix}wooting_analog_plugin_dev.$lib_ext $stage/plugins/lib
 
     ## Copy c headers
     cp includes/plugin.h $stage/plugins/includes/
@@ -69,10 +66,10 @@ main() {
 
 
     # Copy wrapper items
-    cp target/$TARGET/release/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext $stage/wrapper/
-    cp target/$TARGET/release/${lib_prefix}wooting_analog_wrapper.$lib_ext $stage/wrapper/lib/
-    cp target/$TARGET/release/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
-    cp wooting-analog-test-plugin/target/$TARGET/release/${lib_prefix}wooting_analog_test_plugin.$shared_lib_ext $stage/wrapper/sdk/
+    cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext $stage/wrapper/
+    cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$lib_ext $stage/wrapper/lib/
+    cp target/release-artifacts/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
+    cp target/release-artifacts/${lib_prefix}wooting_analog_test_plugin.$shared_lib_ext $stage/wrapper/sdk/
 
     ## Copy c headers
     cp includes/wooting-analog-wrapper.h $stage/wrapper/includes/

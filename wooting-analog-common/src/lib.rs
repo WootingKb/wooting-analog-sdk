@@ -122,18 +122,26 @@ impl DeviceInfo {
 /// The memory for the struct has been allocated in Rust. So `drop_device_info` must be called
 /// for the memory to be properly released
 #[no_mangle]
-pub extern "C" fn new_device_info(vendor_id: u16,
-                                  product_id: u16,
-                                  manufacturer_name: *mut c_char,
-                                  device_name: *mut c_char,
-                                  device_id: DeviceID,
-                                  device_type: DeviceType) -> *mut DeviceInfo {
-    Box::into_raw(Box::new(DeviceInfo::new_with_id(vendor_id,
-                                                   product_id,
-                                                   unsafe { CStr::from_ptr(manufacturer_name).to_string_lossy().into_owned() },
-                                                   unsafe { CStr::from_ptr(device_name).to_string_lossy().into_owned() },
-                                                   device_id,
-                                                   device_type)))
+pub extern "C" fn new_device_info(
+    vendor_id: u16,
+    product_id: u16,
+    manufacturer_name: *mut c_char,
+    device_name: *mut c_char,
+    device_id: DeviceID,
+    device_type: DeviceType,
+) -> *mut DeviceInfo {
+    Box::into_raw(Box::new(DeviceInfo::new_with_id(
+        vendor_id,
+        product_id,
+        unsafe {
+            CStr::from_ptr(manufacturer_name)
+                .to_string_lossy()
+                .into_owned()
+        },
+        unsafe { CStr::from_ptr(device_name).to_string_lossy().into_owned() },
+        device_id,
+        device_type,
+    )))
 }
 
 /// Drops the given `DeviceInfo`

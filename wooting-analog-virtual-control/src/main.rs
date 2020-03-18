@@ -1,21 +1,10 @@
-#[macro_use]
-extern crate log;
 extern crate env_logger;
+extern crate log;
 #[macro_use]
 extern crate lazy_static;
 use log::{error, info};
 use shared_memory::*;
-use std::path::Path;
-//
-// extern crate gdk;
-// extern crate gio;
-// extern crate gtk;
-//
-// // To import all needed traits.
-// use gio::prelude::*;
-// use gtk::prelude::*;
 
-use std::env;
 use wooting_analog_common::DeviceType;
 
 struct SharedState {
@@ -206,9 +195,8 @@ lazy_static! {
 use env_logger::Env;
 use iced::widget::container::Style;
 use iced::{
-    button, container, scrollable, slider, text_input, window, Align, Button, Checkbox, Color,
-    Column, Container, Element, HorizontalAlignment, Length, ProgressBar, Radio, Row, Sandbox,
-    Scrollable, Settings, Slider, Space, Text, TextInput,
+    container, slider, window, Align, Checkbox, Color, Column, Container, Element,
+    HorizontalAlignment, Length, Row, Sandbox, Settings, Slider, Text,
 };
 use std::borrow::Borrow;
 

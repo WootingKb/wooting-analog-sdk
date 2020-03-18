@@ -1,17 +1,13 @@
 [env]
-CARGO_COMMAND = "cargo"
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = "true"
 LIBRARY_EXTENSION = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "unknown", mapping = {"linux" = "so", "macos" = "dylib", "windows" = "dll", "openbsd" = "so" } }
 LIBRARY_PREFIX = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "unknown", mapping = {"linux" = "lib", "macos" = "lib", "windows" = "", "openbsd" = "lib" } }
 TEST_PLUGIN_FILENAME="wooting_analog_test_plugin"
-
-[config]
-default_to_workspace=false
-
+# We want to skip the updater on non-windows platforms as it's just designed for windows
+CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "", mapping = { "linux" = "wooting-analog-sdk-updater", "macos" = "wooting-analog-sdk-updater" } }
 
 [tasks.build]
-command = "${CARGO_COMMAND}"
-args = ["build", "--all-features", "${@}"]
-dependencies = [ "cargo-args", "build-test-plugin" ]
+dependencies = [ "cargo-args"]
 
 [tasks.cargo-args]
 condition = { env_set = [ "CARGO_TARGET" ] }
@@ -20,78 +16,39 @@ script = [
     "echo var: ${CARGO_TARGET}"
 ]
 
-[tasks.test]
-command = "${CARGO_COMMAND}"
-args = ["test", "--all-features", "${@}"]
-dependencies = [ "cargo-args" ]
-
-[tasks.install-test-plugin]
-script_runner = "@shell"
-script = [
-'''
-sudo mkdir -p "${PLUGIN_INSTALL_PATH}"
-sudo mkdir -p "${PLUGIN_INSTALL_PATH}/wooting-test-plugin"
-
-sudo cp "./wooting-analog-test-plugin/target/debug/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "${PLUGIN_INSTALL_PATH}/wooting-test-plugin/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
-'''
-]
-dependencies = ["build-test-plugin"]
-
-[tasks.install-test-plugin.linux]
-env = {PLUGIN_INSTALL_PATH="/usr/local/share/WootingAnalogPlugins"}
-
-[tasks.install-test-plugin.windows]
-env = {PLUGIN_INSTALL_PATH="C:\\Program Files\\WootingAnalogPlugins"}
-script_runner = "powershell"
-script_extension = "ps1"
-script = [
-'''
-echo "Requesting admin powershell to install the test-plugin"
-$command = "New-Item -ItemType 'directory' -Force '${env:PLUGIN_INSTALL_PATH}\wooting-test-plugin'; Copy-Item '${env:CARGO_MAKE_WORKING_DIRECTORY}\wooting-analog-test-plugin\target\debug\${env:LIBRARY_PREFIX}${env:TEST_PLUGIN_FILENAME}.${env:LIBRARY_EXTENSION}' '${env:PLUGIN_INSTALL_PATH}\wooting-test-plugin\${env:LIBRARY_PREFIX}${env:TEST_PLUGIN_FILENAME}.${env:LIBRARY_EXTENSION}' -Force"
-echo $command
-Start-Process PowerShell.exe -ArgumentList $command -Wait -Verb RunAs
-'''
-]
-
-[tasks.install-test-plugin.mac]
-env = {TEST_PLUGIN_FILENAME="libwooting_analog_test_plugin",PLUGIN_INSTALL_PATH="/Library/WootingAnalogPlugins"}
-
-[tasks.build-test-plugin]
-command = "${CARGO_COMMAND}"
-args = ["build", "--manifest-path", "wooting-analog-test-plugin/Cargo.toml", "${@}"]
-
 [tasks.test-app]
-env = {  WOOTING_ANALOG_SDK_PLUGINS_PATH="${WOOTING_ANALOG_SDK_PLUGINS_PATH};${CARGO_MAKE_WORKING_DIRECTORY}/wooting-analog-test-plugin/target/debug", PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
+env = { PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
 command = "dotnet"
-args = [ "run", "--project", "wooting-analog-test" ]
-dependencies = [ "build", "install-test-plugin" ]
+args = [ "run", "--project", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-test" ]
+dependencies = [ "build", "install-plugin" ]
 
 [tasks.gen-headers]
-workspace = true
-env = { CARGO_MAKE_MEMBER_TASK = "gen-headers", CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "wooting-analog-sdk" }
-run_task = "do-on-members"
 
-#NOTE: We're gonna leave the cbindgen-install tasks in each directory as it means you can successfully run the tasks on just the children
-# and it also doesn't work consistently moving it to this file
 [tasks.verify-headers]
-workspace=true
-env = { CARGO_MAKE_MEMBER_TASK = "verify-headers", CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "wooting-analog-sdk" }
-run_task = "do-on-members"
-
-[tasks.post-test]
-dependencies=["verify-headers"] # TODO: Add testing of crates excluded from workspace
 
 [tasks.virtual-kb]
+workspace = false
 command="${CARGO_COMMAND}"
-args = ["run", "--manifest-path", "wooting-analog-virtual-control/Cargo.toml"]
+args = ["run", "--manifest-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-virtual-control/Cargo.toml"]
 
-[tasks.clean]
-dependencies = ["clean-test-c-plugin"]
+[tasks.install-plugin]
 
-[tasks.clean-test-c-plugin]
-script_runner = "@shell"
-script = [
-'''
-rm -rf wooting-analog-sdk/test_c_plugin/build
-'''
+[tasks.build-target-release]
+workspace = false
+description = "Makes a release build for a given target"
+condition = { env_set = [ "TARGET" ]}
+command = "cargo"
+args = [
+  "build",
+  "--release",
+  "--all-features",
+  "--target",
+  "${TARGET}",
+  "--out-dir",
+  "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/release-artifacts",
+  "-Z",
+  "unstable-options"
 ]
+
+[tasks.build-deb]
+dependencies = [ "build-target-release" ]

@@ -68,7 +68,7 @@
                               Id='wooting_analog_test_pluginDLL'
                               Name='wooting_analog_test_plugin.dll'
                               DiskId='1'
-                              Source='..\wooting-analog-test-plugin\target\release\wooting_analog_test_plugin.dll'
+                              Source='..\target\release-artifacts\wooting_analog_test_plugin.dll'
                               KeyPath='yes'/>
                       </Component>
 
@@ -80,7 +80,7 @@
                               Id='wooting_analog_pluginDLL'
                               Name='wooting_analog_plugin.dll'
                               DiskId='1'
-                              Source='..\wooting-analog-plugin\target\release\wooting_analog_plugin.dll'
+                              Source='..\target\release-artifacts\wooting_analog_plugin.dll'
                               KeyPath='yes'/>
                       </Component>
                     </Directory>
@@ -124,7 +124,7 @@
                             Id='wooting_analog_sdkDLL'
                             Name='wooting_analog_sdk.dll'
                             DiskId='1'
-                            Source='..\target\release\wooting_analog_sdk.dll'
+                            Source='..\target\release-artifacts\wooting_analog_sdk.dll'
                             KeyPath='yes'/>
                     </Component>
                     <Component Id='wooting_analog_sdkUpdater' Guid='*' Win64='$(var.Win64)'>
@@ -132,7 +132,7 @@
                             Id='wooting_analog_sdkUpdater'
                             Name='wooting-analog-sdk-updater.exe'
                             DiskId='1'
-                            Source='..\wooting-analog-sdk-updater\target\release\wooting-analog-sdk-updater.exe'
+                            Source='..\target\release-artifacts\wooting-analog-sdk-updater.exe'
                             KeyPath='yes'/>
                     </Component>
                 </Directory>

@@ -1,7 +1,7 @@
 [env]
 HEADER_NAME="wooting-analog-wrapper.h"
-HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKING_DIRECTORY}/../includes"
-HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKING_DIRECTORY}/../includes-cpp"
+HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes"
+HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes-cpp"
 
 [tasks.header-cpp]
 toolchain = "nightly"
@@ -21,7 +21,6 @@ command = "cbindgen"
 args = ["--version"]
 
 [tasks.cbindgen]
-#TODO: Check the rustup_component_name arg to see if it is the correct name
 dependencies=["cbindgen-install", "header-c", "header-cpp"]
 
 [tasks.gen-headers]
@@ -48,7 +47,7 @@ rm ${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}
 dependencies=["verify-headers"]
 
 [tasks.post-build]
-#dependencies=["gen-headers"]
+dependencies=["gen-headers"]
 
 [tasks.clean]
 #dependencies=["clean-headers"]

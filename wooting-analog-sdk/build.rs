@@ -6,7 +6,8 @@ fn main() {
 
     cmake::Config::new(TEST_PLUGIN_DIR)
         .no_build_target(true)
-        .out_dir(format!("./{}", TEST_PLUGIN_DIR)).always_configure(false)
+        .out_dir(format!("./{}", TEST_PLUGIN_DIR))
+        .always_configure(false)
         .profile("Debug")
         .build();
 }

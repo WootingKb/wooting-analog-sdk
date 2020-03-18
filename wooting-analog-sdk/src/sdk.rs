@@ -61,7 +61,7 @@ impl AnalogSDK {
 
         let plugin_dir = PathBuf::from(plugin_dir);
         if !plugin_dir.is_dir() {
-            error!("The plugin directory '{}' does not exist! Make sure you have it created and have plugins in there", DEFAULT_PLUGIN_DIR);
+            error!("The plugin directory '{:?}' does not exist! Make sure you have it created and have plugins in there", plugin_dir);
             return WootingAnalogResult::NoPlugins.into();
         }
         /*let mut plugin_dir = match plugin_dir {
@@ -203,14 +203,25 @@ impl AnalogSDK {
         if let Some(f_ver) = full_version {
             got_ver = true;
             let ver = f_ver();
-            info!("Plugin got plugin-dev sem version: {}. SDK: {}", ver, ANALOG_SDK_PLUGIN_VERSION);
+            info!(
+                "Plugin got plugin-dev sem version: {}. SDK: {}",
+                ver, ANALOG_SDK_PLUGIN_VERSION
+            );
 
-            if let Some(major_ver) = ANALOG_SDK_PLUGIN_VERSION.split('.').collect::<Vec<&str>>().first() {
+            if let Some(major_ver) = ANALOG_SDK_PLUGIN_VERSION
+                .split('.')
+                .collect::<Vec<&str>>()
+                .first()
+            {
                 if let Some(plugin_major_ver) = ver.split('.').collect::<Vec<&str>>().first() {
                     if major_ver.eq(plugin_major_ver) {
                         info!("Plugin and SDK are compatible!");
                     } else {
-                        return Err(format!("Plugin has major version {}, which is incompatible with the SDK's: {}", plugin_major_ver, ANALOG_SDK_PLUGIN_VERSION).into());
+                        return Err(format!(
+                            "Plugin has major version {}, which is incompatible with the SDK's: {}",
+                            plugin_major_ver, ANALOG_SDK_PLUGIN_VERSION
+                        )
+                        .into());
                     }
                 } else {
                     return Err("Unable to get the Plugin's major version from SemVer".into());
@@ -218,7 +229,6 @@ impl AnalogSDK {
             } else {
                 return Err("Unable to get the SDK's Plugin major version from SemVer".into());
             }
-
         } else {
             info!("Unable to determine the Plugin's SemVer!");
         }
@@ -244,20 +254,15 @@ impl AnalogSDK {
                 warn!("Didn't find _plugin_create, assuming it's a c plugin");
                 let lib = self.loaded_libraries.pop().unwrap();
                 match CPlugin::new(lib).0 {
-                    Ok(cplugin) => {
-                        Box::new(cplugin)
-                    },
+                    Ok(cplugin) => Box::new(cplugin),
                     Err(WootingAnalogResult::IncompatibleVersion) => {
                         return Err(
                             "Plugin is a C plugin which is incompatible with this version of the SDK".into(),
                         );
-                    },
-                    Err(_) => {
-                        return Err(
-                            "Plugin isn't a valid C or Rust plugin".into(),
-                        );
                     }
-
+                    Err(_) => {
+                        return Err("Plugin isn't a valid C or Rust plugin".into());
+                    }
                 }
             }
         };
@@ -554,7 +559,7 @@ mod tests {
         shared_init();
 
         //Claim the mutex lock
-        let lock = TEST_PLUGIN_LOCK.lock().unwrap();
+        let _lock = TEST_PLUGIN_LOCK.lock().unwrap();
 
         let got_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
         let got_connected_borrow = got_connected.clone();
@@ -562,7 +567,7 @@ mod tests {
         let sdk_borrow = _sdk.clone();
         let sdk = || _sdk.lock().unwrap();
         let dir = format!(
-            "../wooting-analog-test-plugin/target/{}",
+            "../target/{}/test-plugin",
             std::env::var("TARGET").unwrap_or("/debug".to_owned())
         );
         info!("Loading plugins from: {:?}", dir);
@@ -592,7 +597,7 @@ mod tests {
             }
         };
 
-        sdk().set_device_event_cb(move |event: DeviceEventType, device: DeviceInfo| {
+        sdk().set_device_event_cb(move |event: DeviceEventType, _device: DeviceInfo| {
             debug!("Got cb {:?}", event);
 
             *got_connected_borrow.lock().unwrap() = event == DeviceEventType::Connected;
@@ -768,8 +773,8 @@ mod tests {
         assert!(!sdk.initialised);
         assert_eq!(sdk.initialise_with_plugin_path(dir.as_str(), true).0, Ok(1));
         assert!(sdk.initialised);
-        let mut got_cb = Arc::new(AtomicBool::new(false));
-        let mut got_cb_inner = got_cb.clone();
+        let got_cb = Arc::new(AtomicBool::new(false));
+        let got_cb_inner = got_cb.clone();
 
         sdk.set_device_event_cb(move |event, device| {
             debug!("We got that callbackkkk");
@@ -808,7 +813,7 @@ mod tests {
         uninitialised_sdk_functions(&mut sdk);
     }*/
 
-    fn cb(event: DeviceEventType, device: DeviceInfo) {}
+    fn cb(_event: DeviceEventType, _device: DeviceInfo) {}
 
     fn uninitialised_sdk_functions(sdk: &mut AnalogSDK) {
         assert_eq!(sdk.initialised, false);

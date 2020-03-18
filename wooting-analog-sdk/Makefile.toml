@@ -1,36 +1,5 @@
-[tasks.gen-headers]
-
-[tasks.verify-headers]
-
-[tasks.build-release]
-args = ["build", "--all-features", "--release",  "${@}"]
-
-[tasks.build-release-alt]
-#Don't want args to pass as for Windows we want it to just build into target/release for the installer
-args = ["build", "--all-features", "--release"]
-
-[tasks.build-updater]
-command = "cargo"
-args = ["build", "--release", "--manifest-path", "../wooting-analog-sdk-updater/Cargo.toml"]
-
-[tasks.build-test-plugin]
-command = "cargo"
-args = ["build", "--release", "--manifest-path", "../wooting-analog-test-plugin/Cargo.toml"]
-
-[tasks.cargo-build-virtual-kb]
-command = "cargo"
-args = ["build", "--release", "--manifest-path", "../wooting-analog-virtual-control/Cargo.toml"]
-
-[tasks.build-virtual-kb]
-dependencies = ["cargo-build-virtual-kb"]
-
-[tasks.build-wooting-plugin]
-command = "cargo"
-args = ["build", "--release", "--manifest-path", "../wooting-analog-plugin/Cargo.toml"]
-
 [tasks.win-installer]
-env = {WIN_INSTALLER_PATH="../target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"}
-dependencies = ["build-release-alt", "build-updater", "build-test-plugin", "build-wooting-plugin"]
+env = {WIN_INSTALLER_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"}
 command = "cargo"
 args = ["wix", "--nocapture", "--output", "${WIN_INSTALLER_PATH}"]
 
@@ -44,18 +13,28 @@ bash ../ci/codesign.sh
 ]
 
 [tasks.build-deb]
-dependencies = ["build-release", "build-test-plugin", "build-wooting-plugin"]
 command = "cargo"
-args = ["deb", "${@}"]
+args = ["deb", "--no-build"]
 
 [tasks.clean]
 dependencies = ["clean-test-c-plugin"]
-
 
 [tasks.clean-test-c-plugin]
 script_runner = "@shell"
 script = [
 '''
 rm -rf test_c_plugin/build
+'''
+]
+
+[tasks.pre-test]
+dependencies = ["build-full-deps"]
+
+[tasks.build-full-deps]
+script_runner = "@shell"
+script = [
+'''
+cargo build --manifest-path "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-common/Cargo.toml"
+cargo build --manifest-path "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-plugin-dev/Cargo.toml"
 '''
 ]

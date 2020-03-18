@@ -7,15 +7,13 @@ rpath = true
 [workspace]
 
 members = [
-    "wooting-analog-sdk",
     "wooting-analog-common",
     "wooting-analog-wrapper",
-    "wooting-analog-plugin-dev"
-]
-
-exclude = [
+    "wooting-analog-plugin-dev",
     "wooting-analog-test-plugin",
     "wooting-analog-virtual-control",
     "wooting-analog-sdk-updater",
-    "wooting-analog-plugin"
+    "wooting-analog-plugin",
+    "wooting-analog-sdk"
+
 ]

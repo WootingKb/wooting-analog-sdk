@@ -81,8 +81,11 @@ impl CPlugin {
                 let v = **ver;
                 info!("Got cplugin abi: {:?}", v);
                 if v != CPLUGIN_ABI_VERSION {
-                    error!("CPlugin ABI version does not match! Given: {}, Expected: {}", v, CPLUGIN_ABI_VERSION);
-                    return Err(WootingAnalogResult::IncompatibleVersion).into()
+                    error!(
+                        "CPlugin ABI version does not match! Given: {}, Expected: {}",
+                        v, CPLUGIN_ABI_VERSION
+                    );
+                    return Err(WootingAnalogResult::IncompatibleVersion).into();
                 }
             }
         }
@@ -90,7 +93,8 @@ impl CPlugin {
         Ok(CPlugin {
             lib,
             //funcs: HashMap::new()
-        }).into()
+        })
+        .into()
     }
 
     lib_wrap_option! {
@@ -186,18 +190,21 @@ impl Plugin for CPlugin {
         {
             Ok(num) => unsafe {
                 device_infos.truncate(num as usize);
-                let devices = device_infos.drain(..).map(|dev| {
-                    //Box it to get our instance back and then clone it as we want to leave the freeing
-                    //up to the plugin to do. This is so we can try and somewhat keep up with C's semantics
-                    //as it wouldn't really be expected for this function to free it up as it is not what
-                    //allocated it in the first place
-                    let boxed = Box::from_raw(dev);
-                    let device = boxed.as_ref().clone();
-                    Box::into_raw(boxed);
-                    device
-                }).collect();
+                let devices = device_infos
+                    .drain(..)
+                    .map(|dev| {
+                        //Box it to get our instance back and then clone it as we want to leave the freeing
+                        //up to the plugin to do. This is so we can try and somewhat keep up with C's semantics
+                        //as it wouldn't really be expected for this function to free it up as it is not what
+                        //allocated it in the first place
+                        let boxed = Box::from_raw(dev);
+                        let device = boxed.as_ref().clone();
+                        Box::into_raw(boxed);
+                        device
+                    })
+                    .collect();
                 Ok(devices).into()
-            }
+            },
             Err(e) => Err(e).into(),
         }
     }

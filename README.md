@@ -87,7 +87,6 @@ To get the virtual keyboard, right now there are only Windows builds available f
 - [cargo-make](https://github.com/sagiegurari/cargo-make)
 - [cbindgen](https://github.com/eqrion/cbindgen) (For verifying/generating headers. Should be installed automatically if necessary)
 - [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `wooting-analog-test`
-- [libgtk-3](https://gtk-rs.org/docs-src/requirements.html) If you want to build the `wooting-analog-virtual-kb`, follow the install instructions from [here](https://gtk-rs.org/docs-src/requirements.html) (for Windows MSVC I also had to add `%VCPKGDIR%\lib` to the `LIB` environment variable)
 - [wixtoolset](https://wixtoolset.org/releases/) If you want to build the windows installer for the sdk
 
 ### How to Build
@@ -95,12 +94,17 @@ To get the virtual keyboard, right now there are only Windows builds available f
 Everything can be built using this command. All the outputs will be under `target/debug`
 
 ```bash
-#Build debug
+# Build debug
 cargo make build
-#Build release
+# Build release
 cargo make build -- --release
-#Build & run tests (To verify headers you'll need the nightly toolchain installed)
+# Build & run tests (To verify headers you'll need the nightly toolchain installed)
 cargo make
+```
+
+To test:
+```bash
+cargo make test-flow
 ```
 
 The current build process is setup to verify the existing generated headers in the test phase. If you decide to make changes which effect these outputs, you can update the headers by running:
@@ -133,7 +137,6 @@ The installer will be located in `$gitroot/target/wix`
 To build the deb package for the SDK:
 
 ```
-cd wooting-analog-sdk
 cargo make build-deb
 ```
 

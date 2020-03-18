@@ -11,12 +11,12 @@ HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/wooting-analog-common*"
 [tasks.header-cpp]
 toolchain = "nightly"
 command = "cbindgen"
-args = ["-l", "c++", "${CBINDGEN_ARGS}", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
+args = ["-l", "c++", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
 
 [tasks.header-c]
 toolchain = "nightly"
 command = "cbindgen"
-args = ["-l", "c", "${CBINDGEN_ARGS}", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
+args = ["-l", "c", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 
 [tasks.cbindgen-install]
 install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
@@ -24,7 +24,7 @@ command = "cbindgen"
 args = ["--version"]
 
 [tasks.cbindgen]
-dependencies=["cbindgen-install", "header-cpp", "header-c"]
+dependencies=["cbindgen-install", "header-c", "header-cpp"]
 
 [tasks.gen-headers]
 env = { CBINDGEN_ARGS="-v" }
@@ -48,7 +48,7 @@ rm ${HEADER_PATH_CLEAN_CPP}
 dependencies=["verify-headers"]
 
 [tasks.post-build]
-#dependencies=["gen-headers"]
+dependencies=["gen-headers"]
 
 [tasks.clean]
 #dependencies=["clean-headers"]

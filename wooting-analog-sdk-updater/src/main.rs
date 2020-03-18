@@ -7,15 +7,13 @@ extern crate winapi;
 #[macro_use]
 extern crate json;
 
-use std::ptr::null_mut as NULL;
-#[cfg(windows)]
-use winapi::um::winuser;
 use clap::{App, Arg};
-use env_logger::Env;
 use self_update::backends::github::{Release, ReleaseAsset};
 use self_update::version::bump_is_greater;
 use std::io::Write;
 use std::process::Command;
+#[cfg(windows)]
+use winapi::um::winuser;
 
 const INSTALLER_PATH: &str = "installer.msi";
 const PKG_VER: &str = env!("CARGO_PKG_VERSION");
@@ -107,20 +105,17 @@ fn main() {
     let update_available = bump_is_greater(PKG_VER, release_ver).unwrap_or(false);
     debug!(
         "Github release: {} ours: {}, update available: {}",
-        release_ver,
-        PKG_VER,
-        update_available
+        release_ver, PKG_VER, update_available
     );
 
-
-    let data = object!{
-            "name" => "Wooting Analog SDK",
-            "update_available" => update_available,
-            "new_version"    => r.version(),
-            "version"     => PKG_VER,
-            "release_title" => r.name.clone(),
-            "release_notes" => r.body.clone()
-        };
+    let data = object! {
+        "name" => "Wooting Analog SDK",
+        "update_available" => update_available,
+        "new_version"    => r.version(),
+        "version"     => PKG_VER,
+        "release_title" => r.name.clone(),
+        "release_notes" => r.body.clone()
+    };
     println!("{}", data.dump());
 
     if !matches.is_present("no_install") && update_available {
@@ -132,7 +127,13 @@ fn main() {
                 let l_msg: Vec<u16> = message.encode_utf16().collect();
                 let l_title: Vec<u16> = title.encode_utf16().collect();
                 unsafe {
-                    if winuser::MessageBoxW(NULL(), l_msg.as_ptr(), l_title.as_ptr(), winuser::MB_YESNO | winuser::MB_ICONQUESTION) != winuser::IDYES {
+                    if winuser::MessageBoxW(
+                        NULL(),
+                        l_msg.as_ptr(),
+                        l_title.as_ptr(),
+                        winuser::MB_YESNO | winuser::MB_ICONQUESTION,
+                    ) != winuser::IDYES
+                    {
                         info!("User did not want update, closing");
                         return;
                     }
@@ -143,7 +144,6 @@ fn main() {
         debug!("Attempting to update");
         install_update(&r).expect("Failed to install updates");
     }
-
 
     //Install this process as a scheduled task that runs every so often
 }
