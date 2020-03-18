@@ -417,7 +417,7 @@ mod tests {
         let mut mode;
         let dir = format!(
             "../target/{}/test-plugin",
-            std::env::var("TARGET").unwrap_or("debug".to_owned())
+            std::env::var("TEST_TARGET").unwrap_or("debug".to_owned())
         );
         info!("Loading plugins from: {:?}", dir);
         assert!(!wooting_analog_is_initialised());
