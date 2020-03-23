@@ -14,6 +14,7 @@ use std::io::Write;
 use std::process::Command;
 #[cfg(windows)]
 use winapi::um::winuser;
+use std::ptr::null_mut;
 
 const INSTALLER_PATH: &str = "installer.msi";
 const PKG_VER: &str = env!("CARGO_PKG_VERSION");
@@ -128,7 +129,7 @@ fn main() {
                 let l_title: Vec<u16> = title.encode_utf16().collect();
                 unsafe {
                     if winuser::MessageBoxW(
-                        NULL(),
+                        null_mut(),
                         l_msg.as_ptr(),
                         l_title.as_ptr(),
                         winuser::MB_YESNO | winuser::MB_ICONQUESTION,

@@ -28,7 +28,7 @@ dependencies = [ "build", "install-plugin" ]
 
 [tasks.virtual-kb]
 workspace = false
-command="${CARGO_COMMAND}"
+command="cargo"
 args = ["run", "--manifest-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-virtual-control/Cargo.toml"]
 
 [tasks.install-plugin]

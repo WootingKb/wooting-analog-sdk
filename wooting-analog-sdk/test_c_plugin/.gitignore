@@ -23,3 +23,5 @@ _deps
 *.dylib
 
 # End of https://www.gitignore.io/api/cmake
+
+build/*

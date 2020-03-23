@@ -567,7 +567,7 @@ mod tests {
         let sdk_borrow = _sdk.clone();
         let sdk = || _sdk.lock().unwrap();
         let dir = format!(
-            "../target/{}/test-plugin",
+            "../target/{}/test_plugin",
             std::env::var("TEST_TARGET").unwrap_or("/debug".to_owned())
         );
         info!("Loading plugins from: {:?}", dir);

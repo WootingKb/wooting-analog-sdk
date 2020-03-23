@@ -1,5 +1,5 @@
 [env]
-LIBRARY_EXTENSION = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "unknown", mapping = {"linux" = "so", "macos" = "dylib", "windows" = "dll", "openbsd" = "so" } }
+LIBRARY_EXTENSION = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "unknown", mapping = { "linux" = "so", "macos" = "dylib", "windows" = "dll", "openbsd" = "so" } }
 LIBRARY_PREFIX = { source = "${CARGO_MAKE_RUST_TARGET_OS}", default_value = "unknown", mapping = {"linux" = "lib", "macos" = "lib", "windows" = "", "openbsd" = "lib" } }
 TEST_PLUGIN_FILENAME="wooting_analog_test_plugin"
 
@@ -38,9 +38,9 @@ env = {TEST_PLUGIN_FILENAME="libwooting_analog_test_plugin",PLUGIN_INSTALL_PATH=
 script_runner = "@shell"
 script = [
 '''
-mkdir -p "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/test-plugin"
+mkdir -p "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/test_plugin"
 
-cp "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/test-plugin/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
+cp "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/test_plugin/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
 '''
 ]
 dependencies = ["build"]
