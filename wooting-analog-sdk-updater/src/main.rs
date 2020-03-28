@@ -72,6 +72,8 @@ fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>>
             }
             info!("Running powershell install script and exiting");
             Command::new("powershell")
+                .arg("-ExecutionPolicy")
+                .arg("RemoteSigned")
                 .arg("-File")
                 .arg(tmp_install_script_path.as_os_str())
                 .arg("-msi_path")
@@ -92,7 +94,7 @@ fn main() {
             WriteLogger::new(LevelFilter::Debug, Config::default(), OpenOptions::new().append(true).create(true).open("updater.log").unwrap()),
         ]
     ).unwrap();
-    info!("Wooting Analog SDK Updater '{}'", Utc::now().format("%a %b %e %T %Y"));
+    info!("Wooting Analog SDK Updater v{} '{}'", PKG_VER, Utc::now().format("%a %b %e %T %Y"));
 
     let matches = App::new("Wooting Analog SDK Updater")
         .arg(
@@ -133,32 +135,38 @@ fn main() {
     };
     debug!("{}", data.dump());
 
-    if !matches.is_present("no_install") && update_available {
-        #[cfg(windows)]
-        {
-            if !matches.is_present("quiet") {
-                let title = "Wooting Analog SDK Update\0";
-                let message = format!("A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0", r.tag, PKG_VER);
-                let l_msg: Vec<u16> = message.encode_utf16().collect();
-                let l_title: Vec<u16> = title.encode_utf16().collect();
-                unsafe {
-                    if winuser::MessageBoxW(
-                        null_mut(),
-                        l_msg.as_ptr(),
-                        l_title.as_ptr(),
-                        winuser::MB_YESNO | winuser::MB_ICONQUESTION,
-                    ) != winuser::IDYES
-                    {
-                        debug!("User did not want update, closing");
-                        return;
+    if update_available {
+        info!("Update available!");
+        if !matches.is_present("no_install") {
+            #[cfg(windows)]
+            {
+                if !matches.is_present("quiet") {
+                    let title = "Wooting Analog SDK Update\0";
+                    let message = format!("A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0", r.tag, PKG_VER);
+                    let l_msg: Vec<u16> = message.encode_utf16().collect();
+                    let l_title: Vec<u16> = title.encode_utf16().collect();
+                    unsafe {
+                        if winuser::MessageBoxW(
+                            null_mut(),
+                            l_msg.as_ptr(),
+                            l_title.as_ptr(),
+                            winuser::MB_YESNO | winuser::MB_ICONQUESTION,
+                        ) != winuser::IDYES
+                        {
+                            debug!("User did not want update, closing");
+                            return;
+                        }
                     }
                 }
             }
+            info!("Attempting to update");
+            install_update(&r).expect("Failed to install updates");
+        } else {
+            info!("--no-install given, Exiting without updating...");
         }
-
-        info!("Attempting to update");
-        install_update(&r).expect("Failed to install updates");
+    }
+    else {
+        info!("No update available, Exiting...");
     }
 
-    //Install this process as a scheduled task that runs every so often
 }
