@@ -87,14 +87,23 @@ fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>>
     }
 }
 
+use std::path::PathBuf;
+
 fn main() {
+    let mut log_path = PathBuf::new();
+    let log_dir = std::env::var("APPDATA").map(|appdata| appdata + "\\wooting-analog-sdk\\").map_err(|e| error!("Unable to get Appdata directory: {}", e)).unwrap_or("./".to_string());
+    std::fs::create_dir_all(&log_dir).unwrap();
+    log_path.push(log_dir);
+    log_path.push("updater.log");
+
     CombinedLogger::init(
         vec![
             TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed).unwrap(),
-            WriteLogger::new(LevelFilter::Debug, Config::default(), OpenOptions::new().append(true).create(true).open("updater.log").unwrap()),
+            WriteLogger::new(LevelFilter::Debug, Config::default(), OpenOptions::new().append(true).create(true).open(&log_path).unwrap()),
         ]
     ).unwrap();
     info!("Wooting Analog SDK Updater v{} '{}'", PKG_VER, Utc::now().format("%a %b %e %T %Y"));
+    info!("Logging output to: '{:?}'", log_path);
 
     let matches = App::new("Wooting Analog SDK Updater")
         .arg(
