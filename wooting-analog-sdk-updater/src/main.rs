@@ -2,10 +2,12 @@ extern crate clap;
 extern crate self_update;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
+extern crate simplelog;
 extern crate winapi;
 #[macro_use]
 extern crate json;
+extern crate chrono;
+
 
 use clap::{App, Arg};
 use self_update::backends::github::{Release, ReleaseAsset};
@@ -15,6 +17,10 @@ use std::process::Command;
 #[cfg(windows)]
 use winapi::um::winuser;
 use std::ptr::null_mut;
+use simplelog::*;
+use std::fs::{OpenOptions};
+use chrono::{Utc};
+
 
 const INSTALLER_PATH: &str = "installer.msi";
 const PKG_VER: &str = env!("CARGO_PKG_VERSION");
@@ -33,7 +39,7 @@ fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {
         .build()?
         .fetch()?;
     //Remove all releases that are not newer than the current
-    info!("We found {:?}", releases);
+    debug!("We found {:?}", releases);
     if !releases.is_empty() {
         let latest = releases.first().unwrap();
         Ok(latest.clone())
@@ -49,7 +55,7 @@ fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>>
         Some(asset) => {
             let tmp_dir = self_update::TempDir::new("wooting_analog_sdk_updater")?;
             let tmp_msi_path = tmp_dir.path().join(INSTALLER_PATH);
-            debug!("Downloading into temp file: {:?}", tmp_msi_path);
+            info!("Downloading into temp file: {:?}", tmp_msi_path);
             //Put it into lower scope to force File to go out of scope to close it & finish writing
             {
                 let tmp_msi = ::std::fs::File::create(&tmp_msi_path)?;
@@ -80,6 +86,14 @@ fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>>
 }
 
 fn main() {
+    CombinedLogger::init(
+        vec![
+            TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed).unwrap(),
+            WriteLogger::new(LevelFilter::Debug, Config::default(), OpenOptions::new().append(true).create(true).open("updater.log").unwrap()),
+        ]
+    ).unwrap();
+    info!("Wooting Analog SDK Updater '{}'", Utc::now().format("%a %b %e %T %Y"));
+
     let matches = App::new("Wooting Analog SDK Updater")
         .arg(
             Arg::with_name("no_install")
@@ -98,8 +112,8 @@ fn main() {
                 .index(1),
         )*/
         .get_matches();
-    env_logger::init();
-    //env_logger::from_env(Env::default().default_filter_or("wooting_analog_sdk_updater=trace")).init();
+
+    debug!("Called with parameters {:?}", matches);
 
     let r = check_for_update().expect("Failed to check for updates");
     let release_ver = r.tag.trim_start_matches('v');
@@ -117,7 +131,7 @@ fn main() {
         "release_title" => r.name.clone(),
         "release_notes" => r.body.clone()
     };
-    println!("{}", data.dump());
+    debug!("{}", data.dump());
 
     if !matches.is_present("no_install") && update_available {
         #[cfg(windows)]
@@ -135,14 +149,14 @@ fn main() {
                         winuser::MB_YESNO | winuser::MB_ICONQUESTION,
                     ) != winuser::IDYES
                     {
-                        info!("User did not want update, closing");
+                        debug!("User did not want update, closing");
                         return;
                     }
                 }
             }
         }
 
-        debug!("Attempting to update");
+        info!("Attempting to update");
         install_update(&r).expect("Failed to install updates");
     }
 

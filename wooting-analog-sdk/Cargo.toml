@@ -14,7 +14,7 @@ build = "build.rs"
 
 [dependencies]
 log = "0.4.7"
-env_logger = "0.6.2"
+pretty_env_logger = "^0.4"
 libloading = "0.5.1"
 error-chain = "0.12.1"
 lazy_static = "*"

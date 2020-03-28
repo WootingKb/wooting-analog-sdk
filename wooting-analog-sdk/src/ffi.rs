@@ -18,7 +18,7 @@ lazy_static! {
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_initialise() -> c_int {
-    env_logger::init();
+    pretty_env_logger::init();
     ANALOG_SDK.lock().unwrap().initialise().into()
 }
 
@@ -400,9 +400,7 @@ mod tests {
     }
 
     fn shared_init() {
-        use env_logger::Env;
-        let env = Env::new().default_filter_or("trace");
-        env_logger::try_init_from_env(env);
+        pretty_env_logger::try_init_custom_env("trace");
     }
 
     #[test]

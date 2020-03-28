@@ -491,9 +491,7 @@ mod tests {
     unsafe impl SharedMemCast for SharedState {}
 
     fn shared_init() {
-        use env_logger::Env;
-        let env = Env::new().default_filter_or("trace");
-        env_logger::try_init_from_env(env);
+        pretty_env_logger::try_init_custom_env("trace");
     }
 
     #[test]
