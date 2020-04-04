@@ -23,7 +23,8 @@ In the C API interface, every function has the possibility to return an error, e
 
 Each function below has listed what the expected returns from the function are, however, there are some general cases, which are:
 
-- `WootingAnalogResult::FunctionNotFound`: Indicates that the wrapper could not load the function from the SDK, which will usually mean that the SDK is not installed or could not be found
+- `WootingAnalogResult::FunctionNotFound`: Indicates that the wrapper could not find the function in the SDK
+- `WootingAnalogResult::DLLNotFound`: Indicates that the wrapper could not find the Analog SDK, which could be due to a corrupt or non-existent install of the SDK
 - `WootingAnalogResult::IncompatibleVersion`: Indicates that the wrapper you're using is designed for a different major version of the SDK than what is installed. Major versions are unlikely to change very often
 
 These apply to every function unless otherwise specified

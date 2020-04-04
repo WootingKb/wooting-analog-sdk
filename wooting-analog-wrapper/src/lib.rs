@@ -59,6 +59,10 @@ macro_rules! dynamic_extern {
                 pub unsafe extern fn $fn_names($($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     type FnPtr = unsafe extern $cconv fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
 
+                    if LIB.is_none() {
+                        return WootingAnalogResult::DLLNotFound.into();
+                    }
+
                     if stringify!($fn_names) != "wooting_analog_version" && wooting_analog_version() >= 0 && wooting_analog_version() != SDK_ABI_VERSION {
                         println!("Cannot access Wooting Analog SDK function as this wrapper is for SDK major version {}, whereas the SDK has major version {}", SDK_ABI_VERSION, wooting_analog_version());
                         return WootingAnalogResult::IncompatibleVersion.into()
@@ -69,7 +73,7 @@ macro_rules! dynamic_extern {
                             LIB.as_ref().and_then(|lib| unsafe {
                                 //Get func, print and discard error as we don't need it again
                                 lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    println!("{}", e);
+                                    println!("Could not find symbol '{}', {}", stringify!($fn_names), e);
                                 }).ok()
                             })
                         };

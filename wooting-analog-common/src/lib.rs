@@ -216,7 +216,8 @@ enum_from_primitive! {
         NotAvailable,
         /// Indicates that the operation that is trying to be used is for an older version
         IncompatibleVersion,
-
+        /// Indicates that the Analog SDK could not be found on the system
+        DLLNotFound,
     }
 }
 

@@ -94,6 +94,10 @@ typedef enum {
    * Indicates that the operation that is trying to be used is for an older version
    */
   WootingAnalogResult_IncompatibleVersion,
+  /**
+   * Indicates that the Analog SDK could not be found on the system
+   */
+  WootingAnalogResult_DLLNotFound,
 } WootingAnalogResult;
 
 /**

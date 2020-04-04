@@ -16,11 +16,22 @@ script = [
     "echo var: ${CARGO_TARGET}"
 ]
 
-[tasks.test-app]
+[tasks.run-test-app]
 env = { PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
 command = "dotnet"
 args = [ "run", "--project", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-test" ]
-dependencies = [ "build", "install-plugin" ]
+
+[tasks.member-build]
+command = "cargo"
+args = ["make", "build"]
+
+[tasks.member-install-plugin]
+command = "cargo"
+args = ["make", "install-plugin"]
+
+[tasks.test-app]
+workspace = false
+dependencies = [ "member-build", "member-install-plugin", "run-test-app" ]
 
 [tasks.gen-headers]
 
