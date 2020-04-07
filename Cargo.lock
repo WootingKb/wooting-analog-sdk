@@ -1347,8 +1347,9 @@ dependencies = [
 
 [[package]]
 name = "iced"
-version = "0.1.0-beta"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "981b514ac7fa6cd3f98efffcc86749d1c7830f9fa2672623d7fa715f0c2d0ba8"
 dependencies = [
  "iced_futures",
  "iced_web",
@@ -1358,13 +1359,15 @@ dependencies = [
 
 [[package]]
 name = "iced_core"
-version = "0.1.0"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eeddb38df0a8bdf1210e6982026de4d6be0531ea42aea3266f308d9578840739"
 
 [[package]]
 name = "iced_futures"
-version = "0.1.0-alpha"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d32be6091f7e2aef4cbc5d48055eedc72d80c78b77c1486e5acf140e8a8edfb9"
 dependencies = [
  "futures 0.3.4",
  "log",
@@ -1373,8 +1376,9 @@ dependencies = [
 
 [[package]]
 name = "iced_native"
-version = "0.1.0"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af14d5bb63f4e3dc596a8cde704e0fc83de583ac24eb8438fb809403a985a5f4"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -1385,16 +1389,18 @@ dependencies = [
 
 [[package]]
 name = "iced_style"
-version = "0.1.0-alpha"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb7ccec94a0b71061260f2e5c9dbaf3dcaad6bc80ba79199873b55b778d5e729"
 dependencies = [
  "iced_core",
 ]
 
 [[package]]
 name = "iced_web"
-version = "0.1.0"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8feb7f90a1bef96a3b284beb6a071900eb4ed77c2d21bde871b2ae18a2bac9d2"
 dependencies = [
  "dodrio",
  "iced_core",
@@ -1408,8 +1414,9 @@ dependencies = [
 
 [[package]]
 name = "iced_wgpu"
-version = "0.1.0"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd488401b505ffbdd048e9410f95168fc30ec54b8b9777cc2500c0fc943e7c8c"
 dependencies = [
  "font-kit",
  "glam",
@@ -1425,8 +1432,9 @@ dependencies = [
 
 [[package]]
 name = "iced_winit"
-version = "0.1.0-alpha"
-source = "git+https://github.com/hecrj/iced#9da6ce474c2cd178ca5365d46760ba0882ce7121"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3124ac608d6f99d7505c321bf60402b5f3cc195a695c910e99e6c73ac4eb1563"
 dependencies = [
  "iced_native",
  "log",

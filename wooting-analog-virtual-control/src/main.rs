@@ -478,5 +478,6 @@ fn main() {
         },
         default_font: None,
         antialiasing: false,
+        flags: ()
     })
 }
