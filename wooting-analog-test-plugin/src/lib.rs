@@ -49,7 +49,7 @@ impl WootingAnalogTestPlugin {
     fn new() -> Self {
         // env_logger::from_env(Env::default().default_filter_or("trace")).try_init();
         if let Err(e) = env_logger::try_init() {
-            error!("Unable to initialize Env Logger: {}", e);
+            info!("Test Plugin could not initialize Env Logger: {}", e);
         }
 
         let device: Arc<Mutex<Option<DeviceInfo>>> = Arc::new(Mutex::new(None));

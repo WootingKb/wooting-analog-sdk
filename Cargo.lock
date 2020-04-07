@@ -2033,16 +2033,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74490b50b9fbe561ac330df47c08f3f33073d2d00c150f719147d7c54522fa1b"
 
 [[package]]
-name = "pretty_env_logger"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "926d36b9553851b8b0005f1275891b392ee4d2d833852c417ed025477350fb9d"
-dependencies = [
- "env_logger 0.7.1",
- "log",
-]
-
-[[package]]
 name = "proc-macro-hack"
 version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3605,12 +3595,12 @@ version = "0.4.0"
 dependencies = [
  "bimap",
  "cmake",
+ "env_logger 0.7.1",
  "error-chain",
  "ffi-support",
  "lazy_static",
  "libloading",
  "log",
- "pretty_env_logger",
  "scancode",
  "shared_memory",
  "winapi 0.3.8",

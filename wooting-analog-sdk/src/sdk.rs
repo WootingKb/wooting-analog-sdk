@@ -491,7 +491,7 @@ mod tests {
     unsafe impl SharedMemCast for SharedState {}
 
     fn shared_init() {
-        pretty_env_logger::try_init_custom_env("trace");
+        env_logger::try_init_from_env(env_logger::Env::from("trace")).map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
     }
 
     #[test]

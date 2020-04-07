@@ -18,7 +18,7 @@ lazy_static! {
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_initialise() -> c_int {
-    pretty_env_logger::init();
+    env_logger::init();
     ANALOG_SDK.lock().unwrap().initialise().into()
 }
 
@@ -400,7 +400,7 @@ mod tests {
     }
 
     fn shared_init() {
-        pretty_env_logger::try_init_custom_env("trace");
+        env_logger::try_init_from_env(env_logger::Env::from("trace")).map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
     }
 
     #[test]
@@ -649,5 +649,7 @@ mod tests {
         ::std::thread::sleep(Duration::from_secs(1));
         //This shouldn't have updated if the cb is not there
         assert!(*Arc::clone(&got_connected).lock().unwrap());
+
+        assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
     }
 }
