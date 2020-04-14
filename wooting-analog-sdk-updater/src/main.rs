@@ -96,16 +96,7 @@ fn main() {
     log_path.push(log_dir);
     log_path.push("updater.log");
 
-    CombinedLogger::init(
-        vec![
-            TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed).unwrap(),
-            WriteLogger::new(LevelFilter::Debug, Config::default(), OpenOptions::new().append(true).create(true).open(&log_path).unwrap()),
-        ]
-    ).unwrap();
-    info!("Wooting Analog SDK Updater v{} '{}'", PKG_VER, Utc::now().format("%a %b %e %T %Y"));
-    info!("Logging output to: '{:?}'", log_path);
-
-    let matches = App::new("Wooting Analog SDK Updater")
+    let matches = App::new(format!("Wooting Analog SDK Updater v{}", PKG_VER))
         .arg(
             Arg::with_name("no_install")
                 .long("no-install")
@@ -116,6 +107,11 @@ fn main() {
                 .long("quiet")
                 .help("Doesn't prompt the user"),
         )
+        .arg(
+            Arg::with_name("v").short("v")
+                .multiple(true)
+                .help("Additional logging to console"),
+        )
         /*.arg(
             Arg::with_name("MSI")
                 .help("Sets the MSI installer to use")
@@ -123,6 +119,21 @@ fn main() {
                 .index(1),
         )*/
         .get_matches();
+    let term_filter = match matches.occurrences_of("v") {
+        0 => LevelFilter::Off,
+        1 => LevelFilter::Info,
+        2 | _ => LevelFilter::Debug,
+    };
+
+    CombinedLogger::init(
+        vec![
+            TermLogger::new(term_filter, Config::default(), TerminalMode::Mixed).unwrap(),
+            WriteLogger::new(LevelFilter::Debug, Config::default(), OpenOptions::new().append(true).create(true).open(&log_path).unwrap()),
+        ]
+    ).unwrap();
+    info!("Wooting Analog SDK Updater v{} '{}'", PKG_VER, Utc::now().format("%a %b %e %T %Y"));
+    info!("Logging output to: '{:?}'", log_path);
+
 
     debug!("Called with parameters {:?}", matches);
 
@@ -142,7 +153,7 @@ fn main() {
         "release_title" => r.name.clone(),
         "release_notes" => r.body.clone()
     };
-    debug!("{}", data.dump());
+    println!("{}", data.dump());
 
     if update_available {
         info!("Update available!");
