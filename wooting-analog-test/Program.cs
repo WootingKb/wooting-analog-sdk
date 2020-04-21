@@ -74,6 +74,7 @@ namespace analog_sdk_test
         
         static void Main(string[] args)
         {
+            Console.TreatControlCAsInput = true;
             if (WootingAnalogSDK.IsInitialised){
                 Console.WriteLine("SDK Already initialised!");
             }
@@ -105,6 +106,13 @@ namespace analog_sdk_test
                 Timer t = new Timer(timer_cb, _index, TimeSpan.Zero, TimeSpan.FromSeconds(4) );
                 while (true)
                 {
+                    if (Console.KeyAvailable) {
+                        var consoleKey = Console.ReadKey();
+                        if (consoleKey.Key == ConsoleKey.C && consoleKey.Modifiers == ConsoleModifiers.Control) {
+                            break;
+                        }
+                    }
+
                     //var ret = Native.wooting_analog_read_analog_vk(VirtualKeys.A, false);
                     sw.Restart();
                     var (ret, error) = WootingAnalogSDK.ReadAnalog(code_map[_index].Item2);//, devices.First().device_id);
