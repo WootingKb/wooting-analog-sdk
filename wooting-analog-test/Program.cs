@@ -12,17 +12,6 @@ namespace analog_sdk_test
 {
     class Program
     {
-        [DllImport("user32.dll")]
-        static extern uint MapVirtualKeyEx(uint uCode, uint uMapType, IntPtr dwhkl);
-        [DllImport("user32.dll")]
-        static extern uint MapVirtualKey(uint uCode, uint uMapType);
-
-        const uint MAPVK_VK_TO_VSC = 0x00;
-        const uint MAPVK_VSC_TO_VK = 0x01;
-        const uint MAPVK_VK_TO_CHAR = 0x02;
-        const uint MAPVK_VSC_TO_VK_EX = 0x03;
-        const uint MAPVK_VK_TO_VSC_EX = 0x04;
-
         static void device_event_cb(DeviceEventType eventType, DeviceInfo deviceInfo) {
             Console.WriteLine($"Device event cb called with: {eventType} {deviceInfo}");
 

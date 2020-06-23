@@ -20,7 +20,7 @@ pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is for use internally and should be ignored if you're
 /// trying to use it when trying to interact with the SDK using the wrapper
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DeviceInfo {
     /// Device Vendor ID `vid`
     pub vendor_id: u16,
@@ -75,6 +75,23 @@ impl Drop for DeviceInfo_FFI {
         unsafe {
             CString::from_raw(self.manufacturer_name);
             CString::from_raw(self.device_name);
+        }
+    }
+}
+
+impl DeviceInfo_FFI {
+    pub fn into_device_info(&self) -> DeviceInfo {
+        DeviceInfo {
+            vendor_id: self.vendor_id,
+            product_id: self.product_id,
+            manufacturer_name: unsafe {
+                CString::from_raw(self.manufacturer_name)
+                    .into_string()
+                    .unwrap()
+            },
+            device_name: unsafe { CString::from_raw(self.device_name).into_string().unwrap() },
+            device_id: self.device_id,
+            device_type: self.device_type.clone(),
         }
     }
 }
@@ -277,6 +294,16 @@ impl From<c_int> for SDKResult<c_int> {
     fn from(res: c_int) -> Self {
         if res >= 0 {
             Ok(res).into()
+        } else {
+            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
+        }
+    }
+}
+
+impl From<c_int> for SDKResult<u32> {
+    fn from(res: c_int) -> Self {
+        if res >= 0 {
+            Ok(res as u32).into()
         } else {
             Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
         }

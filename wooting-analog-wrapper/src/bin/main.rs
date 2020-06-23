@@ -1,0 +1,75 @@
+use sdk::{DeviceInfo, SDKResult};
+// use wooting_analog_common::{DeviceInfo, SDKResult};
+use wooting_analog_wrapper as sdk;
+extern crate ctrlc;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+fn main() {
+    println!("Starting Wooting Analog SDK!");
+    let init_result: SDKResult<u32> = sdk::initialise();
+
+    match init_result.0 {
+        Ok(device_num) => {
+            assert!(sdk::is_initialised());
+            println!("SDK Successfully initialised with {} devices", device_num);
+            use_sdk(device_num);
+            println!("Finishing up...");
+            sdk::uninitialise();
+            assert!(!sdk::is_initialised());
+        }
+        Err(e) => {
+            println!("SDK Failed to initialise. Error: {:?}", e);
+        }
+    }
+}
+
+fn use_sdk(device_num: u32) {
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    // get_connected_devices_info() -> SDKResult<Vec<DeviceInfo>>
+    let devices: Vec<DeviceInfo> = sdk::get_connected_devices_info().0.unwrap();
+    assert_eq!(device_num, devices.len() as u32);
+    for (i, device) in devices.iter().enumerate() {
+        println!("Device {} is {:?}", i, device);
+    }
+
+    let mut last_output = String::new();
+    while running.load(Ordering::SeqCst) {
+        let mut new_output: Option<String> = None;
+        let read_result: SDKResult<HashMap<u16, f32>> = sdk::read_full_buffer();
+        match read_result.0 {
+            Ok(analog_data) => {
+                let mut sorted_data = analog_data.iter().collect::<Vec<(&u16, &f32)>>();
+                sorted_data.sort_by_key(|x| x.0);
+                // analog_data.
+                let data_out = sorted_data
+                    .iter()
+                    .map(|(code, value)| format!("({},{})", code, value))
+                    .fold(String::new(), |mut total, x| {
+                        total.push_str(x.as_str());
+                        total
+                    });
+                if !data_out.is_empty() {
+                    new_output = Some(data_out);
+                }
+            }
+            Err(e) => {
+                new_output = Some(format!("Error reading full buffer, {:?}", e));
+            }
+        };
+
+        if let Some(output) = new_output {
+            if !last_output.eq(&output) {
+                println!("{}", output);
+                last_output = output;
+            }
+        }
+    }
+}
