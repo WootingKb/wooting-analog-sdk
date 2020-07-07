@@ -25,6 +25,8 @@ fn main() {
     }
 }
 
+const DEVICE_BUFFER_MAX: usize = 5;
+const ANALOG_BUFFER_READ_MAX: usize = 10;
 fn use_sdk(device_num: u32) {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -34,7 +36,9 @@ fn use_sdk(device_num: u32) {
     .expect("Error setting Ctrl-C handler");
 
     // get_connected_devices_info() -> SDKResult<Vec<DeviceInfo>>
-    let devices: Vec<DeviceInfo> = sdk::get_connected_devices_info().0.unwrap();
+    let devices: Vec<DeviceInfo> = sdk::get_connected_devices_info(DEVICE_BUFFER_MAX)
+        .0
+        .unwrap();
     assert_eq!(device_num, devices.len() as u32);
     for (i, device) in devices.iter().enumerate() {
         println!("Device {} is {:?}", i, device);
@@ -43,7 +47,8 @@ fn use_sdk(device_num: u32) {
     let mut last_output = String::new();
     while running.load(Ordering::SeqCst) {
         let mut new_output: Option<String> = None;
-        let read_result: SDKResult<HashMap<u16, f32>> = sdk::read_full_buffer();
+        let read_result: SDKResult<HashMap<u16, f32>> =
+            sdk::read_full_buffer(ANALOG_BUFFER_READ_MAX);
         match read_result.0 {
             Ok(analog_data) => {
                 let mut sorted_data = analog_data.iter().collect::<Vec<(&u16, &f32)>>();

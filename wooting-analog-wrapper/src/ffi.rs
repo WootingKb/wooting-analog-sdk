@@ -1,12 +1,10 @@
-
+use crate::SDK_ABI_VERSION;
 use libloading as libl;
 use std::ops::Deref;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 pub use wooting_analog_common::{
     DeviceEventType, DeviceID, DeviceInfo_FFI, KeycodeType, WootingAnalogResult,
 };
-
-const SDK_ABI_VERSION: c_int = 0;
 
 macro_rules! dynamic_extern {
     (@as_item $i:item) => {$i};
@@ -50,7 +48,7 @@ macro_rules! dynamic_extern {
                         return WootingAnalogResult::DLLNotFound.into();
                     }
 
-                    if stringify!($fn_names) != "wooting_analog_version" && wooting_analog_version() >= 0 && wooting_analog_version() != SDK_ABI_VERSION {
+                    if stringify!($fn_names) != "wooting_analog_version" && wooting_analog_version() >= 0 && wooting_analog_version() != SDK_ABI_VERSION as i32 {
                         println!("Cannot access Wooting Analog SDK function as this wrapper is for SDK major version {}, whereas the SDK has major version {}", SDK_ABI_VERSION, wooting_analog_version());
                         return WootingAnalogResult::IncompatibleVersion.into()
                     }
