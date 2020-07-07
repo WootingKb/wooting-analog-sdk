@@ -82,15 +82,23 @@ impl Drop for DeviceInfo_FFI {
 impl DeviceInfo_FFI {
     pub fn into_device_info(&self) -> DeviceInfo {
         DeviceInfo {
-            vendor_id: self.vendor_id,
-            product_id: self.product_id,
+            vendor_id: self.vendor_id.clone(),
+            product_id: self.product_id.clone(),
+            // In this case we use CStr rather than CString as we don't want the memory to be dropped here which may cause a double free
+            // We leave it up to ffi interface to drop the memory
             manufacturer_name: unsafe {
-                CString::from_raw(self.manufacturer_name)
-                    .into_string()
+                CStr::from_ptr(self.manufacturer_name)
+                    .to_str()
                     .unwrap()
+                    .to_owned()
             },
-            device_name: unsafe { CString::from_raw(self.device_name).into_string().unwrap() },
-            device_id: self.device_id,
+            device_name: unsafe {
+                CStr::from_ptr(self.device_name)
+                    .to_str()
+                    .unwrap()
+                    .to_owned()
+            },
+            device_id: self.device_id.clone(),
             device_type: self.device_type.clone(),
         }
     }
