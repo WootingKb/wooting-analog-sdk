@@ -44,6 +44,39 @@ args = ["run", "--manifest-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/woo
 
 [tasks.install-plugin]
 
+
+
+
+[tasks.install]
+script_runner = "@shell"
+script = [
+'''
+
+sudo cp "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${FILENAME}" "${SDK_INSTALL_PATH}/${FILENAME}"
+'''
+]
+dependencies = ["member-build", "member-install-plugin"]
+
+
+[tasks.install.linux]
+env = {FILENAME="libwooting_analog_sdk.so",SDK_INSTALL_PATH="/usr/lib"}
+
+[tasks.install.windows]
+env = {FILENAME="wooting_analog_sdk.dll",SDK_INSTALL_PATH="C:\\Program Files\\wooting-analog-sdk"}
+script_runner = "powershell"
+script_extension = "ps1"
+script = [
+'''
+echo "Requesting admin powershell to install the wooting-analog-sdk"
+$command = "New-Item -ItemType 'directory' -Force '${env:SDK_INSTALL_PATH}'; Copy-Item '${env:CARGO_MAKE_WORKING_DIRECTORY}\target\debug\${env:FILENAME}' '${env:SDK_INSTALL_PATH}\${env:FILENAME}' -Force"
+echo $command
+Start-Process PowerShell.exe -ArgumentList $command -Wait -Verb RunAs
+'''
+]
+
+[tasks.install.mac]
+env = {FILENAME="libwooting_analog_sdk.dylib",SDK_INSTALL_PATH="/usr/local/lib"}
+
 [tasks.build-target-release]
 workspace = false
 description = "Makes a release build for a given target"
