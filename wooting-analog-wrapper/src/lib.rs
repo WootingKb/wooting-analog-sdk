@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::os::raw::c_uint;
 use std::ptr;
 
-pub const SDK_ABI_VERSION: u32 = 0;
+pub(crate) const SDK_ABI_VERSION: u32 = 0;
 
 /// Provides the major version of the SDK, a difference in this value to what is expected (SDK_ABI_VERSION) indicates that
 /// there may be some breaking changes that have been made so the SDK should not be attempted to be used

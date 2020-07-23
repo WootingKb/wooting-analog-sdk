@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::slice;
 use std::sync::Mutex;
-use wooting_analog_common::enum_primitive::FromPrimitive;
+use wooting_analog_common::FromPrimitive;
 use wooting_analog_common::*;
 
 lazy_static! {
@@ -400,7 +400,8 @@ mod tests {
     }
 
     fn shared_init() {
-        env_logger::try_init_from_env(env_logger::Env::from("trace")).map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
+        env_logger::try_init_from_env(env_logger::Env::from("trace"))
+            .map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
     }
 
     #[test]
