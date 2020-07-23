@@ -17,9 +17,8 @@ script = [
 ]
 
 [tasks.run-test-app]
-env = { PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug;${PATH}", LD_LIBRARY_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug:${LD_LIBRARY_PATH}", RUST_LOG="trace" }
-command = "dotnet"
-args = [ "run", "--project", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-test" ]
+command = "cargo"
+args = [ "run", "--manifest-path", "./wooting-analog-wrapper/Cargo.toml" ]
 
 [tasks.member-build]
 command = "cargo"
