@@ -40,7 +40,7 @@ This SDK uses Plugins to provide support for Analog hardware, these must be loca
 | ------- | ---------------------------------------- |
 | Windows | `C:\Program Files\WootingAnalogPlugins\` |
 | Linux   | `/usr/local/share/WootingAnalogPlugins/` |
-| Mac     | `/Library/WootingAnalogPlugins/`         |
+| Mac     | `/usr/local/share/WootingAnalogPlugins/` |
 
 So an example path on Windows would be:
 
@@ -103,6 +103,7 @@ cargo make
 ```
 
 To test:
+
 ```bash
 cargo make test-flow
 ```

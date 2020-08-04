@@ -12,7 +12,7 @@ To add support for a device, simply add a subdirectory to `WootingAnalogPlugins`
 | ------- | ---------------------------------------- |
 | Windows | `C:\Program Files\WootingAnalogPlugins\` |
 | Linux   | `/usr/local/share/WootingAnalogPlugins/` |
-| Mac     | `/Library/WootingAnalogPlugins/`         |
+| Mac     | `/usr/local/share/WootingAnalogPlugins/` |
 
 So an example path on Windows would be:
 
