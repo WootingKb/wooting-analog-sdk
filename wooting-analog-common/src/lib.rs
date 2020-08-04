@@ -11,7 +11,7 @@ use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
 
 #[cfg(target_os = "macos")]
-pub const DEFAULT_PLUGIN_DIR: &str = "/Library/WootingAnalogPlugins";
+pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
 #[cfg(target_os = "linux")]
 pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
 #[cfg(target_os = "windows")]
