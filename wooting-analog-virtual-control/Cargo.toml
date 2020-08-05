@@ -1,14 +1,14 @@
 [package]
 name = "wooting-analog-virtual-control"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
 edition = "2018"
 
 
 [dependencies]
 wooting-analog-common = { path = "../wooting-analog-common"}
-shared_memory = "0.8.2"
-log = "0.4.7"
-iced = "0.1.0"
+shared_memory = "^0.8"
+log = "^0.4"
+iced = "^0.1"
 env_logger = "0.7.1"
 lazy_static = "*"
