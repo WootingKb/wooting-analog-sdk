@@ -37,6 +37,8 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
+    # Currently the --out-dir flag is 'unstable' so unfortunately need to switch to nightly for the build to work properly 
+    rustup default nightly
     cargo make build-target-release
 
 
