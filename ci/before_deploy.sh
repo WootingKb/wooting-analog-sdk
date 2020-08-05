@@ -76,6 +76,8 @@ main() {
     cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$lib_ext $stage/wrapper/lib/
     cp target/release-artifacts/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
     cp target/release-artifacts/${lib_prefix}wooting_analog_test_plugin.$shared_lib_ext $stage/wrapper/sdk/
+    # Include Wooting Plugin & Virtual Keyboard app
+    cp target/release-artifacts/${lib_prefix}wooting_analog_plugin.$shared_lib_ext $stage/wrapper/sdk/
     cp target/release-artifacts/wooting-analog-virtual-control$exe_ext $stage/wrapper/sdk/
 
     ## Copy c headers
