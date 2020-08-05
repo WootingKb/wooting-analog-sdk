@@ -1,4 +1,4 @@
-use sdk::{DeviceInfo, SDKResult};
+use sdk::{DeviceEventType, DeviceInfo, DeviceInfo_FFI, SDKResult};
 // use wooting_analog_common::{DeviceInfo, SDKResult};
 use wooting_analog_wrapper as sdk;
 extern crate ctrlc;
@@ -25,9 +25,17 @@ fn main() {
     }
 }
 
+extern "C" fn callback_handler(event: DeviceEventType, device: *mut DeviceInfo_FFI) {
+    let device: DeviceInfo = unsafe { device.as_ref().unwrap().into_device_info() };
+
+    println!("Event: {:?} on device: {:?}", event, device);
+}
+
 const DEVICE_BUFFER_MAX: usize = 5;
 const ANALOG_BUFFER_READ_MAX: usize = 10;
 fn use_sdk(device_num: u32) {
+    sdk::set_device_event_cb(callback_handler);
+
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {
