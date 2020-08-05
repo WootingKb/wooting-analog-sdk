@@ -67,7 +67,6 @@ To get the virtual keyboard, right now there are only Windows builds available f
 - `wooting-analog-common`: This library contains all common Analog SDK definitions which are used by every part
 - `wooting-analog-plugin-dev`: This library contains all common elements needed for designing plugins. This re-exports `wooting-analog-common`, so it is not required for plugins to separately depend on `wooting-analog-common`
 - `wooting-analog-wrapper`: This is the SDK wrapper which is what Applications should use to communicate with the SDK. The linked dll should be shipped with the application using it.
-- `wooting-analog-test`: This is a C# test application which can be used to test the SDK through the wrapper.
 - `wooting-analog-test-plugin`: Dummy plugin which uses shared memory so other processes can control the output of the plugin. This is used for unit testing of the SDK and allows the `wooting-analog-virtual-kb` to work
 - `wooting-analog-virtual-kb`: Virtual Keyboard using GTK which allows to set the analog value of all the keys through the dummy plugin. This allows you to test an Analog SDK implementation without an analog device
 - `wooting-analog-sdk-updater`: Updater tool to update the Analog SDK from Github releases
@@ -160,7 +159,3 @@ Before commiting (if you've made changes to any of the previously mentioned crat
 - [wooting-analog-plugin](https://github.com/WootingKb/wooting-analog-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
 - [wooting-analog-plugin-examples](https://github.com/WootingKb/wooting-analog-plugin-examples): This repo contains all plugin examples that have been collected
 - [wooting-analog-wrappers](https://github.com/WootingKb/wooting-analog-wrappers): Official language wrappers for the Wooting Analog SDK
-
-## TODO
-
-- [ ] Improve docs & crates readme for `common` and `plugin-dev` packages

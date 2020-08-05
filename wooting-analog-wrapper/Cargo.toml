@@ -8,6 +8,7 @@ edition = "2018"
 lazy_static = "*"
 libloading = "0.5.1"
 wooting-analog-common = { path = "../wooting-analog-common"}
+ctrlc = { version = "3", features = ["termination"] }
 
 [lib]
 crate-type = ["cdylib", "rlib", "staticlib"]

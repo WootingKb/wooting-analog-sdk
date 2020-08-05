@@ -11,27 +11,27 @@ enum class WootingAnalog_DeviceEventType {
   /// Device has been connected
   WootingAnalog_DeviceEventType_Connected = 1,
   /// Device has been disconnected
-  WootingAnalog_DeviceEventType_Disconnected,
+  WootingAnalog_DeviceEventType_Disconnected = 2,
 };
 
 enum class WootingAnalog_DeviceType {
   /// Device is of type Keyboard
   WootingAnalog_DeviceType_Keyboard = 1,
   /// Device is of type Keypad
-  WootingAnalog_DeviceType_Keypad,
+  WootingAnalog_DeviceType_Keypad = 2,
   /// Device
-  WootingAnalog_DeviceType_Other,
+  WootingAnalog_DeviceType_Other = 3,
 };
 
 enum class WootingAnalog_KeycodeType {
   /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
-  WootingAnalog_KeycodeType_HID,
+  WootingAnalog_KeycodeType_HID = 0,
   /// Scan code set 1
-  WootingAnalog_KeycodeType_ScanCode1,
+  WootingAnalog_KeycodeType_ScanCode1 = 1,
   /// Windows Virtual Keys
-  WootingAnalog_KeycodeType_VirtualKey,
+  WootingAnalog_KeycodeType_VirtualKey = 2,
   /// Windows Virtual Keys which are translated to the current keyboard locale
-  WootingAnalog_KeycodeType_VirtualKeyTranslate,
+  WootingAnalog_KeycodeType_VirtualKeyTranslate = 3,
 };
 
 enum class WootingAnalogResult {
@@ -39,25 +39,25 @@ enum class WootingAnalogResult {
   /// Item hasn't been initialized
   WootingAnalogResult_UnInitialized = -2000,
   /// No Devices are connected
-  WootingAnalogResult_NoDevices,
+  WootingAnalogResult_NoDevices = -1999,
   /// Device has been disconnected
-  WootingAnalogResult_DeviceDisconnected,
+  WootingAnalogResult_DeviceDisconnected = -1998,
   /// Generic Failure
-  WootingAnalogResult_Failure,
+  WootingAnalogResult_Failure = -1997,
   /// A given parameter was invalid
-  WootingAnalogResult_InvalidArgument,
+  WootingAnalogResult_InvalidArgument = -1996,
   /// No Plugins were found
-  WootingAnalogResult_NoPlugins,
+  WootingAnalogResult_NoPlugins = -1995,
   /// The specified function was not found in the library
-  WootingAnalogResult_FunctionNotFound,
+  WootingAnalogResult_FunctionNotFound = -1994,
   /// No Keycode mapping to HID was found for the given Keycode
-  WootingAnalogResult_NoMapping,
+  WootingAnalogResult_NoMapping = -1993,
   /// Indicates that it isn't available on this platform
-  WootingAnalogResult_NotAvailable,
+  WootingAnalogResult_NotAvailable = -1992,
   /// Indicates that the operation that is trying to be used is for an older version
-  WootingAnalogResult_IncompatibleVersion,
+  WootingAnalogResult_IncompatibleVersion = -1991,
   /// Indicates that the Analog SDK could not be found on the system
-  WootingAnalogResult_DLLNotFound,
+  WootingAnalogResult_DLLNotFound = -1990,
 };
 
 /// The core `DeviceInfo` struct which contains all the interesting information

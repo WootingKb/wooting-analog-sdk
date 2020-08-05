@@ -32,7 +32,7 @@ Start-Process PowerShell.exe -ArgumentList $command -Wait -Verb RunAs
 ]
 
 [tasks.install-plugin.mac]
-env = {TEST_PLUGIN_FILENAME="libwooting_analog_test_plugin",PLUGIN_INSTALL_PATH="/usr/local/share/WootingAnalogPlugins"}
+env = {TEST_PLUGIN_FILENAME="wooting_analog_test_plugin",PLUGIN_INSTALL_PATH="/usr/local/share/WootingAnalogPlugins"}
 
 [tasks.pre-test]
 script_runner = "@shell"
