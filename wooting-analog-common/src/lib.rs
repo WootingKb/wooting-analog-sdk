@@ -10,6 +10,7 @@ pub use num_traits::{FromPrimitive, ToPrimitive};
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
+use thiserror::Error;
 
 #[cfg(target_os = "macos")]
 pub const DEFAULT_PLUGIN_DIR: &str = "/Library/WootingAnalogPlugins";
@@ -211,31 +212,43 @@ pub enum DeviceEventType {
     Disconnected = 2,
 }
 
-#[derive(Debug, PartialEq, Clone, Primitive)]
+#[derive(Debug, PartialEq, Clone, Primitive, Error)]
 #[repr(C)]
 pub enum WootingAnalogResult {
+    #[error("All OK")]
     Ok = 1,
     /// Item hasn't been initialized
+    #[error("SDK has not been initialized")]
     UnInitialized = -2000isize,
     /// No Devices are connected
+    #[error("No Devices are connected")]
     NoDevices = -1999isize,
     /// Device has been disconnected
+    #[error("Device has been disconnected")]
     DeviceDisconnected = -1998isize,
     /// Generic Failure
+    #[error("Generic Failure")]
     Failure = -1997isize,
     /// A given parameter was invalid
+    #[error("A given parameter was invalid")]
     InvalidArgument = -1996isize,
     /// No Plugins were found
+    #[error("No Plugins were found")]
     NoPlugins = -1995isize,
     /// The specified function was not found in the library
+    #[error("The specified function was not found in the library")]
     FunctionNotFound = -1994isize,
     /// No Keycode mapping to HID was found for the given Keycode
+    #[error("No Keycode mapping to HID was found for the given Keycode")]
     NoMapping = -1993isize,
     /// Indicates that it isn't available on this platform
+    #[error("Unavailable on this platform")]
     NotAvailable = -1992isize,
     /// Indicates that the operation that is trying to be used is for an older version
+    #[error("Incompatible SDK Version")]
     IncompatibleVersion = -1991isize,
     /// Indicates that the Analog SDK could not be found on the system
+    #[error("The Wooting Analog SDK could not be found on the system")]
     DLLNotFound = -1990isize,
 }
 

@@ -16,6 +16,7 @@ documentation = "https://docs.rs/wooting-analog-common"
 enum-primitive-derive = "0.2"
 num-traits = "^0.1"
 log = "0.4"
+thiserror = "1.0"
 ffi-support = "0.4"
 
 
