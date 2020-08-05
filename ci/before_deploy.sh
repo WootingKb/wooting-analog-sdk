@@ -8,6 +8,7 @@ main() {
           lib_ext=
           lib_prefix=
           shared_lib_ext=
+          exe_ext=
           cargo=cargo
 
     case $TRAVIS_OS_NAME in
@@ -16,18 +17,21 @@ main() {
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="so"
+            exe_ext=""
             ;;
         osx)
             stage=$(mktemp -d -t tmp)
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="dylib"
+            exe_ext=""
             ;;
         windows)
             stage=$(mktemp -d)
             lib_ext="lib"
             lib_prefix=""
             shared_lib_ext="dll"
+            exe_ext=".exe"
             ;;
     esac
 
@@ -70,6 +74,7 @@ main() {
     cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$lib_ext $stage/wrapper/lib/
     cp target/release-artifacts/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
     cp target/release-artifacts/${lib_prefix}wooting_analog_test_plugin.$shared_lib_ext $stage/wrapper/sdk/
+    cp target/release-artifacts/wooting-analog-virtual-control$exe_ext $stage/wrapper/sdk/
 
     ## Copy c headers
     cp includes/wooting-analog-wrapper.h $stage/wrapper/includes/

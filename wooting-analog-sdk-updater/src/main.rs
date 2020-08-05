@@ -8,19 +8,16 @@ extern crate winapi;
 extern crate json;
 extern crate chrono;
 
-
+use chrono::Utc;
 use clap::{App, Arg};
 use self_update::backends::github::{Release, ReleaseAsset};
 use self_update::version::bump_is_greater;
+use simplelog::*;
+use std::fs::OpenOptions;
 use std::io::Write;
 use std::process::Command;
 #[cfg(windows)]
 use winapi::um::winuser;
-use std::ptr::null_mut;
-use simplelog::*;
-use std::fs::{OpenOptions};
-use chrono::{Utc};
-
 
 const INSTALLER_PATH: &str = "installer.msi";
 const PKG_VER: &str = env!("CARGO_PKG_VERSION");
@@ -91,7 +88,10 @@ use std::path::PathBuf;
 
 fn main() {
     let mut log_path = PathBuf::new();
-    let log_dir = std::env::var("APPDATA").map(|appdata| appdata + "\\wooting-analog-sdk\\").map_err(|e| error!("Unable to get Appdata directory: {}", e)).unwrap_or("./".to_string());
+    let log_dir = std::env::var("APPDATA")
+        .map(|appdata| appdata + "\\wooting-analog-sdk\\")
+        .map_err(|e| error!("Unable to get Appdata directory: {}", e))
+        .unwrap_or("./".to_string());
     std::fs::create_dir_all(&log_dir).unwrap();
     log_path.push(log_dir);
     log_path.push("updater.log");
@@ -108,7 +108,8 @@ fn main() {
                 .help("Doesn't prompt the user"),
         )
         .arg(
-            Arg::with_name("v").short("v")
+            Arg::with_name("v")
+                .short("v")
                 .multiple(true)
                 .help("Additional logging to console"),
         )
@@ -125,15 +126,25 @@ fn main() {
         2 | _ => LevelFilter::Debug,
     };
 
-    CombinedLogger::init(
-        vec![
-            TermLogger::new(term_filter, Config::default(), TerminalMode::Mixed).unwrap(),
-            WriteLogger::new(LevelFilter::Debug, Config::default(), OpenOptions::new().append(true).create(true).open(&log_path).unwrap()),
-        ]
-    ).unwrap();
-    info!("Wooting Analog SDK Updater v{} '{}'", PKG_VER, Utc::now().format("%a %b %e %T %Y"));
+    CombinedLogger::init(vec![
+        TermLogger::new(term_filter, Config::default(), TerminalMode::Mixed).unwrap(),
+        WriteLogger::new(
+            LevelFilter::Debug,
+            Config::default(),
+            OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(&log_path)
+                .unwrap(),
+        ),
+    ])
+    .unwrap();
+    info!(
+        "Wooting Analog SDK Updater v{} '{}'",
+        PKG_VER,
+        Utc::now().format("%a %b %e %T %Y")
+    );
     info!("Logging output to: '{:?}'", log_path);
-
 
     debug!("Called with parameters {:?}", matches);
 
@@ -184,9 +195,7 @@ fn main() {
         } else {
             info!("--no-install given, Exiting without updating...");
         }
-    }
-    else {
+    } else {
         info!("No update available, Exiting...");
     }
-
 }
