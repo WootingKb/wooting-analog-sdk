@@ -177,6 +177,8 @@ fn main() {
                     let l_msg: Vec<u16> = message.encode_utf16().collect();
                     let l_title: Vec<u16> = title.encode_utf16().collect();
                     unsafe {
+                        use std::ptr::null_mut;
+
                         if winuser::MessageBoxW(
                             null_mut(),
                             l_msg.as_ptr(),
