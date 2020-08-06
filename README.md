@@ -15,9 +15,13 @@ On Windows the SDK & Wooting Plugin will be installed & updated automatically th
 
 ### Linux
 
-On Linux the primarily installation method is the `deb` package, which includes both the SDK and the Wooting Plugin, which can be found on the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases)
+#### Ubuntu / Debian / Pop!\_OS etc
 
-To install manually:
+On Linux the primarily installation method is the `deb` package, which includes both the SDK and the Wooting Plugin, which can be found on the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases).
+
+[Here is some helpful information](https://linuxhint.com/install_deb_packages_ubuntu/) for installing a `deb` package manually. For all (terminal instructions) and Ubuntu (GUI instructions)
+
+#### Manual
 
 - Download & Extract the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) `wooting-analog-sdk-v*.*.*-x86_64-unknown-linux-gnu.tar.gz`
 - Copy `$extract/wrapper/sdk/libwooting_analog_sdk.so` to `/usr/lib`. (Or to some directory and add that path to the `LD_LIBRARY_PATH` environment variable)
@@ -25,7 +29,18 @@ To install manually:
 
 ### Mac
 
-Currently there is no installer available for Mac, so you will have to install manually.
+#### Homebrew (Recommended)
+
+We now have a [Homebrew](https://brew.sh/) package available to install the `sdk` and our `plugin` from our own [tap](https://github.com/WootingKb/homebrew-wooting).
+
+1. Install Homebrew from [their website](https://brew.sh/)
+1. Open the terminal and enter the command below:
+
+```
+brew install wootingkb/wooting/wooting-analog-sdk
+```
+
+#### Manual
 
 - Download & Extract the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) `wooting-analog-sdk-v*.*.*-x86_64-apple-darwin.tar.gz`
 - Copy `$extract/wrapper/sdk/libwooting_analog_sdk.dylib` to `/usr/local/lib`. (Or to some directory and add that path to the `DYLD_LIBRARY_PATH` environment variable)
@@ -59,7 +74,7 @@ Additionally, some of the crucial docs can be found in [SDK usage](SDK_USAGE.md)
 The SDK includes a 'Virtual Keyboard' app which will emulate an Analog Keyboard and allows you to test with the Analog SDK without needing a keyboard. To use this, ensure you have the `wooting-analog-test-plugin` installed, on windows the installer allows you to choose if you want to install the feature. On Linux it is currently installed automatically with the `deb` package.
 If you wish to install it otherwise, you can find it in the `.tar.gz` for your platform from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) under `$extract/wrapper/sdk/{lib}wooting_analog_test_plugin.{dll/so/dylib}`, install it as discussed above in the [Plugins section](#Plugins)
 
-To get the virtual keyboard, right now there are only Windows builds available from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases), for other platforms you'll need to build it yourself as described below.
+You can get the virtual keyboard by downloading the `.tar.gz` archive for your platfrom from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) and find the `wrapper/sdk/wooting-analog-virtual-control` executable.
 
 ## Components
 
