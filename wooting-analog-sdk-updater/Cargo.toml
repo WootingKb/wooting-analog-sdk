@@ -1,17 +1,17 @@
 [package]
 name = "wooting-analog-sdk-updater"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-self_update = "0.6.0"
+self_update = "^0.6"
 clap = "~2.33.0"
-log = "0.4.8"
-json = "0.11.15"
-simplelog = "0.7.5"
+log = "^0.4"
+json = "^0.11"
+simplelog = "^0.7"
 chrono = "0.4"
 
 

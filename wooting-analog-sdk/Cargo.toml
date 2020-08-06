@@ -1,6 +1,6 @@
 [package]
 name = "wooting-analog-sdk"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["simon-wh <simon@wooting.io>"]
 edition = "2018"
 license = "MPL-2.0"
@@ -25,7 +25,7 @@ wooting-analog-common = { path = "../wooting-analog-common"}
 wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 
 [dev-dependencies]
-shared_memory = "0.8.2"
+shared_memory = "^0.8"
 
 [build-dependencies]
 cmake = "0.1"
