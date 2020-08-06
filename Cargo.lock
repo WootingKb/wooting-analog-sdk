@@ -3798,6 +3798,7 @@ dependencies = [
  "ffi-support",
  "log",
  "num-traits 0.1.43",
+ "serde",
  "thiserror",
 ]
 

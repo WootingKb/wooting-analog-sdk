@@ -7,6 +7,7 @@ extern crate ffi_support;
 
 use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
+use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
@@ -22,7 +23,7 @@ pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is for use internally and should be ignored if you're
 /// trying to use it when trying to interact with the SDK using the wrapper
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DeviceInfo {
     /// Device Vendor ID `vid`
     pub vendor_id: u16,
@@ -177,7 +178,7 @@ pub unsafe extern "C" fn drop_device_info(device: *mut DeviceInfo) {
     Box::from_raw(device);
 }
 
-#[derive(Debug, PartialEq, Clone, Primitive)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum KeycodeType {
     /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
@@ -192,7 +193,7 @@ pub enum KeycodeType {
 
 pub type DeviceID = u64;
 
-#[derive(Debug, PartialEq, Clone, Primitive)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceType {
     /// Device is of type Keyboard
@@ -203,7 +204,7 @@ pub enum DeviceType {
     Other = 3,
 }
 
-#[derive(Debug, PartialEq, Clone, Primitive)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceEventType {
     /// Device has been connected
@@ -212,7 +213,7 @@ pub enum DeviceEventType {
     Disconnected = 2,
 }
 
-#[derive(Debug, PartialEq, Clone, Primitive, Error)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive, Error)]
 #[repr(C)]
 pub enum WootingAnalogResult {
     #[error("All OK")]
@@ -399,7 +400,8 @@ impl Into<bool> for WootingAnalogResult {
         self == WootingAnalogResult::Ok
     }
 }
-#[derive(Debug, PartialEq, Clone, Hash, Eq, Primitive)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Hash, Eq, Primitive)]
+#[repr(C)]
 pub enum HIDCodes {
     A = 0x04,
     B = 0x05, //US_B
