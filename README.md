@@ -5,6 +5,8 @@
 
 # Wooting Analog SDK
 
+The Wooting Analog SDK is the open driver for Analog keyboards. It's goal is to create native support for Analog keyboards in any game or application. The repository is mostly aimed at developers looking to implement the Analog SDK or for users looking to dig a little deeper. If you want to use the Analog SDK just jump to the [installing](#installing) section. On Windows it will automatically get installed with the Wootility.
+
 This repo contains all the core cross-platform components of the Wooting Analog SDK. The SDK and most of the components are built on Rust and should run on Windows, Mac and Linux, following the same steps for each platform unless otherwise specified.
 
 ## Installing
