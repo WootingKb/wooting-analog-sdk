@@ -1,6 +1,6 @@
 use crate::cplugin::*;
-use crate::errors::*;
 use crate::keycode::*;
+use anyhow::{Context, Error, Result};
 use libloading::{Library, Symbol};
 use log::{error, info, warn};
 use std::collections::HashMap;
@@ -26,6 +26,16 @@ pub struct AnalogSDK {
     plugins: Vec<Box<dyn Plugin>>,
     loaded_libraries: Vec<Library>,
     device_event_callback: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, DeviceInfo) + Send>>>>,
+}
+
+pub fn print_error(err: Error) -> Error {
+    error!("{:#}", err);
+    err
+}
+
+pub fn print_warn(err: Error) -> Error {
+    warn!("{:#}", err);
+    err
 }
 
 #[cfg(target_os = "macos")]
@@ -156,9 +166,9 @@ impl AnalogSDK {
         if dir.is_dir() {
             let mut i: u32 = 0;
             for entry in fs::read_dir(dir)
-                .chain_err(|| format!("Unable to load dir \"{}\"", dir.display()))?
+                .with_context(|| format!("Unable to load dir \"{}\"", dir.display()))?
             {
-                let path = entry.chain_err(|| "Err with entry")?.path();
+                let path = entry.context("Err with entry")?.path();
 
                 if let Some(ext) = path.extension().and_then(OsStr::to_str) {
                     if ext == LIB_EXT {
@@ -166,7 +176,8 @@ impl AnalogSDK {
                         unsafe {
                             if self
                                 .load_plugin(&path)
-                                .map_err(|e| error!("Load Plugin failed: {:?}", e))
+                                .context("Load Plugin failed")
+                                .map_err(print_error)
                                 .is_ok()
                             {
                                 i += 1;
@@ -183,13 +194,13 @@ impl AnalogSDK {
 
     unsafe fn load_plugin(&mut self, filename: &Path) -> Result<()> {
         if filename.is_dir() {
-            return Err("Path is directory!".into());
+            bail!("Path is directory!");
         }
 
         type PluginCreate = unsafe extern "C" fn() -> *mut dyn Plugin;
         type PluginVersion = unsafe extern "C" fn() -> &'static str;
 
-        let lib = Library::new(filename.as_os_str()).chain_err(|| "Unable to load the plugin")?;
+        let lib = Library::new(filename.as_os_str()).context("Unable to load the plugin")?;
 
         // We need to keep the library around otherwise our plugin's vtable will
         // point to garbage. We do this little dance to make sure the library
@@ -217,25 +228,23 @@ impl AnalogSDK {
                     if major_ver.eq(plugin_major_ver) {
                         info!("Plugin and SDK are compatible!");
                     } else {
-                        return Err(format!(
+                        bail!(
                             "Plugin has major version {}, which is incompatible with the SDK's: {}",
-                            plugin_major_ver, ANALOG_SDK_PLUGIN_VERSION
-                        )
-                        .into());
+                            plugin_major_ver,
+                            ANALOG_SDK_PLUGIN_VERSION
+                        );
                     }
                 } else {
-                    return Err(format!(
+                    bail!(
                         "Unable to get the Plugin's major version from SemVer {}",
                         ver
-                    )
-                    .into());
+                    );
                 }
             } else {
-                return Err(format!(
+                bail!(
                     "Unable to get the SDK's Plugin major version from SemVer {}",
                     ANALOG_SDK_PLUGIN_VERSION
-                )
-                .into());
+                );
             }
         } else {
             warn!("Unable to determine the Plugin's SemVer!");
@@ -243,16 +252,14 @@ impl AnalogSDK {
 
         let constructor: Option<Symbol<PluginCreate>> = lib
             .get(b"_plugin_create")
-            .map_err(|e| {
-                warn!("Find constructor error: {}", e);
-            })
+            .context("Failed to find constructor (_plugin_create symbol)")
+            .map_err(print_warn)
             .ok();
-        //    .chain_err(|| "The `_plugin_create` symbol wasn't found.");
 
         let mut plugin = match constructor {
             Some(f) => {
                 if !got_ver {
-                    return Err("Unable to determine the Plugin's SemVer!".into());
+                    bail!("Unable to determine the Plugin's SemVer!");
                 }
 
                 debug!("We got it and we're trying");
@@ -264,12 +271,12 @@ impl AnalogSDK {
                 match CPlugin::new(lib).0 {
                     Ok(cplugin) => Box::new(cplugin),
                     Err(WootingAnalogResult::IncompatibleVersion) => {
-                        return Err(
-                            "Plugin is a C plugin which is incompatible with this version of the SDK".into(),
+                        bail!(
+                            "Plugin is a C plugin which is incompatible with this version of the SDK"
                         );
                     }
                     Err(_) => {
-                        return Err("Plugin isn't a valid C or Rust plugin".into());
+                        bail!("Plugin isn't a valid C or Rust plugin");
                     }
                 }
             }
@@ -282,10 +289,10 @@ impl AnalogSDK {
                 self.plugins.push(plugin);
             }
             Err(WootingAnalogResult::FunctionNotFound) => {
-                return Err("Plugin isn't a valid plugin, name function not found".into());
+                bail!("Plugin isn't a valid plugin, name function not found");
             }
             Err(e) => {
-                return Err(format!("Plugin failed with unhandled error {:?}", e).into());
+                bail!("Plugin failed with unhandled error {:?}", e);
             }
         }
 
