@@ -83,12 +83,12 @@ impl AnalogSDK {
         let mut load_plugins = |dir: &Path| {
             match self.load_plugins(dir) {
                 Ok(0) => {
-                    warn!("Failed to load any plugins from {:?}!", dir);
+                    info!("No plugins found in {:?}", dir);
                     //self.initialised = false;
                     //WootingAnalogResult::NoPlugins
                 }
                 Ok(i) => {
-                    info!("Loaded {} plugins from {:?}", i, dir);
+                    debug!("Loaded {} plugins from {:?}", i, dir);
                     //WootingAnalogResult::Ok
                 }
                 Err(e) => {
@@ -136,7 +136,7 @@ impl AnalogSDK {
                     });
                 },
             ));
-            info!("{:?}", ret);
+            debug!("{:?}", ret);
             if let Ok(num) = ret.0 {
                 plugins_initialised += 1;
                 device_no += num;
@@ -162,7 +162,7 @@ impl AnalogSDK {
 
                 if let Some(ext) = path.extension().and_then(OsStr::to_str) {
                     if ext == LIB_EXT {
-                        info!("Attempting to load plugin: \"{}\"", path.display());
+                        info!("Loading plugin: \"{}\"", path.display());
                         unsafe {
                             if self
                                 .load_plugin(&path)
@@ -203,7 +203,7 @@ impl AnalogSDK {
         if let Some(f_ver) = full_version {
             got_ver = true;
             let ver = f_ver();
-            info!(
+            debug!(
                 "Plugin got plugin-dev sem version: {}. SDK: {}",
                 ver, ANALOG_SDK_PLUGIN_VERSION
             );
@@ -224,13 +224,21 @@ impl AnalogSDK {
                         .into());
                     }
                 } else {
-                    return Err("Unable to get the Plugin's major version from SemVer".into());
+                    return Err(format!(
+                        "Unable to get the Plugin's major version from SemVer {}",
+                        ver
+                    )
+                    .into());
                 }
             } else {
-                return Err("Unable to get the SDK's Plugin major version from SemVer".into());
+                return Err(format!(
+                    "Unable to get the SDK's Plugin major version from SemVer {}",
+                    ANALOG_SDK_PLUGIN_VERSION
+                )
+                .into());
             }
         } else {
-            info!("Unable to determine the Plugin's SemVer!");
+            warn!("Unable to determine the Plugin's SemVer!");
         }
 
         let constructor: Option<Symbol<PluginCreate>> = lib
@@ -251,7 +259,7 @@ impl AnalogSDK {
                 Box::from_raw(f())
             }
             None => {
-                warn!("Didn't find _plugin_create, assuming it's a c plugin");
+                info!("Didn't find _plugin_create, assuming it's a C plugin");
                 let lib = self.loaded_libraries.pop().unwrap();
                 match CPlugin::new(lib).0 {
                     Ok(cplugin) => Box::new(cplugin),
@@ -491,7 +499,8 @@ mod tests {
     unsafe impl SharedMemCast for SharedState {}
 
     fn shared_init() {
-        env_logger::try_init_from_env(env_logger::Env::from("trace")).map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
+        env_logger::try_init_from_env(env_logger::Env::from("trace"))
+            .map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
     }
 
     #[test]
