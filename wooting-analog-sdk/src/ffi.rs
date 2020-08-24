@@ -653,6 +653,7 @@ mod tests {
         assert!(*Arc::clone(&got_connected).lock().unwrap());
 
         assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
+        assert!(!wooting_analog_is_initialised());
 
         // Test if re-initialisation works
         wooting_analog_initialise();
