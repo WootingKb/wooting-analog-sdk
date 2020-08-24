@@ -18,7 +18,8 @@ lazy_static! {
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_initialise() -> c_int {
-    env_logger::init();
+    env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info"))
+        .map_err(|e| println!("ERROR: Could not initialise logging. '{:?}'", e));
     ANALOG_SDK.lock().unwrap().initialise().into()
 }
 
@@ -651,6 +652,10 @@ mod tests {
         //This shouldn't have updated if the cb is not there
         assert!(*Arc::clone(&got_connected).lock().unwrap());
 
+        assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
+
+        // Test if re-initialisation works
+        wooting_analog_initialise();
         assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
     }
 }
