@@ -19,6 +19,10 @@ fn main() {
             println!("Finishing up...");
             sdk::uninitialise();
             assert!(!sdk::is_initialised());
+            sdk::initialise();
+            assert!(sdk::is_initialised());
+            sdk::uninitialise();
+            assert!(!sdk::is_initialised());
         }
         Err(e) => {
             println!("SDK Failed to initialise. Error: {:?}", e);
