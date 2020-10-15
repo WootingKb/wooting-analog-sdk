@@ -172,6 +172,7 @@ Before commiting (if you've made changes to any of the previously mentioned crat
 
 ## Related Repositories
 
+- [wooting-analog-midi](https://github.com/WootingKb/wooting-analog-midi) Cross-platform virtual MIDI device for (Wooting) analog keyboards! Inspired by Microdee's WootingPiano below
 - [WootingPiano](https://github.com/simon-wh/WootingPiano) (Originally by Microdee) Sets up the Wooting keyboard to be used as a MIDI keyboard input
 - [wooting-analog-plugin](https://github.com/WootingKb/wooting-analog-plugin): This is Wooting's Plugin which is written in Rust and serves as a good reference implementation
 - [wooting-analog-plugin-examples](https://github.com/WootingKb/wooting-analog-plugin-examples): This repo contains all plugin examples that have been collected
