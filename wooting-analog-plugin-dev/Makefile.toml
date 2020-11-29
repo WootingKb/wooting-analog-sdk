@@ -9,12 +9,10 @@ HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/wooting-analog-common*"
 
 
 [tasks.header-cpp]
-toolchain = "nightly"
 command = "cbindgen"
 args = ["-l", "c++", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
 
 [tasks.header-c]
-toolchain = "nightly"
 command = "cbindgen"
 args = ["-l", "c", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 

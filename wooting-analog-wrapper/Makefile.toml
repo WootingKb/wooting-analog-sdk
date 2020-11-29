@@ -4,13 +4,11 @@ HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes"
 HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes-cpp"
 
 [tasks.header-cpp]
-toolchain = "nightly"
 command = "cbindgen"
 args = ["-l", "c++", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
 #Include clean on the second header gen as otherwise it'll strangely fail on windows and mac
 
 [tasks.header-c]
-toolchain = "nightly"
 command = "cbindgen"
 args = ["-l", "c", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 #Have had to throw in clean as well as there's some weird cases where cbindgen will fail when generating all headers
