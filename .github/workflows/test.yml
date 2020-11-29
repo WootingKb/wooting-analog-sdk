@@ -11,6 +11,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: true
       - name: Setup rust toolchain
         uses: actions-rs/toolchain@v1
       - uses: davidB/rust-cargo-make@v1
