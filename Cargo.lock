@@ -54,6 +54,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b602bfe940d21c130f3895acd65221e8a61270debe89d628b9cb4e3ccb8569b"
+
+[[package]]
 name = "approx"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -750,7 +756,6 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d2f06b9cac1506ece98fe3231e3cc9c4410ec3d5b1f24ae1c8946f0742cdefc"
 dependencies = [
- "backtrace",
  "version_check",
 ]
 
@@ -3849,10 +3854,10 @@ dependencies = [
 name = "wooting-analog-sdk"
 version = "0.5.0"
 dependencies = [
+ "anyhow",
  "bimap",
  "cmake",
  "env_logger",
- "error-chain",
  "ffi-support",
  "lazy_static",
  "libloading 0.6.2",

@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 fn main() {
     println!("Starting Wooting Analog SDK!");
+    assert!(!sdk::is_initialised());
     let init_result: SDKResult<u32> = sdk::initialise();
 
     match init_result.0 {
@@ -16,6 +17,10 @@ fn main() {
             println!("SDK Successfully initialised with {} devices", device_num);
             use_sdk(device_num);
             println!("Finishing up...");
+            sdk::uninitialise();
+            assert!(!sdk::is_initialised());
+            sdk::initialise();
+            assert!(sdk::is_initialised());
             sdk::uninitialise();
             assert!(!sdk::is_initialised());
         }
@@ -40,6 +45,7 @@ fn use_sdk(device_num: u32) {
     let r = running.clone();
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
+        println!("");
     })
     .expect("Error setting Ctrl-C handler");
 
