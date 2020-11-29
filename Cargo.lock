@@ -3902,6 +3902,7 @@ dependencies = [
  "log",
  "shared_memory",
  "wooting-analog-common 0.5.0",
+ "wooting-analog-test-plugin",
 ]
 
 [[package]]

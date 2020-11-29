@@ -22,7 +22,7 @@ struct WootingAnalogTestPlugin {
     pressed_keys: Vec<u16>,
 }
 
-struct SharedState {
+pub struct SharedState {
     pub vendor_id: u16,
     /// Device Product ID `pid`
     pub product_id: u16,

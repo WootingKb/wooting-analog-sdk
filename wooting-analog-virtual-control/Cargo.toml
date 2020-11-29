@@ -12,3 +12,4 @@ log = "^0.4"
 iced = "^0.1"
 env_logger = "0.7.1"
 lazy_static = "*"
+wooting-analog-test-plugin = { path="../wooting-analog-test-plugin" }
