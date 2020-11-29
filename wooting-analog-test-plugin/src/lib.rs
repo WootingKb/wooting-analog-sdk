@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate log;

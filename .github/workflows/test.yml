@@ -1,0 +1,17 @@
+name: Test CI
+
+on: push
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: davidB/rust-cargo-make@v1
+      - uses: Swatinem/rust-cache@v1
+      - name: Run tests
+        run: cargo make test-flow
