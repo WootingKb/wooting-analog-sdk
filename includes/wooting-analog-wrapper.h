@@ -8,25 +8,6 @@
 #include <stdlib.h>
 #include "wooting-analog-common.h"
 
-/// Clears the device event callback that has been set
-///
-/// # Expected Returns
-/// * `Ok`: The callback was cleared successfully
-/// * `UnInitialized`: The SDK is not initialised
-WootingAnalogResult wooting_analog_clear_device_event_cb(void);
-
-/// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
-///
-/// # Notes
-/// * The memory of the returned structs will only be kept until the next call of `get_connected_devices_info`, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling `get_connected_devices_info` again.
-///
-/// # Expected Returns
-/// Similar to wooting_analog_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type WootingAnalogResult
-/// * `ret>=0`: The number of connected devices that have been filled into the buffer
-/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
-int wooting_analog_get_connected_devices_info(WootingAnalog_DeviceInfo_FFI **buffer,
-                                              unsigned int len);
-
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
 ///
@@ -39,6 +20,27 @@ int wooting_analog_initialise(void);
 
 /// Returns a bool indicating if the Analog SDK has been initialised
 bool wooting_analog_is_initialised(void);
+
+/// Uninitialises the SDK, returning it to an empty state, similar to how it would be before first initialisation
+/// # Expected Returns
+/// * `Ok`: Indicates that the SDK was successfully uninitialised
+WootingAnalogResult wooting_analog_uninitialise(void);
+
+/// Sets the type of Keycodes the Analog SDK will receive (in `read_analog`) and output (in `read_full_buffer`).
+///
+/// By default, the mode is set to HID
+///
+/// # Notes
+/// * `VirtualKey` and `VirtualKeyTranslate` are only available on Windows
+/// * With all modes except `VirtualKeyTranslate`, the key identifier will point to the physical key on the standard layout. i.e. if you ask for the Q key, it will be the key right to tab regardless of the layout you have selected
+/// * With `VirtualKeyTranslate`, if you request Q, it will be the key that inputs Q on the current layout, not the key that is Q on the standard layout.
+///
+/// # Expected Returns
+/// * `Ok`: The Keycode mode was changed successfully
+/// * `InvalidArgument`: The given `KeycodeType` is not one supported by the SDK
+/// * `NotAvailable`: The given `KeycodeType` is present, but not supported on the current platform
+/// * `UnInitialized`: The SDK is not initialised
+WootingAnalogResult wooting_analog_set_keycode_mode(WootingAnalog_KeycodeType mode);
 
 /// Reads the Analog value of the key with identifier `code` from any connected device. The set of key identifiers that is used
 /// depends on the Keycode mode set using `wooting_analog_set_mode`.
@@ -78,6 +80,37 @@ float wooting_analog_read_analog(unsigned short code);
 /// * `WootingAnalogResult::NoDevices`: There are no connected devices with id `device_id`
 float wooting_analog_read_analog_device(unsigned short code,
                                         WootingAnalog_DeviceID device_id);
+
+/// Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
+/// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
+///
+/// # Notes
+/// * You must copy the DeviceInfo struct or its data if you wish to use it after the callback has completed, as the memory will be freed straight after
+/// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
+///
+/// # Expected Returns
+/// * `Ok`: The callback was set successfully
+/// * `UnInitialized`: The SDK is not initialised
+WootingAnalogResult wooting_analog_set_device_event_cb(void (*cb)(WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo_FFI*));
+
+/// Clears the device event callback that has been set
+///
+/// # Expected Returns
+/// * `Ok`: The callback was cleared successfully
+/// * `UnInitialized`: The SDK is not initialised
+WootingAnalogResult wooting_analog_clear_device_event_cb(void);
+
+/// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
+///
+/// # Notes
+/// * The memory of the returned structs will only be kept until the next call of `get_connected_devices_info`, so if you wish to use any data from them, please copy it or ensure you don't reuse references to old memory after calling `get_connected_devices_info` again.
+///
+/// # Expected Returns
+/// Similar to wooting_analog_read_analog, the errors and returns are encoded into one type. Values >=0 indicate the number of items filled into the buffer, with `<0` being of type WootingAnalogResult
+/// * `ret>=0`: The number of connected devices that have been filled into the buffer
+/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+int wooting_analog_get_connected_devices_info(WootingAnalog_DeviceInfo_FFI **buffer,
+                                              unsigned int len);
 
 /// Reads all the analog values for pressed keys for all devices and combines their values, filling up `code_buffer` with the
 /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
@@ -120,36 +153,3 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            float *analog_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
-
-/// Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
-/// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
-///
-/// # Notes
-/// * You must copy the DeviceInfo struct or its data if you wish to use it after the callback has completed, as the memory will be freed straight after
-/// * The execution of the callback is performed in a separate thread so it is fine to put time consuming code and further SDK calls inside your callback
-///
-/// # Expected Returns
-/// * `Ok`: The callback was set successfully
-/// * `UnInitialized`: The SDK is not initialised
-WootingAnalogResult wooting_analog_set_device_event_cb(void (*cb)(WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo_FFI*));
-
-/// Sets the type of Keycodes the Analog SDK will receive (in `read_analog`) and output (in `read_full_buffer`).
-///
-/// By default, the mode is set to HID
-///
-/// # Notes
-/// * `VirtualKey` and `VirtualKeyTranslate` are only available on Windows
-/// * With all modes except `VirtualKeyTranslate`, the key identifier will point to the physical key on the standard layout. i.e. if you ask for the Q key, it will be the key right to tab regardless of the layout you have selected
-/// * With `VirtualKeyTranslate`, if you request Q, it will be the key that inputs Q on the current layout, not the key that is Q on the standard layout.
-///
-/// # Expected Returns
-/// * `Ok`: The Keycode mode was changed successfully
-/// * `InvalidArgument`: The given `KeycodeType` is not one supported by the SDK
-/// * `NotAvailable`: The given `KeycodeType` is present, but not supported on the current platform
-/// * `UnInitialized`: The SDK is not initialised
-WootingAnalogResult wooting_analog_set_keycode_mode(WootingAnalog_KeycodeType mode);
-
-/// Uninitialises the SDK, returning it to an empty state, similar to how it would be before first initialisation
-/// # Expected Returns
-/// * `Ok`: Indicates that the SDK was successfully uninitialised
-WootingAnalogResult wooting_analog_uninitialise(void);

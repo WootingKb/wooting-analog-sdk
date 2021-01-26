@@ -5,6 +5,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdlib>
+#include <ostream>
 #include <new>
 #include "wooting-analog-common.h"
 

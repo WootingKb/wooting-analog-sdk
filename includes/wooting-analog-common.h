@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef enum {
+typedef enum WootingAnalog_DeviceEventType {
   /**
    * Device has been connected
    */
@@ -18,7 +18,7 @@ typedef enum {
   WootingAnalog_DeviceEventType_Disconnected = 2,
 } WootingAnalog_DeviceEventType;
 
-typedef enum {
+typedef enum WootingAnalog_DeviceType {
   /**
    * Device is of type Keyboard
    */
@@ -33,7 +33,7 @@ typedef enum {
   WootingAnalog_DeviceType_Other = 3,
 } WootingAnalog_DeviceType;
 
-typedef enum {
+typedef enum WootingAnalog_KeycodeType {
   /**
    * USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
    */
@@ -52,7 +52,7 @@ typedef enum {
   WootingAnalog_KeycodeType_VirtualKeyTranslate = 3,
 } WootingAnalog_KeycodeType;
 
-typedef enum {
+typedef enum WootingAnalogResult {
   WootingAnalogResult_Ok = 1,
   /**
    * Item hasn't been initialized
@@ -115,7 +115,7 @@ typedef uint64_t WootingAnalog_DeviceID;
  * through the wrapper. This is not for use in the Internal workings of the SDK, that is what
  * DeviceInfo is for
  */
-typedef struct {
+typedef struct WootingAnalog_DeviceInfo_FFI {
   /**
    * Device Vendor ID `vid`
    */
@@ -139,7 +139,7 @@ typedef struct {
   /**
    * Hardware type of the Device
    */
-  WootingAnalog_DeviceType device_type;
+  enum WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo_FFI;
 
 /**
@@ -148,14 +148,14 @@ typedef struct {
  * The memory for the struct has been allocated in Rust. So `drop_device_info` must be called
  * for the memory to be properly released
  */
-WootingAnalog_DeviceInfo *new_device_info(uint16_t vendor_id,
-                                          uint16_t product_id,
-                                          char *manufacturer_name,
-                                          char *device_name,
-                                          WootingAnalog_DeviceID device_id,
-                                          WootingAnalog_DeviceType device_type);
+struct WootingAnalog_DeviceInfo *new_device_info(uint16_t vendor_id,
+                                                 uint16_t product_id,
+                                                 char *manufacturer_name,
+                                                 char *device_name,
+                                                 WootingAnalog_DeviceID device_id,
+                                                 enum WootingAnalog_DeviceType device_type);
 
 /**
  * Drops the given `DeviceInfo`
  */
-void drop_device_info(WootingAnalog_DeviceInfo *device);
+void drop_device_info(struct WootingAnalog_DeviceInfo *device);
