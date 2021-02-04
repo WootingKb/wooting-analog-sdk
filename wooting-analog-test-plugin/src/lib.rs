@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate log;
@@ -23,7 +22,7 @@ struct WootingAnalogTestPlugin {
     pressed_keys: Vec<u16>,
 }
 
-struct SharedState {
+pub struct SharedState {
     pub vendor_id: u16,
     /// Device Product ID `pid`
     pub product_id: u16,
@@ -308,8 +307,8 @@ declare_plugin!(WootingAnalogTestPlugin, WootingAnalogTestPlugin::new);
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+    // #[test]
+    // fn it_works() {
+    //     assert_eq!(2 + 2, 4);
+    // }
 }
