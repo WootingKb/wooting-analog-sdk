@@ -100,10 +100,9 @@ You can get the virtual keyboard by downloading the `.tar.gz` archive for your p
 ### Build Dependencies
 
 - [rust](https://www.rust-lang.org/)
-- [cargo-make](https://github.com/sagiegurari/cargo-make)
+- [cargo-make](https://github.com/sagiegurari/cargo-make) (`cargo install cargo-make`)
 - [cbindgen](https://github.com/eqrion/cbindgen) (For verifying/generating headers. Should be installed automatically if necessary)
-- [dotnet-core](https://dotnet.microsoft.com/download) If you want to use `wooting-analog-test`
-- [wixtoolset](https://wixtoolset.org/releases/) If you want to build the windows installer for the sdk
+- [wixtoolset](https://wixtoolset.org/releases/) If you want to build the windows installer for the sdk **[Windows]**
 
 ### How to Build
 
@@ -112,10 +111,14 @@ Everything can be built using this command. All the outputs will be under `targe
 ```bash
 # Build debug
 cargo make build
-# Build release
-cargo make build -- --release
 # Build & run tests (To verify headers you'll need the nightly toolchain installed)
 cargo make
+```
+
+Cleanup:
+
+```bash
+cargo make clean
 ```
 
 To test:
@@ -140,6 +143,12 @@ To run the virtual keyboard (The Analog SDK must be running for this to work):
 
 ```
 cargo make virtual-kb
+```
+
+Build & install the Analog SDK & plugins:
+
+```
+cargo make install
 ```
 
 To build the windows installer for the SDK:
