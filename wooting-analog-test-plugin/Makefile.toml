@@ -7,10 +7,8 @@ TEST_PLUGIN_FILENAME="wooting_analog_test_plugin"
 script_runner = "@shell"
 script = [
 '''
-sudo mkdir -p "${PLUGIN_INSTALL_PATH}"
-sudo mkdir -p "${PLUGIN_INSTALL_PATH}/wooting-test-plugin"
-
-sudo cp "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "${PLUGIN_INSTALL_PATH}/wooting-test-plugin/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
+echo "Installing test plugin to ${PLUGIN_INSTALL_PATH}/wooting-test-plugin"
+sudo install -Dm755 "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}" "${PLUGIN_INSTALL_PATH}/wooting-test-plugin/${LIBRARY_PREFIX}${TEST_PLUGIN_FILENAME}.${LIBRARY_EXTENSION}"
 '''
 ]
 dependencies = ["build"]
