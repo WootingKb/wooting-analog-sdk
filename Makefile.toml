@@ -47,11 +47,12 @@ args = ["run", "--manifest-path", "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/woo
 
 
 [tasks.install]
+workspace = false
 script_runner = "@shell"
 script = [
 '''
-
-sudo cp "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${FILENAME}" "${SDK_INSTALL_PATH}/${FILENAME}"
+echo "Installing analog sdk to ${SDK_INSTALL_PATH}"
+sudo install -Dm755 "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${FILENAME}" "${SDK_INSTALL_PATH}/${FILENAME}"
 '''
 ]
 dependencies = ["member-build", "member-install-plugin"]
