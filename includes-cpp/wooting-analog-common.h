@@ -5,6 +5,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdlib>
+#include <ostream>
 #include <new>
 
 enum class WootingAnalog_DeviceEventType {
@@ -88,9 +89,6 @@ struct WootingAnalog_DeviceInfo_FFI {
 
 extern "C" {
 
-/// Drops the given `DeviceInfo`
-void drop_device_info(WootingAnalog_DeviceInfo *device);
-
 /// Create a new device info struct. This is only for use in Plugins that are written in C
 /// Rust plugins should use the native constructor
 /// The memory for the struct has been allocated in Rust. So `drop_device_info` must be called
@@ -101,5 +99,8 @@ WootingAnalog_DeviceInfo *new_device_info(uint16_t vendor_id,
                                           char *device_name,
                                           WootingAnalog_DeviceID device_id,
                                           WootingAnalog_DeviceType device_type);
+
+/// Drops the given `DeviceInfo`
+void drop_device_info(WootingAnalog_DeviceInfo *device);
 
 } // extern "C"
