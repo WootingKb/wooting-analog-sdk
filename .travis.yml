@@ -60,9 +60,9 @@ matrix:
 
 before_install:
   - set -e
-  - rustup self update
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then rustup default stable-msvc   ; fi
-  - rustup toolchain install nightly
+  # - rustup self update
+  # - if [ "$TRAVIS_OS_NAME" = "windows" ]; then rustup default stable-msvc   ; fi
+  # - rustup toolchain install nightly
 
 install:
   - sh ci/install.sh
