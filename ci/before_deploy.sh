@@ -38,7 +38,8 @@ main() {
     test -f Cargo.lock || cargo generate-lockfile
 
     # Currently the --out-dir flag is 'unstable' so unfortunately need to switch to nightly for the build to work properly 
-    rustup default nightly
+    # Don't need to use this currently as the rust-toolchain file specifies the rust version to use
+    # rustup default nightly
     cargo make build-target-release
 
 
