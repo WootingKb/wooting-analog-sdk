@@ -1,12 +1,12 @@
 #[macro_use]
 extern crate enum_primitive_derive;
 extern crate num_traits;
-#[macro_use]
-extern crate log;
 extern crate ffi_support;
 
 use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
+#[cfg(feature = "serdes")]
+use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
@@ -22,6 +22,7 @@ pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is for use internally and should be ignored if you're
 /// trying to use it when trying to interact with the SDK using the wrapper
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub struct DeviceInfo {
     /// Device Vendor ID `vid`
@@ -177,6 +178,7 @@ pub unsafe extern "C" fn drop_device_info(device: *mut DeviceInfo) {
     Box::from_raw(device);
 }
 
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum KeycodeType {
@@ -192,6 +194,7 @@ pub enum KeycodeType {
 
 pub type DeviceID = u64;
 
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceType {
@@ -203,6 +206,7 @@ pub enum DeviceType {
     Other = 3,
 }
 
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceEventType {
@@ -212,6 +216,7 @@ pub enum DeviceEventType {
     Disconnected = 2,
 }
 
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive, Error)]
 #[repr(C)]
 pub enum WootingAnalogResult {
@@ -399,7 +404,10 @@ impl Into<bool> for WootingAnalogResult {
         self == WootingAnalogResult::Ok
     }
 }
+
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Hash, Eq, Primitive)]
+#[repr(C)]
 pub enum HIDCodes {
     A = 0x04,
     B = 0x05, //US_B
