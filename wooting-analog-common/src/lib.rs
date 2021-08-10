@@ -1,12 +1,11 @@
 #[macro_use]
 extern crate enum_primitive_derive;
 extern crate num_traits;
-#[macro_use]
-extern crate log;
 extern crate ffi_support;
 
 use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
+#[cfg(feature = "serdes")]
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
@@ -23,7 +22,8 @@ pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is for use internally and should be ignored if you're
 /// trying to use it when trying to interact with the SDK using the wrapper
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
 pub struct DeviceInfo {
     /// Device Vendor ID `vid`
     pub vendor_id: u16,
@@ -178,7 +178,8 @@ pub unsafe extern "C" fn drop_device_info(device: *mut DeviceInfo) {
     Box::from_raw(device);
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive)]
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum KeycodeType {
     /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
@@ -193,7 +194,8 @@ pub enum KeycodeType {
 
 pub type DeviceID = u64;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive)]
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceType {
     /// Device is of type Keyboard
@@ -204,7 +206,8 @@ pub enum DeviceType {
     Other = 3,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive)]
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceEventType {
     /// Device has been connected
@@ -213,7 +216,8 @@ pub enum DeviceEventType {
     Disconnected = 2,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Primitive, Error)]
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Clone, Primitive, Error)]
 #[repr(C)]
 pub enum WootingAnalogResult {
     #[error("All OK")]
@@ -400,7 +404,9 @@ impl Into<bool> for WootingAnalogResult {
         self == WootingAnalogResult::Ok
     }
 }
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Hash, Eq, Primitive)]
+
+#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Primitive)]
 #[repr(C)]
 pub enum HIDCodes {
     A = 0x04,
