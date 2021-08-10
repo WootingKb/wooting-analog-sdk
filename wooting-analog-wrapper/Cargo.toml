@@ -12,3 +12,6 @@ ctrlc = { version = "3", features = ["termination"] }
 
 [lib]
 crate-type = ["cdylib", "rlib", "staticlib"]
+
+[features]
+serdes = ["wooting-analog-common/serdes"]
