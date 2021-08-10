@@ -1,0 +1,30 @@
+[tasks.install-plugin]
+script_runner = "@shell"
+script = [
+'''
+
+echo "Installing wooting plugin to ${PLUGIN_INSTALL_PATH}/wooting-analog-plugin"
+sudo install -Dm755 "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/debug/${TEST_PLUGIN_FILENAME}" "${PLUGIN_INSTALL_PATH}/wooting-analog-plugin/${TEST_PLUGIN_FILENAME}"
+'''
+]
+dependencies = ["build"]
+
+[tasks.install-plugin.linux]
+env = {TEST_PLUGIN_FILENAME="libwooting_analog_plugin.so",PLUGIN_INSTALL_PATH="/usr/local/share/WootingAnalogPlugins"}
+
+[tasks.install-plugin.windows]
+env = {TEST_PLUGIN_FILENAME="wooting_analog_plugin.dll",PLUGIN_INSTALL_PATH="C:\\Program Files\\WootingAnalogPlugins"}
+script_runner = "powershell"
+script_extension = "ps1"
+script = [
+'''
+echo "Requesting admin powershell to install the wooting-analog-plugin"
+$command = "New-Item -ItemType 'directory' -Force '${env:PLUGIN_INSTALL_PATH}\wooting-analog-plugin'; Copy-Item '${env:CARGO_MAKE_WORKING_DIRECTORY}\target\debug\${env:TEST_PLUGIN_FILENAME}' '${env:PLUGIN_INSTALL_PATH}\wooting-analog-plugin\${env:TEST_PLUGIN_FILENAME}' -Force"
+echo $command
+Start-Process PowerShell.exe -ArgumentList $command -Wait -Verb RunAs
+'''
+]
+
+[tasks.install-plugin.mac]
+env = {TEST_PLUGIN_FILENAME="libwooting_analog_plugin.dylib",PLUGIN_INSTALL_PATH="/usr/local/share/WootingAnalogPlugins"}
+
