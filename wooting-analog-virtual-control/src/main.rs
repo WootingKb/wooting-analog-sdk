@@ -7,37 +7,6 @@ use shared_memory::*;
 
 use wooting_analog_test_plugin::SharedState;
 
-/*fn main() {
-    let mut my_shmem = match SharedMem::open_linked("wooting-test-plugin.link") {
-        Ok(v) => v,
-        Err(e) => {
-            println!("Error : {}", e);
-            println!("Failed to open SharedMem...");
-            return;
-        }
-    };
-
-    println!("Opened link file with info : {}", my_shmem);
-
-    //Make sure at least one lock exists before using it...
-    if my_shmem.num_locks() != 1 {
-        println!("Expected to only have 1 lock in shared mapping !");
-        return;
-    }
-    let mut index = 1;
-    loop {
-        {
-            let mut shared_state = match my_shmem.wlock::<SharedState>(0) {
-                Ok(v) => v,
-                Err(_) => panic!("Failed to acquire write lock !"),
-            };
-            shared_state.analog_values[index - 1] = 0;
-            shared_state.analog_values[index] = 255;
-        }
-        index = (index + 1).min(254);
-        std::thread::sleep(std::time::Duration::from_secs(1));
-    }
-}*/
 lazy_static! {
     static ref KEYBOARD_LAYOUT: Vec<Vec<(&'static str, u16, u16, u16)>> = vec![
         vec![
@@ -209,8 +178,8 @@ impl container::StyleSheet for KeyStyle {
         container::Style {
             text_color: None,
             background: None,
-            border_radius: 1,
-            border_width: 1,
+            border_radius: 1.0,
+            border_width: 1.0,
             border_color: Color::BLACK,
         }
     }
@@ -428,8 +397,8 @@ impl Drop for AppState {
     }
 }
 
-fn main() {
-    if let Err(e) = env_logger::from_env(Env::default().default_filter_or("info")).try_init() {
+fn main() -> Result<(), iced::Error> {
+    if let Err(e) = env_logger::Builder::from_env(Env::default().default_filter_or("info")).try_init() {
         error!("Failed to init env_logger: {}", e)
     }
     let kb: &Vec<Vec<(&'static str, u16, u16, u16)>> = KEYBOARD_LAYOUT.borrow();
@@ -454,9 +423,16 @@ fn main() {
             size: (width, height),
             resizable: false,
             decorations: true,
+            always_on_top: false,
+            max_size: None,
+            min_size: None,
+            icon: None,
+            transparent: false
         },
         default_font: None,
         antialiasing: false,
+        default_text_size: 20,
+        exit_on_close_request: true,
         flags: (),
     })
 }
