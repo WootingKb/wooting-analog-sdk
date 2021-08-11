@@ -4201,19 +4201,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wooting-analog-common"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfafa6b0afedb6a9f05ae60ed4f02648178c47a884f1a9d786ecc8d6c5330f09"
-dependencies = [
- "enum-primitive-derive",
- "ffi-support",
- "log",
- "num-traits 0.1.43",
- "thiserror",
-]
-
-[[package]]
 name = "wooting-analog-plugin"
 version = "0.6.0"
 dependencies = [
@@ -4223,7 +4210,7 @@ dependencies = [
  "log",
  "objekt",
  "timer",
- "wooting-analog-plugin-dev 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wooting-analog-plugin-dev",
 ]
 
 [[package]]
@@ -4231,17 +4218,7 @@ name = "wooting-analog-plugin-dev"
 version = "0.6.0"
 dependencies = [
  "ffi-support",
- "wooting-analog-common 0.6.0",
-]
-
-[[package]]
-name = "wooting-analog-plugin-dev"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "412aa8df4598384f88cd9497eb045f987c58e6dbd7ead9c2aefddd3291148971"
-dependencies = [
- "ffi-support",
- "wooting-analog-common 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wooting-analog-common",
 ]
 
 [[package]]
@@ -4259,8 +4236,8 @@ dependencies = [
  "scancode",
  "shared_memory",
  "winapi 0.3.9",
- "wooting-analog-common 0.6.0",
- "wooting-analog-plugin-dev 0.6.0",
+ "wooting-analog-common",
+ "wooting-analog-plugin-dev",
 ]
 
 [[package]]
@@ -4283,7 +4260,7 @@ dependencies = [
  "env_logger 0.8.3",
  "log",
  "shared_memory",
- "wooting-analog-plugin-dev 0.6.0",
+ "wooting-analog-plugin-dev",
 ]
 
 [[package]]
@@ -4295,7 +4272,7 @@ dependencies = [
  "lazy_static",
  "log",
  "shared_memory",
- "wooting-analog-common 0.6.0",
+ "wooting-analog-common",
  "wooting-analog-test-plugin",
 ]
 
@@ -4306,7 +4283,7 @@ dependencies = [
  "ctrlc",
  "lazy_static",
  "libloading 0.5.2",
- "wooting-analog-common 0.6.0",
+ "wooting-analog-common",
 ]
 
 [[package]]

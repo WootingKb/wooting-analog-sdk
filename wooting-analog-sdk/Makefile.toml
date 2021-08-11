@@ -14,7 +14,7 @@ bash ../ci/codesign.sh
 
 [tasks.build-deb]
 command = "cargo"
-args = ["deb", "${@}"]
+args = ["deb", "--no-build", "${@}"]
 
 [tasks.clean]
 dependencies = ["clean-test-c-plugin"]
