@@ -4,6 +4,7 @@ extern crate wooting_analog_common;
 
 pub use wooting_analog_common::*;
 pub mod ffi;
+mod python;
 use ffi::*;
 use std::collections::HashMap;
 use std::os::raw::c_uint;

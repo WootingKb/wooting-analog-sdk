@@ -67,7 +67,7 @@ trait DeviceImplementation: objekt::Clone + Send {
         if let Err(e) = res {
             error!("Failed to read buffer: {}", e);
 
-            return WootingAnalogResult::DeviceDisconnected.into();
+            return Err(WootingAnalogResult::DeviceDisconnected).into();
         }
         //println!("{:?}", buffer);
         Ok(buffer
@@ -444,11 +444,11 @@ impl Plugin for WootingPlugin {
 
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return WootingAnalogResult::UnInitialized.into_error();
         }
 
         if self.devices.lock().unwrap().is_empty() {
-            return WootingAnalogResult::NoDevices.into();
+            return WootingAnalogResult::NoDevices.into_error();
         }
 
         //If the Device ID is 0 we want to go through all the connected devices
@@ -491,11 +491,11 @@ impl Plugin for WootingPlugin {
         device_id: DeviceID,
     ) -> SDKResult<HashMap<c_ushort, c_float>> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return WootingAnalogResult::UnInitialized.into_error();
         }
 
         if self.devices.lock().unwrap().is_empty() {
-            return WootingAnalogResult::NoDevices.into();
+            return WootingAnalogResult::NoDevices.into_error();
         }
 
         //If the Device ID is 0 we want to go through all the connected devices
@@ -517,7 +517,7 @@ impl Plugin for WootingPlugin {
             }
 
             if !any_read {
-                error.into()
+                Err(error).into()
             } else {
                 Ok(analog).into()
             }
@@ -529,14 +529,14 @@ impl Plugin for WootingPlugin {
                     Ok(val) => Ok(val).into(),
                     Err(e) => Err(e).into(),
                 },
-                None => WootingAnalogResult::NoDevices.into(),
+                None => Err(WootingAnalogResult::NoDevices).into(),
             }
         }
     }
 
     fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized).into();
         }
 
         let mut devices = vec![];

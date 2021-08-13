@@ -1,12 +1,17 @@
 #[macro_use]
 extern crate enum_primitive_derive;
-extern crate num_traits;
 extern crate ffi_support;
+extern crate num_traits;
 
 use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
+#[cfg(feature = "python")]
+use pyo3::prelude::*;
+#[cfg(feature = "python")]
+use pythonize::pythonize;
 #[cfg(feature = "serdes")]
 use serde::{Deserialize, Serialize};
+
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
@@ -37,6 +42,13 @@ pub struct DeviceInfo {
     pub device_id: DeviceID,
     /// Hardware type of the Device
     pub device_type: DeviceType,
+}
+
+#[cfg(feature = "python")]
+impl IntoPy<PyObject> for DeviceInfo {
+    fn into_py(self, py: Python) -> PyObject {
+        pythonize(py, &self).unwrap()
+    }
 }
 
 /// The core `DeviceInfo` struct which contains all the interesting information
@@ -265,6 +277,10 @@ impl WootingAnalogResult {
     pub fn is_ok_or_no_device(&self) -> bool {
         *self == WootingAnalogResult::Ok || *self == WootingAnalogResult::NoDevices
     }
+
+    pub fn into_error<T>(self) -> SDKResult<T> {
+        Err(self).into()
+    }
 }
 
 impl Default for WootingAnalogResult {
@@ -393,7 +409,22 @@ impl Into<WootingAnalogResult> for SDKResult<()> {
     }
 }
 
-impl<T> From<WootingAnalogResult> for SDKResult<T> {
+impl From<WootingAnalogResult> for SDKResult<()> {
+    fn from(res: WootingAnalogResult) -> Self {
+        match res {
+            WootingAnalogResult::Ok => Ok(()).into(),
+            _ => Err(res).into(),
+        }
+    }
+}
+
+impl From<WootingAnalogResult> for SDKResult<f32> {
+    fn from(res: WootingAnalogResult) -> Self {
+        Err(res).into()
+    }
+}
+
+impl From<WootingAnalogResult> for SDKResult<u32> {
     fn from(res: WootingAnalogResult) -> Self {
         Err(res).into()
     }

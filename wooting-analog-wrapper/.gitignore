@@ -1,2 +1,4 @@
 /target
 **/*.rs.bk
+.env/
+wooting_analog_wrapper/__pycache__/

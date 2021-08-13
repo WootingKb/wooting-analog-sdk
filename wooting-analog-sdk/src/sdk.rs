@@ -325,7 +325,7 @@ impl AnalogSDK {
 
     pub fn get_device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized).into();
         }
         let mut devices: Vec<DeviceInfo> = vec![];
         let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
@@ -395,7 +395,7 @@ impl AnalogSDK {
         device_id: DeviceID,
     ) -> SDKResult<HashMap<u16, f32>> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized).into();
         }
 
         let mut analog_data: HashMap<u16, f32> = HashMap::with_capacity(max_length);
@@ -439,7 +439,7 @@ impl AnalogSDK {
             }
         }
         if !any_success {
-            return err.into();
+            return err.into_error();
         }
 
         Ok(analog_data).into()
