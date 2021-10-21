@@ -418,6 +418,8 @@ impl WootingPlugin {
         let device_impls: Vec<Box<dyn DeviceImplementation>> = vec![
             Box::new(WootingOne()),
             Box::new(WootingTwo()),
+            Box::new(WootingOneV2()),
+            Box::new(WootingTwoV2()),
             Box::new(WootingLekker()),
             Box::new(WootingTwoHE()),
             Box::new(Wooting60HE()),
