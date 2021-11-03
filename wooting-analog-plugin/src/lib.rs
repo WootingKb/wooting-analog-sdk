@@ -27,12 +27,14 @@ extern crate env_logger;
 const ANALOG_BUFFER_SIZE: usize = 48;
 const ANALOG_MAX_SIZE: usize = 40;
 const WOOTING_VID: u16 = 0x31e3;
+const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
 
 /// Struct holding the information we need to find the device and the analog interface
 struct DeviceHardwareID {
     vid: u16,
     pid: u16,
     usage_page: u16,
+    has_modes: bool,
 }
 
 /// Trait which defines how the Plugin can communicate with a particular device
@@ -43,8 +45,13 @@ trait DeviceImplementation: objekt::Clone + Send {
     /// Used to determine if the given `device` matches the hardware id given by `device_hardware_id`
     fn matches(&self, device: &DeviceInfoHID) -> bool {
         let hid = self.device_hardware_id();
+        let pid = if hid.has_modes {
+            device.product_id() & WOOTING_PID_MODE_MASK
+        } else {
+            device.product_id()
+        };
         //Check if the pid & hid match
-        device.product_id().eq(&hid.pid)
+        pid.eq(&hid.pid)
             && device.vendor_id().eq(&hid.vid)
             && device.usage_page().eq(&hid.usage_page)
     }
@@ -105,6 +112,7 @@ impl DeviceImplementation for WootingOne {
             vid: 0x03EB,
             pid: 0xFF01,
             usage_page: 0xFF54,
+            has_modes: false,
         }
     }
 
@@ -122,6 +130,7 @@ impl DeviceImplementation for WootingTwo {
             vid: 0x03EB,
             pid: 0xFF02,
             usage_page: 0xFF54,
+            has_modes: false,
         }
     }
 
@@ -131,6 +140,41 @@ impl DeviceImplementation for WootingTwo {
 }
 
 #[derive(Debug, Clone)]
+struct WootingOneV2();
+
+impl DeviceImplementation for WootingOneV2 {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: 0x1100,
+            usage_page: 0xFF54,
+            has_modes: true,
+        }
+    }
+
+    fn analog_value_to_float(&self, value: u8) -> f32 {
+        ((f32::from(value) * 1.2) / 255_f32).min(1.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct WootingTwoV2();
+
+impl DeviceImplementation for WootingTwoV2 {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: 0x1200,
+            usage_page: 0xFF54,
+            has_modes: true,
+        }
+    }
+
+    fn analog_value_to_float(&self, value: u8) -> f32 {
+        ((f32::from(value) * 1.2) / 255_f32).min(1.0)
+    }
+}
+#[derive(Debug, Clone)]
 struct WootingLekker();
 
 impl DeviceImplementation for WootingLekker {
@@ -139,6 +183,7 @@ impl DeviceImplementation for WootingLekker {
             vid: WOOTING_VID,
             pid: 0x1210,
             usage_page: 0xFF54,
+            has_modes: true,
         }
     }
 
@@ -156,6 +201,7 @@ impl DeviceImplementation for WootingTwoHE {
             vid: WOOTING_VID,
             pid: 0x1220,
             usage_page: 0xFF54,
+            has_modes: true,
         }
     }
 
@@ -164,6 +210,23 @@ impl DeviceImplementation for WootingTwoHE {
     }
 }
 
+#[derive(Debug, Clone)]
+struct Wooting60HE();
+
+impl DeviceImplementation for Wooting60HE {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: 0x1300,
+            usage_page: 0xFF54,
+            has_modes: true,
+        }
+    }
+
+    fn analog_value_to_float(&self, value: u8) -> f32 {
+        (f32::from(value)) / 255_f32
+    }
+}
 /// A fully contained device which uses `device_impl` to interface with the `device`
 struct Device {
     pub device_info: DeviceInfo,
@@ -304,7 +367,7 @@ impl WootingPlugin {
                 Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>,
             >,
              device_impls: &Vec<Box<dyn DeviceImplementation>>| {
-                let mut device_infos: Vec<&DeviceInfoHID> = hid.device_list().collect();
+                let device_infos: Vec<&DeviceInfoHID> = hid.device_list().collect();
 
                 for device_info in device_infos.iter() {
                     for device_impl in device_impls.iter() {
@@ -355,8 +418,11 @@ impl WootingPlugin {
         let device_impls: Vec<Box<dyn DeviceImplementation>> = vec![
             Box::new(WootingOne()),
             Box::new(WootingTwo()),
+            Box::new(WootingOneV2()),
+            Box::new(WootingTwoV2()),
             Box::new(WootingLekker()),
             Box::new(WootingTwoHE()),
+            Box::new(Wooting60HE()),
         ];
         let mut hid = match HidApi::new() {
             Ok(mut api) => {
