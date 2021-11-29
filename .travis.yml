@@ -52,8 +52,8 @@ matrix:
     # - env: TARGET=x86_64-pc-windows-msvc
     #   os: windows
     #   rust: nightly
-    - env: TARGET=x86_64-unknown-linux-gnu
-      rust: nightly
+    # - env: TARGET=x86_64-unknown-linux-gnu
+    #   rust: nightly
     # - env: TARGET=x86_64-apple-darwin
     #   os: osx
     #   rust: nightly
@@ -78,8 +78,8 @@ after_script: set +e
 before_deploy:
   - sh ci/before_deploy.sh
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install -y wixtoolset --version 3.10.3.300702 || true; export PATH=$PATH";C:\Program Files (x86)\WiX Toolset v3.10\bin"               ; fi
-  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make sign-win-installer --cwd wooting-analog-sdk -- --target $TARGET     ; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then cargo make build-deb --cwd wooting-analog-sdk -- --target $TARGET     ; fi
+  - if [ "$TRAVIS_OS_NAME" = "windows" ]; then cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET     ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET     ; fi
 
 deploy:
   api_key:
