@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/WootingKb/wooting-analog-sdk.svg?branch=develop)](https://travis-ci.com/WootingKb/wooting-analog-sdk)
+[![Build Status](https://app.travis-ci.com/WootingKb/wooting-analog-sdk.svg?branch=develop)](https://app.travis-ci.com/WootingKb/wooting-analog-sdk)
 [![wooting-analog-common Crates.io](https://img.shields.io/crates/v/wooting-analog-common?label=crates.io%20wooting-analog-common)](https://crates.io/crates/wooting-analog-common)
 [![wooting-analog-plugin-dev Crates.io](https://img.shields.io/crates/v/wooting-analog-plugin-dev?label=crates.io%20wooting-analog-plugin-dev)](https://crates.io/crates/wooting-analog-plugin-dev)
 [![Documentation](https://img.shields.io/badge/Docs-Docs-green)](https://dev.wooting.nl/wooting-analog-sdk-guide/introduction/)
