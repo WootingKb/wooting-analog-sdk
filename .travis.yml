@@ -89,6 +89,7 @@ deploy:
     - $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
     - target/wix/*.msi
     - target/$TARGET/debian/*.deb
+    - target/debian/*.deb
   on:
     # TODO Here you can pick which targets will generate binary releases
     # In this example, there are some targets that are tested using the stable
