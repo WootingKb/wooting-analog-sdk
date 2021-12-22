@@ -57,7 +57,8 @@ impl AnalogSDK {
     }
 
     pub fn initialise(&mut self) -> SDKResult<u32> {
-        self.initialise_with_plugin_path(DEFAULT_PLUGIN_DIR, true)
+        let dir = option_env!("WOOTING_ANALOG_SDK_PLUGINS_PATH").unwrap_or(DEFAULT_PLUGIN_DIR);
+        self.initialise_with_plugin_path(dir, true)
     }
 
     pub fn initialise_with_plugin_path(
