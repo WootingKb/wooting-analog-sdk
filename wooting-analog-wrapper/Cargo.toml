@@ -3,6 +3,9 @@ name = "wooting-analog-wrapper"
 version = "0.7.0"
 authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
 edition = "2018"
+license = "MPL-2.0"
+homepage = "https://github.com/WootingKb/wooting-analog-sdk"
+repository = "https://github.com/WootingKb/wooting-analog-sdk"
 
 [dependencies]
 lazy_static = "*"
