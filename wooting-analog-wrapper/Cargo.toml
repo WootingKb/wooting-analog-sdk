@@ -17,4 +17,6 @@ ctrlc = { version = "3", features = ["termination"] }
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [features]
+default = ["print-errors"]
 serdes = ["wooting-analog-common/serdes"]
+print-errors = []

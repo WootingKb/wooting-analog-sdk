@@ -31,8 +31,9 @@ macro_rules! dynamic_extern {
                 let lib_path = $lib;
 
                 //Attempt to load the library, if it fails print the error and discard the error
-                libl::Library::new(lib_path).map_err(|e| {
-                    println!("Unable to load library: {}\nErr: {}", lib_path, e);
+                libl::Library::new(lib_path).map_err(|_e| {
+                    #[cfg(feature = "print-errors")]
+                    println!("Unable to load library: {}\nErr: {}", lib_path, _e);
                 }).ok()
             };
         }
@@ -49,6 +50,7 @@ macro_rules! dynamic_extern {
                     }
 
                     if stringify!($fn_names) != "wooting_analog_version" && wooting_analog_version() >= 0 && wooting_analog_version() != SDK_ABI_VERSION as i32 {
+                        #[cfg(feature = "print-errors")]
                         println!("Cannot access Wooting Analog SDK function as this wrapper is for SDK major version {}, whereas the SDK has major version {}", SDK_ABI_VERSION, wooting_analog_version());
                         return WootingAnalogResult::IncompatibleVersion.into()
                     }
@@ -57,8 +59,9 @@ macro_rules! dynamic_extern {
                         static ref FUNC: Option<libl::Symbol<'static, FnPtr>> = {
                             LIB.as_ref().and_then(|lib| unsafe {
                                 //Get func, print and discard error as we don't need it again
-                                lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    println!("Could not find symbol '{}', {}", stringify!($fn_names), e);
+                                lib.get(stringify!($fn_names).as_bytes()).map_err(|_e| {
+                                    #[cfg(feature = "print-errors")]
+                                    println!("Could not find symbol '{}', {}", stringify!($fn_names), _e);
                                 }).ok()
                             })
                         };
