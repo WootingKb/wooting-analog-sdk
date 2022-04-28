@@ -254,7 +254,7 @@ impl Plugin for WootingAnalogTestPlugin {
 
     fn read_analog(&mut self, code: u16, device: u64) -> SDKResult<f32> {
         if !*self.device_connected.lock().unwrap() {
-            return WootingAnalogResult::NoDevices.into();
+            return Err(WootingAnalogResult::NoDevices).into();
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
@@ -268,7 +268,7 @@ impl Plugin for WootingAnalogTestPlugin {
                 .unwrap())
             .into()
         } else {
-            WootingAnalogResult::NoDevices.into()
+            Err(WootingAnalogResult::NoDevices).into()
         }
     }
 
@@ -278,7 +278,7 @@ impl Plugin for WootingAnalogTestPlugin {
         device: u64,
     ) -> SDKResult<HashMap<u16, f32>> {
         if !*self.device_connected.lock().unwrap() {
-            return WootingAnalogResult::NoDevices.into();
+            return Err(WootingAnalogResult::NoDevices).into();
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
@@ -298,7 +298,7 @@ impl Plugin for WootingAnalogTestPlugin {
 
             Ok(buffer).into()
         } else {
-            WootingAnalogResult::NoDevices.into()
+            Err(WootingAnalogResult::NoDevices).into()
         }
     }
 }

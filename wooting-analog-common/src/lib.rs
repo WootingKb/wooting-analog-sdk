@@ -393,9 +393,13 @@ impl Into<WootingAnalogResult> for SDKResult<()> {
     }
 }
 
-impl<T> From<WootingAnalogResult> for SDKResult<T> {
+impl From<WootingAnalogResult> for SDKResult<()> {
     fn from(res: WootingAnalogResult) -> Self {
-        Err(res).into()
+        if res.is_ok() {
+            Ok(()).into()
+        } else {
+            Err(res).into()
+        }
     }
 }
 
