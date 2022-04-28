@@ -7,7 +7,11 @@ use wooting_analog_common::FromPrimitive;
 use wooting_analog_common::*;
 
 lazy_static! {
-    pub static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
+    pub static ref ANALOG_SDK: Mutex<AnalogSDK> = {
+        env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info"))
+            .map_err(|e| println!("ERROR: Could not initialise logging. '{:?}'", e));
+        Mutex::new(AnalogSDK::new())
+    };
 }
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -18,8 +22,6 @@ lazy_static! {
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_initialise() -> c_int {
-    env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info"))
-        .map_err(|e| println!("ERROR: Could not initialise logging. '{:?}'", e));
     ANALOG_SDK.lock().unwrap().initialise().into()
 }
 
