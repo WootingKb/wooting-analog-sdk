@@ -10,7 +10,7 @@ Then download & extract the `.tar.gz` for the platform you’re targeting from t
 
 ## Keycodes
 
-By default the SDK will use the [USB HID codes (see table 10.6)](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets) to identify keys. This can be changed using the [Set Keycode Mode](dev/analog-sdk/analog-api.md#set-keycode-mode) function, which changes the keycodes taken by `read_analog` and the keycodes given in `read_full_buffer`. The available options are:
+By default the SDK will use the [USB HID codes (see table 10.6)](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets) to identify keys. This can be changed using the [Set Keycode Mode](#set-keycode-mode) function, which changes the keycodes taken by `read_analog` and the keycodes given in `read_full_buffer`. The available options are:
 
 - `HID`: The standard USB HID codes (default) [List on table 10.6](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets)
 - `ScanCode1`: Scan codes set 1, see [Set 1 column on table 10.6](https://www.win.tue.nl/~aeb/linux/kbd/scancodes-10.html#scancodesets) (Escape codes can be given as either a 0x1 or 0xE0 prefix)
