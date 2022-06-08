@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate enum_primitive_derive;
-extern crate num_traits;
 extern crate ffi_support;
+extern crate num_traits;
 
 use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
@@ -76,8 +76,8 @@ impl Drop for DeviceInfo_FFI {
     fn drop(&mut self) {
         //Ensure we properly drop the memory for the char pointers
         unsafe {
-            CString::from_raw(self.manufacturer_name);
-            CString::from_raw(self.device_name);
+            let _c_string = CString::from_raw(self.manufacturer_name);
+            let _c_string = CString::from_raw(self.device_name);
         }
     }
 }
