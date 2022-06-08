@@ -72,7 +72,7 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
         ANALOG_SDK.lock().unwrap().unload();
     });
 
-    info!("catch unwind result {:?}", result);
+    trace!("catch unwind result {:?}", result);
 
     WootingAnalogResult::Ok
 }
