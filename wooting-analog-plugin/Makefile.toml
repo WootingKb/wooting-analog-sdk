@@ -19,7 +19,7 @@ script_extension = "ps1"
 script = [
 '''
 echo "Requesting admin powershell to install the wooting-analog-plugin"
-$command = "New-Item -ItemType 'directory' -Force '${env:PLUGIN_INSTALL_PATH}\wooting-analog-plugin'; Copy-Item '${env:CARGO_MAKE_WORKING_DIRECTORY}\target\debug\${env:TEST_PLUGIN_FILENAME}' '${env:PLUGIN_INSTALL_PATH}\wooting-analog-plugin\${env:TEST_PLUGIN_FILENAME}' -Force"
+$command = "New-Item -ItemType 'directory' -Force '${env:PLUGIN_INSTALL_PATH}\wooting-analog-plugin'; Copy-Item '${env:CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}\target\debug\${env:TEST_PLUGIN_FILENAME}' '${env:PLUGIN_INSTALL_PATH}\wooting-analog-plugin\${env:TEST_PLUGIN_FILENAME}' -Force"
 echo $command
 Start-Process PowerShell.exe -ArgumentList $command -Wait -Verb RunAs
 '''
