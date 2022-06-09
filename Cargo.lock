@@ -4468,7 +4468,6 @@ dependencies = [
  "anyhow",
  "bimap",
  "cmake",
- "ctrlc",
  "env_logger 0.7.1",
  "ffi-support",
  "lazy_static",

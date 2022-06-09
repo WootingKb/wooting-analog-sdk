@@ -515,9 +515,7 @@ impl Plugin for WootingPlugin {
         self.devices.lock().unwrap().drain();
         drop(self.worker_guard.take());
         self.initialised = false;
-        //for dev in self.devices.clone().unwrap().drain(..) {
-        //handle_device_event(self.device_event_cb.lock().unwrap().borrow(), &dev, DeviceEventType::Disconnected);
-        //}
+
         info!("{} unloaded", PLUGIN_NAME);
     }
 
