@@ -1,6 +1,7 @@
 extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate log;
+extern crate env_logger;
 use log::{error, info};
 use shared_memory::*;
 use std::collections::HashMap;
@@ -45,6 +46,10 @@ unsafe impl SharedMemCast for SharedState {}
 
 impl WootingAnalogTestPlugin {
     fn new() -> Self {
+        if let Err(e) = env_logger::try_init() {
+            info!("Test Plugin could not initialize Env Logger: {}", e);
+        }
+
         let device: Arc<Mutex<Option<DeviceInfo>>> = Arc::new(Mutex::new(None));
         let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
         let device_id: Arc<Mutex<DeviceID>> = Arc::new(Mutex::new(1));

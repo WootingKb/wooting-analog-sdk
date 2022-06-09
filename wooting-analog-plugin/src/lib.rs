@@ -22,6 +22,8 @@ use timer::{Guard, Timer};
 use wooting_analog_plugin_dev::wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
 
+extern crate env_logger;
+
 const ANALOG_BUFFER_SIZE: usize = 48;
 const ANALOG_MAX_SIZE: usize = 40;
 const WOOTING_VID: u16 = 0x31e3;
@@ -495,6 +497,10 @@ impl Plugin for WootingPlugin {
         &mut self,
         callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
     ) -> SDKResult<u32> {
+        if let Err(e) = env_logger::try_init() {
+            warn!("Unable to initialize Env Logger: {}", e);
+        }
+
         let ret = self.init_worker();
         self.device_event_cb.lock().unwrap().replace(callback);
         self.initialised = ret.is_ok();
