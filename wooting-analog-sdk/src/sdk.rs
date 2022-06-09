@@ -452,19 +452,18 @@ impl AnalogSDK {
         debug!("Unloading plugins");
         self.initialised = false;
         for mut plugin in self.plugins.drain(..) {
-            trace!("Firing on_plugin_unload for {:?}", plugin.name());
+            let name = plugin.name().0;
+            trace!("Firing on_plugin_unload for {:?}", name);
             plugin.unload();
-            trace!("Unload successful for {:?}", plugin.name());
+            debug!("Unload successful for {:?}", name);
         }
 
-        trace!("Attempting to drop loaded libraries");
-        for lib in self.loaded_libraries.drain(..) {
-            drop(lib);
-        }
-        trace!("Succeeded dropping loaded libraries");
+        debug!("Attempting to drop loaded libraries");
+        self.loaded_libraries.drain(..);
+        debug!("Succeeded dropping loaded libraries");
 
         self.device_event_callback.lock().unwrap().take();
-        trace!("Finished unloading");
+        debug!("Finished Analog SDK Uninit");
     }
 }
 

@@ -4445,7 +4445,6 @@ name = "wooting-analog-plugin"
 version = "0.7.0"
 dependencies = [
  "chrono",
- "env_logger 0.7.1",
  "hidapi",
  "log",
  "objekt",
@@ -4498,7 +4497,6 @@ dependencies = [
 name = "wooting-analog-test-plugin"
 version = "0.7.0"
 dependencies = [
- "env_logger 0.8.4",
  "log",
  "shared_memory",
  "wooting-analog-plugin-dev",
