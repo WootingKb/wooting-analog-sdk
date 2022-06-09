@@ -28,7 +28,7 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
         ANALOG_SDK.lock().unwrap().initialise().into()
     });
     trace!("catch unwind result: {:?}", result);
-    match (result) {
+    match result {
         Ok(c) => c,
         Err(e) => WootingAnalogResult::Failure.into(),
     }

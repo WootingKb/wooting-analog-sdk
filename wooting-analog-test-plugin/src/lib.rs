@@ -6,8 +6,9 @@ use log::{error, info};
 use shared_memory::*;
 use std::collections::HashMap;
 use std::string::ToString;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use wooting_analog_plugin_dev::wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
@@ -20,6 +21,8 @@ struct WootingAnalogTestPlugin {
     buffer: Arc<Mutex<HashMap<u16, f32>>>,
     device_id: Arc<Mutex<DeviceID>>,
     pressed_keys: Vec<u16>,
+    thread_running: Arc<AtomicBool>,
+    worker_thread: Option<JoinHandle<()>>,
 }
 
 pub struct SharedState {
@@ -56,14 +59,16 @@ impl WootingAnalogTestPlugin {
         let device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>> =
             Arc::new(Mutex::new(None));
         let device_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+        let thread_running: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
 
         let t_buffer = Arc::clone(&buffer);
         let t_device = Arc::clone(&device);
         let t_device_id = Arc::clone(&device_id);
         let t_device_event_cb = Arc::clone(&device_event_cb);
         let t_device_connected = Arc::clone(&device_connected);
+        let t_thread_running = Arc::clone(&thread_running);
 
-        let _worker_thread = thread::spawn(move || {
+        let worker_thread = thread::spawn(move || {
             let link_path = std::env::temp_dir().join("wooting-test-plugin.link");
 
             let mut my_shmem = {
@@ -115,6 +120,10 @@ impl WootingAnalogTestPlugin {
 
             let mut vals = vec![0; 0xFF];
             loop {
+                if !t_thread_running.load(Ordering::SeqCst) {
+                    break;
+                }
+
                 {
                     let mut state = match my_shmem.wlock::<SharedState>(0) {
                         Ok(v) => v,
@@ -197,6 +206,8 @@ impl WootingAnalogTestPlugin {
             buffer,
             device_id,
             pressed_keys: vec![],
+            thread_running: thread_running,
+            worker_thread: Some(worker_thread),
         }
     }
 }
@@ -228,6 +239,15 @@ impl Plugin for WootingAnalogTestPlugin {
         .into();
         self.device_event_cb.lock().unwrap().replace(cb);
         ret
+    }
+
+    fn unload(&mut self) {
+        self.thread_running.store(false, Ordering::SeqCst);
+        if let Some(join) = self.worker_thread.take() {
+            if let Err(e) = join.join() {
+                error!("Error joining worker thread {:?}", e);
+            }
+        }
     }
 
     fn is_initialised(&mut self) -> bool {

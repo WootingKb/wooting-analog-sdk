@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::{fs, thread};
 use wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
@@ -331,6 +332,10 @@ impl AnalogSDK {
         let mut devices: Vec<DeviceInfo> = vec![];
         let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
         for p in self.plugins.iter_mut() {
+            if !p.is_initialised() {
+                continue;
+            }
+
             //Give a reference to the buffer at the point where there is free space
             match p.device_info().0 {
                 Ok(mut p_devices) => {
@@ -450,7 +455,6 @@ impl AnalogSDK {
     /// their `on_plugin_unload()` methods so they can do any necessary cleanup.
     pub fn unload(&mut self) {
         debug!("Unloading plugins");
-        self.initialised = false;
         for mut plugin in self.plugins.drain(..) {
             let name = plugin.name().0;
             trace!("Firing on_plugin_unload for {:?}", name);
@@ -464,6 +468,8 @@ impl AnalogSDK {
 
         self.device_event_callback.lock().unwrap().take();
         debug!("Finished Analog SDK Uninit");
+
+        self.initialised = false;
     }
 }
 
