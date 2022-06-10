@@ -1,7 +1,7 @@
 [tasks.win-installer]
 env = {WIN_INSTALLER_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"}
 command = "cargo"
-args = ["wix", "--nocapture", "--output", "${WIN_INSTALLER_PATH}"]
+args = ["wix" , "-p", "wooting-analog-sdk", "--nocapture", "--output", "${WIN_INSTALLER_PATH}"]
 
 [tasks.sign-win-installer]
 condition = {env_true = ["CARGO_MAKE_CI"]}

@@ -48,9 +48,7 @@ jobs:
       - name: Build Windows Installer
         shell: bash
         if: runner.os == 'Windows'
-        run: /
-          cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET
+        run: cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET
       - name: Build debian package
         if: startsWith(matrix.os, 'ubuntu')
-        run: /
-          cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET
+        run: cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET

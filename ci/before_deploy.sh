@@ -11,22 +11,22 @@ main() {
           exe_ext=
           cargo=cargo
 
-    case $TRAVIS_OS_NAME in
-        linux)
+    case $RUNNER_OS in
+        Linux)
             stage=$(mktemp -d)
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="so"
             exe_ext=""
             ;;
-        osx)
+        macOS)
             stage=$(mktemp -d -t tmp)
             lib_ext="a"
             lib_prefix="lib"
             shared_lib_ext="dylib"
             exe_ext=""
             ;;
-        windows)
+        Windows)
             stage=$(mktemp -d)
             lib_ext="lib"
             lib_prefix=""
