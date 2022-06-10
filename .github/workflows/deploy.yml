@@ -43,6 +43,8 @@ jobs:
           target: ${{ matrix.target }}
       - uses: davidB/rust-cargo-make@v1
       - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: ${{ matrix.target }}
       - name: Run deploy script
         shell: bash
         run: sh ci/before_deploy.sh
@@ -51,6 +53,8 @@ jobs:
         env:
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          WIN_CSC_DESC: ${{ secrets.WIN_CSC_DESC }}
+          WIN_CSC_SUBJECTNAME: ${{ secrets.WIN_CSC_SUBJECTNAME }}
         if: runner.os == 'Windows'
         run: cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET
       - name: Build debian package
