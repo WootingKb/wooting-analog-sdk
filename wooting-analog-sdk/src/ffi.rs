@@ -1,13 +1,18 @@
 use crate::sdk::*;
 use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
-use std::slice;
 use std::sync::Mutex;
+use std::{panic, slice};
 use wooting_analog_common::FromPrimitive;
 use wooting_analog_common::*;
 
 lazy_static! {
-    pub static ref ANALOG_SDK: Mutex<AnalogSDK> = Mutex::new(AnalogSDK::new());
+    pub static ref ANALOG_SDK: Mutex<AnalogSDK> = {
+        //TODO: Consider switching this to file logging, or remove entirely and leave logging up to library user
+        env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info"))
+            .map_err(|e| println!("ERROR: Could not initialise logging. '{:?}'", e));
+        Mutex::new(AnalogSDK::new())
+    };
 }
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -18,9 +23,15 @@ lazy_static! {
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_initialise() -> c_int {
-    env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info"))
-        .map_err(|e| println!("ERROR: Could not initialise logging. '{:?}'", e));
-    ANALOG_SDK.lock().unwrap().initialise().into()
+    let result = panic::catch_unwind(|| {
+        trace!("wooting_analog_initialise called");
+        ANALOG_SDK.lock().unwrap().initialise().into()
+    });
+    trace!("catch unwind result: {:?}", result);
+    match result {
+        Ok(c) => c,
+        Err(e) => WootingAnalogResult::Failure.into(),
+    }
 }
 
 /// Provides the major version of the SDK, a difference in this value to what is expected indicates that
@@ -46,18 +57,24 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
 /// * `Ok`: Indicates that the SDK was successfully uninitialised
 #[no_mangle]
 pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
-    //Drop the memory that was being kept for the connected devices info call
-    CONNECTED_DEVICES.with(|devs| {
-        let old = (*devs.borrow_mut()).take();
-        if let Some(mut old_devices) = old {
-            for dev in old_devices.drain(..) {
-                unsafe {
-                    Box::from_raw(dev);
+    trace!("wooting_analog_uninitialise called");
+    let result = panic::catch_unwind(|| {
+        //Drop the memory that was being kept for the connected devices info call
+        CONNECTED_DEVICES.with(|devs| {
+            let old = (*devs.borrow_mut()).take();
+            if let Some(mut old_devices) = old {
+                for dev in old_devices.drain(..) {
+                    unsafe {
+                        Box::from_raw(dev);
+                    }
                 }
             }
-        }
+        });
+        ANALOG_SDK.lock().unwrap().unload();
     });
-    ANALOG_SDK.lock().unwrap().unload();
+
+    trace!("catch unwind result {:?}", result);
+
     WootingAnalogResult::Ok
 }
 
