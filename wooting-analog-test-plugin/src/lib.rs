@@ -6,8 +6,9 @@ use log::{error, info};
 use shared_memory::*;
 use std::collections::HashMap;
 use std::string::ToString;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use wooting_analog_plugin_dev::wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
@@ -20,6 +21,8 @@ struct WootingAnalogTestPlugin {
     buffer: Arc<Mutex<HashMap<u16, f32>>>,
     device_id: Arc<Mutex<DeviceID>>,
     pressed_keys: Vec<u16>,
+    thread_running: Arc<AtomicBool>,
+    worker_thread: Option<JoinHandle<()>>,
 }
 
 pub struct SharedState {
@@ -46,7 +49,6 @@ unsafe impl SharedMemCast for SharedState {}
 
 impl WootingAnalogTestPlugin {
     fn new() -> Self {
-        // env_logger::from_env(Env::default().default_filter_or("trace")).try_init();
         if let Err(e) = env_logger::try_init() {
             info!("Test Plugin could not initialize Env Logger: {}", e);
         }
@@ -57,14 +59,16 @@ impl WootingAnalogTestPlugin {
         let device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>> =
             Arc::new(Mutex::new(None));
         let device_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+        let thread_running: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
 
         let t_buffer = Arc::clone(&buffer);
         let t_device = Arc::clone(&device);
         let t_device_id = Arc::clone(&device_id);
         let t_device_event_cb = Arc::clone(&device_event_cb);
         let t_device_connected = Arc::clone(&device_connected);
+        let t_thread_running = Arc::clone(&thread_running);
 
-        let _worker_thread = thread::spawn(move || {
+        let worker_thread = thread::spawn(move || {
             let link_path = std::env::temp_dir().join("wooting-test-plugin.link");
 
             let mut my_shmem = {
@@ -116,6 +120,10 @@ impl WootingAnalogTestPlugin {
 
             let mut vals = vec![0; 0xFF];
             loop {
+                if !t_thread_running.load(Ordering::SeqCst) {
+                    break;
+                }
+
                 {
                     let mut state = match my_shmem.wlock::<SharedState>(0) {
                         Ok(v) => v,
@@ -198,6 +206,8 @@ impl WootingAnalogTestPlugin {
             buffer,
             device_id,
             pressed_keys: vec![],
+            thread_running: thread_running,
+            worker_thread: Some(worker_thread),
         }
     }
 }
@@ -221,7 +231,6 @@ impl Plugin for WootingAnalogTestPlugin {
         &mut self,
         cb: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
     ) -> SDKResult<u32> {
-        info!("init");
         let ret = if *self.device_connected.lock().unwrap() {
             Ok(1)
         } else {
@@ -230,6 +239,15 @@ impl Plugin for WootingAnalogTestPlugin {
         .into();
         self.device_event_cb.lock().unwrap().replace(cb);
         ret
+    }
+
+    fn unload(&mut self) {
+        self.thread_running.store(false, Ordering::SeqCst);
+        if let Some(join) = self.worker_thread.take() {
+            if let Err(e) = join.join() {
+                error!("Error joining worker thread {:?}", e);
+            }
+        }
     }
 
     fn is_initialised(&mut self) -> bool {
@@ -254,7 +272,7 @@ impl Plugin for WootingAnalogTestPlugin {
 
     fn read_analog(&mut self, code: u16, device: u64) -> SDKResult<f32> {
         if !*self.device_connected.lock().unwrap() {
-            return WootingAnalogResult::NoDevices.into();
+            return Err(WootingAnalogResult::NoDevices).into();
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
@@ -268,7 +286,7 @@ impl Plugin for WootingAnalogTestPlugin {
                 .unwrap())
             .into()
         } else {
-            WootingAnalogResult::NoDevices.into()
+            Err(WootingAnalogResult::NoDevices).into()
         }
     }
 
@@ -278,7 +296,7 @@ impl Plugin for WootingAnalogTestPlugin {
         device: u64,
     ) -> SDKResult<HashMap<u16, f32>> {
         if !*self.device_connected.lock().unwrap() {
-            return WootingAnalogResult::NoDevices.into();
+            return Err(WootingAnalogResult::NoDevices).into();
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
@@ -298,7 +316,7 @@ impl Plugin for WootingAnalogTestPlugin {
 
             Ok(buffer).into()
         } else {
-            WootingAnalogResult::NoDevices.into()
+            Err(WootingAnalogResult::NoDevices).into()
         }
     }
 }

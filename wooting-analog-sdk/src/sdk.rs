@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::{fs, thread};
 use wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
@@ -73,7 +74,7 @@ impl AnalogSDK {
         let plugin_dir = PathBuf::from(plugin_dir);
         if !plugin_dir.is_dir() {
             error!("The plugin directory '{:?}' does not exist! Make sure you have it created and have plugins in there", plugin_dir);
-            return WootingAnalogResult::NoPlugins.into();
+            return Err(WootingAnalogResult::NoPlugins).into();
         }
         /*let mut plugin_dir = match plugin_dir {
             Ok(v) => {
@@ -157,7 +158,7 @@ impl AnalogSDK {
 
         self.initialised = plugins_initialised > 0;
         if !self.initialised {
-            WootingAnalogResult::NoPlugins.into()
+            Err(WootingAnalogResult::NoPlugins).into()
         } else {
             Ok(device_no).into()
         }
@@ -317,7 +318,7 @@ impl AnalogSDK {
 
     pub fn clear_device_event_cb(&mut self) -> SDKResult<()> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized).into();
         }
         self.device_event_callback.lock().unwrap().take();
 
@@ -326,11 +327,15 @@ impl AnalogSDK {
 
     pub fn get_device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized).into();
         }
         let mut devices: Vec<DeviceInfo> = vec![];
         let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
         for p in self.plugins.iter_mut() {
+            if !p.is_initialised() {
+                continue;
+            }
+
             //Give a reference to the buffer at the point where there is free space
             match p.device_info().0 {
                 Ok(mut p_devices) => {
@@ -355,7 +360,7 @@ impl AnalogSDK {
 
     pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized).into();
         }
 
         //Try and map the given keycode to HID
@@ -381,12 +386,12 @@ impl AnalogSDK {
             }
 
             if value < 0.0 {
-                return err.into();
+                return Err(err).into();
             }
 
             value.into()
         } else {
-            WootingAnalogResult::NoMapping.into()
+            Err(WootingAnalogResult::NoMapping).into()
         }
     }
 
@@ -396,7 +401,7 @@ impl AnalogSDK {
         device_id: DeviceID,
     ) -> SDKResult<HashMap<u16, f32>> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized).into();
         }
 
         let mut analog_data: HashMap<u16, f32> = HashMap::with_capacity(max_length);
@@ -440,7 +445,7 @@ impl AnalogSDK {
             }
         }
         if !any_success {
-            return err.into();
+            return Err(err).into();
         }
 
         Ok(analog_data).into()
@@ -450,17 +455,21 @@ impl AnalogSDK {
     /// their `on_plugin_unload()` methods so they can do any necessary cleanup.
     pub fn unload(&mut self) {
         debug!("Unloading plugins");
-        self.initialised = false;
         for mut plugin in self.plugins.drain(..) {
-            trace!("Firing on_plugin_unload for {:?}", plugin.name());
+            let name = plugin.name().0;
+            trace!("Firing on_plugin_unload for {:?}", name);
             plugin.unload();
+            debug!("Unload successful for {:?}", name);
         }
 
-        for lib in self.loaded_libraries.drain(..) {
-            drop(lib);
-        }
+        debug!("Attempting to drop loaded libraries");
+        self.loaded_libraries.drain(..);
+        debug!("Succeeded dropping loaded libraries");
 
         self.device_event_callback.lock().unwrap().take();
+        debug!("Finished Analog SDK Uninit");
+
+        self.initialised = false;
     }
 }
 
