@@ -1,0 +1,56 @@
+name: Publish Analog SDK
+
+on:
+  push:
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
+
+jobs:
+  release:
+    # Platforms to build on/for
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-2019]
+        include:
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          #  - os: macos-latest
+          #   target: aarch64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-2019
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      TARGET: ${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Setup Build Environment
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install libudev-dev libhidapi-dev
+      - name: Setup rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          target: ${{ matrix.target }}
+      - uses: davidB/rust-cargo-make@v1
+      - uses: Swatinem/rust-cache@v1
+      - name: Run deploy script
+        shell: bash
+        run: sh ci/before_deploy.sh
+      - name: Build Windows Installer
+        shell: bash
+        if: runner.os == 'Windows'
+        run: /
+          cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET
+      - name: Build debian package
+        if: startsWith(matrix.os, 'ubuntu')
+        run: /
+          cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET
