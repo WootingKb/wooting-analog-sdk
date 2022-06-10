@@ -58,10 +58,9 @@ jobs:
         run: cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET
       - name: Upload artifacts to release
         uses: softprops/action-gh-release@v1
-        draft: true
         with:
+          draft: true
           files: |
             target/wix/*.msi
-            target/**/debian/*.deb
             target/debian/*.deb
             *.tar.gz

@@ -96,7 +96,7 @@ main() {
     #cp target/$TARGET/release/hello $stage/
 
     cd $stage
-    tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$TARGET.tar.gz *
+    tar czf $src/wooting-analog-sdk-$GITHUB_REF_NAME-$TARGET.tar.gz *
     cd $src
 
     rm -rf $stage
