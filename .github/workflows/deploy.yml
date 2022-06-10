@@ -10,14 +10,14 @@ jobs:
     # Platforms to build on/for
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-2019]
+        # os: [macos-latest, ubuntu-latest, windows-2019]
         include:
+          # - os: macos-latest
+          #   target: x86_64-apple-darwin
           - os: macos-latest
-            target: x86_64-apple-darwin
-          #  - os: macos-latest
-          #   target: aarch64-apple-darwin
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: aarch64-apple-darwin
+          # - os: ubuntu-latest
+          #   target: x86_64-unknown-linux-gnu
           - os: windows-2019
             target: x86_64-pc-windows-msvc
 
@@ -39,6 +39,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           override: true
+          default: true
           target: ${{ matrix.target }}
       - uses: davidB/rust-cargo-make@v1
       - uses: Swatinem/rust-cache@v1
