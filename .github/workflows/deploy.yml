@@ -14,8 +14,8 @@ jobs:
         include:
           # - os: macos-latest
           #   target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
+          # - os: macos-latest
+          #   target: aarch64-apple-darwin
           # - os: ubuntu-latest
           #   target: x86_64-unknown-linux-gnu
           - os: windows-2019
@@ -48,6 +48,9 @@ jobs:
         run: sh ci/before_deploy.sh
       - name: Build Windows Installer
         shell: bash
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         if: runner.os == 'Windows'
         run: cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET
       - name: Build debian package

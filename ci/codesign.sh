@@ -13,6 +13,6 @@ if [ $RUNNER_OS = Windows ]; then
   powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
   powershell Get-ExecutionPolicy -List
 
-  powershell $TRAVIS_BUILD_DIR/ci/codesign.ps1
+  powershell $GITHUB_WORKSPACE/ci/codesign.ps1
   signtool.exe verify -pa "$WIN_INSTALLER_PATH"
 fi
