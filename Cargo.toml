@@ -6,11 +6,6 @@ rpath = true
 
 [workspace]
 
-# Use this to be able to generate updated Cargo.lock for `wooting-analog-plugin` because otherwise it will act as a workspace member and use the shared Cargo.lock
-# exclude = [
-#     "wooting-analog-plugin"
-# ]
-
 members = [
     "wooting-analog-common",
     "wooting-analog-wrapper",
