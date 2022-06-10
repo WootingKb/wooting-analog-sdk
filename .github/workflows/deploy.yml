@@ -56,3 +56,11 @@ jobs:
       - name: Build debian package
         if: startsWith(matrix.os, 'ubuntu')
         run: cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/wix/*.msi
+            target/**/debian/*.deb
+            target/debian/*.deb
+            *.tar.gz
