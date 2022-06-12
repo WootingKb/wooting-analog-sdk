@@ -1,5 +1,5 @@
 # Thanks https://github.com/electron-userland/electron-builder/issues/3629#issuecomment-473238513
-if [ $TRAVIS_OS_NAME = windows ]; then
+if [ $RUNNER_OS = Windows ]; then
   set -e
 
   export PATH="C:\Program Files (x86)\Windows Kits\10\bin\x64":$PATH
@@ -13,6 +13,6 @@ if [ $TRAVIS_OS_NAME = windows ]; then
   powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
   powershell Get-ExecutionPolicy -List
 
-  powershell $TRAVIS_BUILD_DIR/ci/codesign.ps1
-  signtool.exe verify -pa "$WIN_INSTALLER_PATH"
+  powershell $GITHUB_WORKSPACE/ci/codesign.ps1
+  'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe' verify -pa "$WIN_INSTALLER_PATH"
 fi

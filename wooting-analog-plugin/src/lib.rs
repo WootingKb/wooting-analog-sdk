@@ -1,6 +1,5 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate wooting_analog_plugin_dev;
 extern crate hidapi;
 #[macro_use]
