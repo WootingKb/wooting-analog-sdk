@@ -14,5 +14,5 @@ if [ $RUNNER_OS = Windows ]; then
   powershell Get-ExecutionPolicy -List
 
   powershell $GITHUB_WORKSPACE/ci/codesign.ps1
-  signtool.exe verify -pa "$WIN_INSTALLER_PATH"
+  'C:/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x86/signtool.exe' verify -pa "$WIN_INSTALLER_PATH"
 fi
