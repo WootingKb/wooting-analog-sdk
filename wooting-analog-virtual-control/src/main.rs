@@ -153,7 +153,7 @@ struct Key {
     keycode: u16,
     label: String,
     width: u16,
-    height: u16,
+    _height: u16,
     value: f32,
     xy: (usize, usize),
 }
@@ -199,7 +199,7 @@ impl Key {
             keycode,
             label,
             width,
-            height,
+            _height: height,
             value,
             xy,
         }
