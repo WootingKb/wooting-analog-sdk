@@ -30,6 +30,9 @@ rm -rf test_c_plugin/build
 [tasks.pre-test]
 dependencies = ["build-full-deps"]
 
+[tasks.pre-build]
+dependencies = ["build-full-deps"]
+
 [tasks.build-full-deps]
 script_runner = "@shell"
 script = [
