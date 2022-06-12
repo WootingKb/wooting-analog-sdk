@@ -9,8 +9,10 @@ use wooting_analog_common::*;
 lazy_static! {
     pub static ref ANALOG_SDK: Mutex<AnalogSDK> = {
         //TODO: Consider switching this to file logging, or remove entirely and leave logging up to library user
-        env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info"))
-            .map_err(|e| println!("ERROR: Could not initialise logging. '{:?}'", e));
+        if let Err(e) = env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info")){
+            println!("ERROR: Could not initialise logging. '{:?}'", e);
+        }
+
         Mutex::new(AnalogSDK::new())
     };
 }
@@ -30,7 +32,10 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     trace!("catch unwind result: {:?}", result);
     match result {
         Ok(c) => c,
-        Err(e) => WootingAnalogResult::Failure.into(),
+        Err(e) =>{
+            error!("An error occurred in wooting_analog_initialise: {:?}", e);
+            WootingAnalogResult::Failure.into()
+        } ,
     }
 }
 
