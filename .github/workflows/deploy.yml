@@ -39,7 +39,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu') && startsWith(matrix.target, 'aarch64')
         run: |
           sudo apt update
-          sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu libssl-dev
       - name: Setup rust toolchain
         uses: actions-rs/toolchain@v1
         with:
