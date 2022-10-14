@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
-extern crate wooting_analog_plugin_dev;
 extern crate hidapi;
+extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate objekt;
 extern crate chrono;
@@ -161,10 +161,6 @@ impl DeviceImplementation for WootingOneV2 {
             has_modes: true,
         }
     }
-
-    fn analog_value_to_float(&self, value: u8) -> f32 {
-        ((f32::from(value) * 1.2) / 255_f32).min(1.0)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -179,10 +175,6 @@ impl DeviceImplementation for WootingTwoV2 {
             has_modes: true,
         }
     }
-
-    fn analog_value_to_float(&self, value: u8) -> f32 {
-        ((f32::from(value) * 1.2) / 255_f32).min(1.0)
-    }
 }
 #[derive(Debug, Clone)]
 struct WootingLekker();
@@ -195,10 +187,6 @@ impl DeviceImplementation for WootingLekker {
             usage_page: 0xFF54,
             has_modes: true,
         }
-    }
-
-    fn analog_value_to_float(&self, value: u8) -> f32 {
-        (f32::from(value)) / 255_f32
     }
 }
 
@@ -214,10 +202,6 @@ impl DeviceImplementation for WootingTwoHE {
             has_modes: true,
         }
     }
-
-    fn analog_value_to_float(&self, value: u8) -> f32 {
-        (f32::from(value)) / 255_f32
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -232,10 +216,6 @@ impl DeviceImplementation for Wooting60HE {
             has_modes: true,
         }
     }
-
-    fn analog_value_to_float(&self, value: u8) -> f32 {
-        (f32::from(value)) / 255_f32
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -249,10 +229,6 @@ impl DeviceImplementation for Wooting60HEARM {
             usage_page: 0xFF54,
             has_modes: true,
         }
-    }
-
-    fn analog_value_to_float(&self, value: u8) -> f32 {
-        (f32::from(value)) / 255_f32
     }
 }
 /// A fully contained device which uses `device_impl` to interface with the `device`
