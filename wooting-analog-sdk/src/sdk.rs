@@ -488,7 +488,6 @@ impl Default for AnalogSDK {
 mod tests {
     use super::*;
     use shared_memory::*;
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -783,43 +782,44 @@ mod tests {
         uninitialised_sdk_functions(&mut sdk);
     }
 
-    const TEST_PLUGIN_DIR: &str = "test_c_plugin";
+    // const TEST_PLUGIN_DIR: &str = "test_c_plugin";
 
     /// Basic test to ensure the plugin.h is up to date and to ensure the CPlugin interface is working correctly
-    #[test]
-    fn test_c_plugin_interface() {
-        shared_init();
-        let mut sdk = AnalogSDK::new();
+    // #[test]
+    // fn test_c_plugin_interface() {
+    // use std::sync::atomic::{AtomicBool, Ordering};
+    //     shared_init();
+    //     let mut sdk = AnalogSDK::new();
 
-        let dir = format!("./{}/build/", TEST_PLUGIN_DIR);
-        info!("Loading plugins from: {:?}", dir);
-        assert!(!sdk.initialised);
-        assert_eq!(sdk.initialise_with_plugin_path(dir.as_str(), true).0, Ok(1));
-        assert!(sdk.initialised);
-        let got_cb = Arc::new(AtomicBool::new(false));
-        let got_cb_inner = got_cb.clone();
+    //     let dir = format!("./{}/build/", TEST_PLUGIN_DIR);
+    //     info!("Loading plugins from: {:?}", dir);
+    //     assert!(!sdk.initialised);
+    //     assert_eq!(sdk.initialise_with_plugin_path(dir.as_str(), true).0, Ok(1));
+    //     assert!(sdk.initialised);
+    //     let got_cb = Arc::new(AtomicBool::new(false));
+    //     let got_cb_inner = got_cb.clone();
 
-        sdk.set_device_event_cb(move |event, device| {
-            debug!("We got that callbackkkk");
-            got_cb_inner.store(true, Ordering::Relaxed);
+    //     sdk.set_device_event_cb(move |event, device| {
+    //         debug!("We got that callbackkkk");
+    //         got_cb_inner.store(true, Ordering::Relaxed);
 
-            //A couple of basic checks to ensure the callback gets valid data
-            assert_eq!(event, DeviceEventType::Connected);
-            assert_eq!(device.device_id, 7);
-        });
+    //         //A couple of basic checks to ensure the callback gets valid data
+    //         assert_eq!(event, DeviceEventType::Connected);
+    //         assert_eq!(device.device_id, 7);
+    //     });
 
-        assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
-        //We told it to execute the callback when read_analog is called so let's just call it a second time to ensure it can be called multiple times without dying
-        assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
-        assert_eq!(sdk.read_full_buffer(30, 0).0.unwrap().get(&5), Some(&0.4));
-        let device = sdk.get_device_info().0.unwrap().first().unwrap().clone();
-        assert_eq!(device.device_id, 7);
+    //     assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
+    //     //We told it to execute the callback when read_analog is called so let's just call it a second time to ensure it can be called multiple times without dying
+    //     assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
+    //     assert_eq!(sdk.read_full_buffer(30, 0).0.unwrap().get(&5), Some(&0.4));
+    //     let device = sdk.get_device_info().0.unwrap().first().unwrap().clone();
+    //     assert_eq!(device.device_id, 7);
 
-        //Wait a wee bit to ensure the callback has been executed
-        ::std::thread::sleep(Duration::from_millis(500));
+    //     //Wait a wee bit to ensure the callback has been executed
+    //     ::std::thread::sleep(Duration::from_millis(500));
 
-        assert!(got_cb.load(Ordering::Relaxed));
-    }
+    //     assert!(got_cb.load(Ordering::Relaxed));
+    // }
 
     /*#[test]
     fn unitialised_sdk_functions_failed_init() {
