@@ -394,24 +394,19 @@ impl AnalogSDK {
         }
     }
 
-    pub fn read_full_buffer(
-        &mut self,
-        max_length: usize,
-        device_id: DeviceID,
-    ) -> SDKResult<HashMap<u16, f32>> {
+    pub fn read_full_buffer(&mut self, device_id: DeviceID) -> SDKResult<HashMap<u16, f32>> {
         if !self.initialised {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
-        let mut analog_data: HashMap<u16, f32> = HashMap::with_capacity(max_length);
+        let mut analog_data: HashMap<u16, f32> = HashMap::new();
 
         let mut err = WootingAnalogResult::Ok;
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            let plugin_data = p
-                .read_full_buffer(max_length - analog_data.len(), device_id)
-                .into();
+            // We just pass usize::MAX as we just want to get all results and at this stage we don't care about the size
+            let plugin_data = p.read_full_buffer(usize::MAX, device_id).into();
             match plugin_data {
                 Ok(mut data) => {
                     for (hid_code, analog) in data.drain() {
@@ -713,7 +708,7 @@ mod tests {
         sdk().keycode_mode = KeycodeType::HID;
 
         let buffer_len = 5;
-        let analog_data = sdk().read_full_buffer(buffer_len, 0).0.unwrap();
+        let analog_data = sdk().read_full_buffer(0).0.unwrap();
         //Check it reads buffer properly with no device id
         assert_eq!(analog_data.len(), 1);
         assert_eq!(
@@ -721,7 +716,7 @@ mod tests {
             Some((&(analog_key as u16), &f_analog_val))
         );
 
-        let analog_data = sdk().read_full_buffer(buffer_len, device_id).0.unwrap();
+        let analog_data = sdk().read_full_buffer(device_id).0.unwrap();
         //Check it reads buffer properly with proper device_id
         assert_eq!(analog_data.len(), 1);
         assert_eq!(
@@ -731,13 +726,13 @@ mod tests {
 
         //Check it errors on read buffer with invalid device_id
         assert_eq!(
-            sdk().read_full_buffer(buffer_len, device_id + 1).0,
+            sdk().read_full_buffer(device_id + 1).0,
             Err(WootingAnalogResult::NoDevices)
         );
 
         //Check that it does code mapping
         sdk().keycode_mode = KeycodeType::ScanCode1;
-        let analog_data = sdk().read_full_buffer(buffer_len, device_id).0.unwrap();
+        let analog_data = sdk().read_full_buffer(device_id).0.unwrap();
         assert_eq!(analog_data.len(), 1);
         assert_eq!(
             analog_data.iter().next(),
@@ -753,14 +748,14 @@ mod tests {
             shared_state.analog_values[analog_key] = 0;
         }
         ::std::thread::sleep(Duration::from_secs(1));
-        let analog_data = sdk().read_full_buffer(buffer_len, device_id).0.unwrap();
+        let analog_data = sdk().read_full_buffer(device_id).0.unwrap();
         //Check that it is returning the released key in the next call
         assert_eq!(analog_data.len(), 1);
         assert_eq!(analog_data[&(analog_key as u16)], 0.0);
 
         assert_eq!(sdk().read_analog(analog_key as u16, 0).0, Ok(0.0));
 
-        let analog_data = sdk().read_full_buffer(buffer_len, device_id).0;
+        let analog_data = sdk().read_full_buffer(device_id).0;
         assert_eq!(analog_data.unwrap().len(), 0);
 
         sdk().clear_device_event_cb();
@@ -811,7 +806,7 @@ mod tests {
         assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
         //We told it to execute the callback when read_analog is called so let's just call it a second time to ensure it can be called multiple times without dying
         assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
-        assert_eq!(sdk.read_full_buffer(30, 0).0.unwrap().get(&5), Some(&0.4));
+        assert_eq!(sdk.read_full_buffer(0).0.unwrap().get(&5), Some(&0.4));
         let device = sdk.get_device_info().0.unwrap().first().unwrap().clone();
         assert_eq!(device.device_id, 7);
 
@@ -858,7 +853,7 @@ mod tests {
         );
 
         assert_eq!(
-            sdk.read_full_buffer(0, 0).0,
+            sdk.read_full_buffer(0).0,
             Err(WootingAnalogResult::UnInitialized)
         );
     }

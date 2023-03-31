@@ -32,10 +32,10 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     trace!("catch unwind result: {:?}", result);
     match result {
         Ok(c) => c,
-        Err(e) =>{
+        Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
-        } ,
+        }
     }
 }
 
@@ -323,12 +323,7 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    match ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_full_buffer(len as usize, device_id)
-        .0
-    {
+    match ANALOG_SDK.lock().unwrap().read_full_buffer(device_id).0 {
         Ok(analog_data) => {
             //Fill up given slices
             let mut count: usize = 0;
