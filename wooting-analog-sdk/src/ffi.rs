@@ -32,10 +32,10 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     trace!("catch unwind result: {:?}", result);
     match result {
         Ok(c) => c,
-        Err(e) =>{
+        Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
-        } ,
+        }
     }
 }
 
@@ -424,7 +424,7 @@ mod tests {
 
     fn shared_init() {
         env_logger::try_init_from_env(env_logger::Env::from("trace"))
-            .map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
+            .map_err(|e| println!("WARN: Could not initialise env_logger. '{:?}'", e));
     }
 
     #[test]
