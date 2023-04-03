@@ -22,6 +22,8 @@ jobs:
         with:
           override: true
       - uses: davidB/rust-cargo-make@v1
+        with:
+          version: 0.35.16
       - uses: Swatinem/rust-cache@v1
       - name: Run tests
         run: cargo make test-flow
