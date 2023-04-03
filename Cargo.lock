@@ -3263,6 +3263,7 @@ dependencies = [
  "clap",
  "json",
  "log",
+ "reqwest",
  "self_update",
  "simplelog",
  "winapi",

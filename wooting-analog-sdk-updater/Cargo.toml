@@ -13,6 +13,7 @@ log = "^0.4"
 json = "^0.11"
 simplelog = "^0.7"
 chrono = "0.4"
+reqwest = "0.11"
 
 
 [dependencies.winapi]
