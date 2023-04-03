@@ -143,8 +143,8 @@ lazy_static! {
 use env_logger::Env;
 use iced::widget::container::Style;
 use iced::{
-    container, slider, window, Align, Checkbox, Color, Column, Container, Element,
-    HorizontalAlignment, Length, Row, Sandbox, Settings, Slider, Text,
+    alignment, container, slider, window, Alignment, Checkbox, Color, Column, Container, Element,
+    Length, Row, Sandbox, Settings, Slider, Text,
 };
 use std::borrow::Borrow;
 
@@ -228,10 +228,10 @@ impl Key {
         Container::new(
             Column::new()
                 .padding(5)
-                .align_items(Align::Center)
+                .align_items(Alignment::Center)
                 .push(
                     Text::new(self.label.as_str())
-                        .horizontal_alignment(HorizontalAlignment::Center),
+                        .horizontal_alignment(alignment::Horizontal::Center),
                 )
                 .push(
                     Text::new(format!("{:.3}", self.value.trunc() / 255f32)).color(
@@ -398,7 +398,9 @@ impl Drop for AppState {
 }
 
 fn main() -> Result<(), iced::Error> {
-    if let Err(e) = env_logger::Builder::from_env(Env::default().default_filter_or("info")).try_init() {
+    if let Err(e) =
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).try_init()
+    {
         error!("Failed to init env_logger: {}", e)
     }
     let kb: &Vec<Vec<(&'static str, u16, u16, u16)>> = KEYBOARD_LAYOUT.borrow();
@@ -427,12 +429,11 @@ fn main() -> Result<(), iced::Error> {
             max_size: None,
             min_size: None,
             icon: None,
-            transparent: false
+            transparent: false,
+            ..window::Settings::default()
         },
-        default_font: None,
-        antialiasing: false,
         default_text_size: 20,
         exit_on_close_request: true,
-        flags: (),
+        ..Settings::default()
     })
 }

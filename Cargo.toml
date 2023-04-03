@@ -5,6 +5,7 @@ rpath = true
 rpath = true
 
 [workspace]
+resolver = "2"
 
 members = [
     "wooting-analog-common",
