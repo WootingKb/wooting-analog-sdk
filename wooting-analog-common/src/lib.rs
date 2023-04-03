@@ -175,7 +175,7 @@ pub extern "C" fn new_device_info(
 /// Drops the given `DeviceInfo`
 #[no_mangle]
 pub unsafe extern "C" fn drop_device_info(device: *mut DeviceInfo) {
-    Box::from_raw(device);
+    drop(Box::from_raw(device));
 }
 
 #[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]

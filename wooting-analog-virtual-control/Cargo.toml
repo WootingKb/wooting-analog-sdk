@@ -9,7 +9,7 @@ edition = "2018"
 wooting-analog-common = { path = "../wooting-analog-common"}
 shared_memory = "^0.8"
 log = "^0.4"
-iced = "^0.3"
+iced = "^0.4"
 env_logger = "0.8"
 lazy_static = "*"
 wooting-analog-test-plugin = { path="../wooting-analog-test-plugin" }
