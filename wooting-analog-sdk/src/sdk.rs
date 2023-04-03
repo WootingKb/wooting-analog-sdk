@@ -591,7 +591,7 @@ mod tests {
         let sdk = || _sdk.lock().unwrap();
         let dir = format!(
             "../target/{}/test_plugin",
-            std::env::var("TEST_TARGET").unwrap_or("/debug".to_owned())
+            std::env::var("TEST_TARGET").unwrap_or("debug".to_owned())
         );
         info!("Loading plugins from: {:?}", dir);
         assert!(!sdk().initialised);
