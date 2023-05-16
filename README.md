@@ -67,9 +67,7 @@ C:\Program Files\WootingAnalogPlugins\wooting-analog-plugin\wooting_analog_plugi
 
 ## Documentation
 
-The core documentation can be found on [dev.wooting.io](https://dev.wooting.nl/wooting-analog-sdk-guide/introduction/).
-
-Additionally, some of the crucial docs can be found in [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK and the [Plugin introduction](PLUGINS.md) for information on creating plugins.
+The core documentation can be found in [SDK usage](SDK_USAGE.md) for a guide on how to use the SDK and the [Plugin introduction](PLUGINS.md) for information on creating plugins.
 
 ## Virtual Keyboard
 
