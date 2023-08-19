@@ -57,7 +57,7 @@ macro_rules! lib_wrap_option {
                                 }).ok();
                         match func {
                             Some(f) => f($($fn_arg_names),*).into(),
-                            _ => Err(WootingAnalogResult::FunctionNotFound).into()
+                            _ => Err(WootingAnalogResult::FunctionNotFound)
 
                         }
                     }
@@ -85,7 +85,7 @@ impl CPlugin {
                         "CPlugin ABI version does not match! Given: {}, Expected: {}",
                         v, CPLUGIN_ABI_VERSION
                     );
-                    return Err(WootingAnalogResult::IncompatibleVersion).into();
+                    return Err(WootingAnalogResult::IncompatibleVersion);
                 }
             }
         }
@@ -94,7 +94,6 @@ impl CPlugin {
             lib,
             //funcs: HashMap::new()
         })
-        .into()
     }
 
     lib_wrap_option! {
@@ -131,7 +130,7 @@ extern "C" fn call_closure(data: *mut c_void, event: DeviceEventType, device_raw
 
 impl Plugin for CPlugin {
     fn name(&mut self) -> SDKResult<&'static str> {
-        self._name().0.map(|s| s.as_str()).into()
+        self._name().map(|s| s.as_str())
     }
 
     fn initialise(
@@ -140,9 +139,7 @@ impl Plugin for CPlugin {
     ) -> SDKResult<u32> {
         let data = Box::into_raw(Box::new(callback));
         self._initialise(data as *mut _, call_closure)
-            .0
             .map(|res| res as u32)
-            .into()
     }
 
     fn read_full_buffer(
@@ -161,11 +158,10 @@ impl Plugin for CPlugin {
                     analog_buffer.as_ptr(),
                     max_length as c_uint,
                     device,
-                )
-                .0;
+                );
             if let Err(e) = ret {
                 //debug!("Error got: {:?}",e);
-                return Err(e).into();
+                return Err(e);
             }
             let ret = ret.unwrap();
             max_length.min(ret as usize)
@@ -177,7 +173,7 @@ impl Plugin for CPlugin {
             analog_data.insert(code_buffer[i], analog_buffer[i]);
         }
 
-        Ok(analog_data).into()
+        Ok(analog_data)
     }
 
     fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
@@ -185,7 +181,6 @@ impl Plugin for CPlugin {
 
         match self
             ._device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
-            .0
             .map(|no| no as u32)
         {
             Ok(num) => unsafe {
@@ -203,9 +198,9 @@ impl Plugin for CPlugin {
                         device
                     })
                     .collect();
-                Ok(devices).into()
+                Ok(devices)
             },
-            Err(e) => Err(e).into(),
+            Err(e) => Err(e),
         }
     }
 

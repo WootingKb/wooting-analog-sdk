@@ -32,10 +32,10 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     trace!("catch unwind result: {:?}", result);
     match result {
         Ok(c) => c,
-        Err(e) =>{
+        Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
-        } ,
+        }
     }
 }
 
@@ -226,7 +226,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
     len: c_uint,
 ) -> c_int {
     let result: SDKResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
-    match result.0 {
+    match result {
         Ok(mut devices) => {
             let device_no = (len as usize).min(devices.len());
 
@@ -258,7 +258,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
             });
             device_no as i32
         }
-        Err(e) => e.into(),
+        Err(e) => e,
     }
 }
 
@@ -327,7 +327,6 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         .lock()
         .unwrap()
         .read_full_buffer(len as usize, device_id)
-        .0
     {
         Ok(analog_data) => {
             //Fill up given slices
@@ -445,8 +444,7 @@ mod tests {
         assert!(!wooting_analog_is_initialised());
         assert_eq!(
             get_sdk()
-                .initialise_with_plugin_path(dir.as_str(), !dir.ends_with("debug"))
-                .0,
+                .initialise_with_plugin_path(dir.as_str(), !dir.ends_with("debug")),
             Ok(0)
         );
         assert!(wooting_analog_is_initialised());

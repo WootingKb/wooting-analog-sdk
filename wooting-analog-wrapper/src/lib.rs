@@ -140,7 +140,6 @@ pub fn get_connected_devices_info(max_devices: usize) -> SDKResult<Vec<DeviceInf
                 .into();
 
         return ret
-            .0
             .clone()
             .map(|device_num| {
                 buffer.truncate(device_num as usize);
@@ -186,7 +185,6 @@ pub fn read_full_buffer_device(
         .into();
 
         return ret
-            .0
             .clone()
             .map(|read_num| {
                 let read_num: usize = read_num as usize;
