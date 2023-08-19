@@ -217,7 +217,7 @@ pub enum DeviceEventType {
 }
 
 #[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive, Error)]
+#[derive(Debug, Default, PartialEq, Clone, Primitive, Error)]
 #[repr(C)]
 pub enum WootingAnalogResult {
     #[error("All OK")]
@@ -241,6 +241,7 @@ pub enum WootingAnalogResult {
     #[error("No Plugins were found")]
     NoPlugins = -1995isize,
     /// The specified function was not found in the library
+    #[default]
     #[error("The specified function was not found in the library")]
     FunctionNotFound = -1994isize,
     /// No Keycode mapping to HID was found for the given Keycode
@@ -264,12 +265,6 @@ impl WootingAnalogResult {
 
     pub fn is_ok_or_no_device(&self) -> bool {
         *self == WootingAnalogResult::Ok || *self == WootingAnalogResult::NoDevices
-    }
-}
-
-impl Default for WootingAnalogResult {
-    fn default() -> Self {
-        WootingAnalogResult::FunctionNotFound
     }
 }
 
