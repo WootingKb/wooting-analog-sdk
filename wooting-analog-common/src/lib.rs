@@ -273,61 +273,7 @@ impl Default for WootingAnalogResult {
     }
 }
 
-#[derive(Debug)]
-pub struct SDKResult<T>(pub std::result::Result<T, WootingAnalogResult>);
-
-impl<T> Default for SDKResult<T> {
-    fn default() -> Self {
-        Err(Default::default()).into()
-    }
-}
-
-impl<T> Deref for SDKResult<T> {
-    type Target = std::result::Result<T, WootingAnalogResult>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> From<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn from(ptr: std::result::Result<T, WootingAnalogResult>) -> Self {
-        SDKResult(ptr)
-    }
-}
-
-impl<T> Into<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn into(self) -> std::result::Result<T, WootingAnalogResult> {
-        self.0
-    }
-}
-
-//TODO: Figure out a way to not have to use this for the lib_wrap_option in the sdk
-impl<'a> From<FfiStr<'a>> for SDKResult<FfiStr<'a>> {
-    fn from(res: FfiStr<'a>) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl From<c_int> for SDKResult<c_int> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
-impl From<c_int> for SDKResult<u32> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res as u32).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
+pub type SDKResult<T> = Result<T, WootingAnalogResult>;
 
 impl Into<c_int> for WootingAnalogResult {
     fn into(self) -> c_int {
@@ -335,71 +281,9 @@ impl Into<c_int> for WootingAnalogResult {
     }
 }
 
-impl From<u32> for SDKResult<u32> {
-    fn from(res: u32) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl Into<i32> for SDKResult<u32> {
-    fn into(self) -> i32 {
-        match self.0 {
-            Ok(v) => v as i32,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<c_int> for SDKResult<c_int> {
-    fn into(self) -> c_int {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl From<f32> for SDKResult<f32> {
-    fn from(res: f32) -> Self {
-        if res >= 0.0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_f32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
 impl Into<f32> for WootingAnalogResult {
     fn into(self) -> f32 {
         (self as i32) as f32
-    }
-}
-
-impl Into<f32> for SDKResult<f32> {
-    fn into(self) -> f32 {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<WootingAnalogResult> for SDKResult<()> {
-    fn into(self) -> WootingAnalogResult {
-        match self.0 {
-            Ok(_) => WootingAnalogResult::Ok,
-            Err(e) => e,
-        }
-    }
-}
-
-impl From<WootingAnalogResult> for SDKResult<()> {
-    fn from(res: WootingAnalogResult) -> Self {
-        if res.is_ok() {
-            Ok(()).into()
-        } else {
-            Err(res).into()
-        }
     }
 }
 
