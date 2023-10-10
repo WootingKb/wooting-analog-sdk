@@ -56,7 +56,7 @@ macro_rules! lib_wrap_option {
                                     error!("{}", e);
                                 }).ok();
                         match func {
-                            Some(f) => f($($fn_arg_names),*).into(),
+                            Some(f) => Ok(f($($fn_arg_names),*)),
                             _ => Err(WootingAnalogResult::FunctionNotFound)
 
                         }
