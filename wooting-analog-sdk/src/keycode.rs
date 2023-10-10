@@ -85,7 +85,7 @@ lazy_static! {
         bimap.insert(0x46, 0xe037); //PRINT_SCREEN
         bimap.insert(0x47, 0x0046); //SCROLL_LOCK
 
-        bimap.insert(0x48, 0x0045); //PAUSE
+        bimap.insert(0x48, 0xe11d); //PAUSE
         bimap.insert(0x49, 0xe052); //INSERT
         bimap.insert(0x4a, 0xe047); //HOME
         bimap.insert(0x4b, 0xe049); //PAGE_UP
@@ -97,7 +97,7 @@ lazy_static! {
         bimap.insert(0x50, 0xe04b); //ARROW_LEFT
         bimap.insert(0x51, 0xe050); //ARROW_DOWN
         bimap.insert(0x52, 0xe048); //ARROW_UP
-        bimap.insert(0x53, 0xe045); //NUM_LOCK
+        bimap.insert(0x53, 0x0045); //NUM_LOCK
         bimap.insert(0x54, 0xe035); //NUMPAD_DIVIDE
         bimap.insert(0x55, 0x0037); //NUMPAD_MULTIPLY
         bimap.insert(0x56, 0x004a); //NUMPAD_SUBTRACT
