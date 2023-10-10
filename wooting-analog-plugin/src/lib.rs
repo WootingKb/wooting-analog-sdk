@@ -552,14 +552,14 @@ impl Plugin for WootingPlugin {
             if analog < 0.0 {
                 Err(error)
             } else {
-                analog
+                analog.into_sdk_result()
             }
         } else
         //If the device id is not 0, we try and find a connected device with that ID and read from it
         {
             match self.devices.lock().unwrap().get_mut(&device_id) {
                 Some(device) => match device.read_analog(code) {
-                    Ok(val) => val,
+                    Ok(val) => val.into_sdk_result(),
                     Err(e) => Err(e),
                 },
                 None => Err(WootingAnalogResult::NoDevices),

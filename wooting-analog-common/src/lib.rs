@@ -3,13 +3,12 @@ extern crate enum_primitive_derive;
 extern crate ffi_support;
 extern crate num_traits;
 
-use ffi_support::FfiStr;
+use std::convert::TryFrom;
 pub use num_traits::{FromPrimitive, ToPrimitive};
 #[cfg(feature = "serdes")]
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
-use std::ops::Deref;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::{c_char, c_float, c_int};
 use thiserror::Error;
 
 #[cfg(target_os = "macos")]
@@ -266,9 +265,68 @@ impl WootingAnalogResult {
     pub fn is_ok_or_no_device(&self) -> bool {
         *self == WootingAnalogResult::Ok || *self == WootingAnalogResult::NoDevices
     }
+
+    pub fn into_sdk_result(self) -> SDKResult<()> {
+        if self.is_ok() { Ok(()) } else { Err(self) }
+    }
 }
 
 pub type SDKResult<T> = Result<T, WootingAnalogResult>;
+
+pub trait IntoSDKResultExt<T> {
+    fn into_sdk_result(self) -> SDKResult<T>;
+}
+
+impl IntoSDKResultExt<u32> for c_int {
+    fn into_sdk_result(self) -> SDKResult<u32> {
+        u32::try_from(self).map_err(|_|
+            WootingAnalogResult::try_from(self)
+                .unwrap_or(WootingAnalogResult::Failure)
+        )
+    }
+}
+
+impl IntoSDKResultExt<f32> for f32 {
+    fn into_sdk_result(self) -> SDKResult<f32> {
+        match self {
+            //the RFC was made with matching exact values in mind,
+            //to prevent problems with structural vs semantic equality (e.g. -0 vs +0).
+            //there was never any consensus about how ranges should be treated.
+            //none of this matters though, as the RFC got rejected. the lint just hasn't been removed yet
+            #[allow(illegal_floating_point_literal_pattern)]
+            0_f32..=1_f32 => Ok(self),
+            _ => (self as c_int).into_sdk_result().map(|v| v as f32) //wtf
+        }
+    }
+}
+
+pub trait IntoWootingAnalogResultExt {
+    fn into_wooting_analog_result(self) -> WootingAnalogResult;
+}
+
+impl IntoWootingAnalogResultExt for SDKResult<()> {
+    fn into_wooting_analog_result(self) -> WootingAnalogResult {
+        self.map(|_| WootingAnalogResult::Ok).unwrap_or_else(|e| e) //for some reason rust doesnt have .unwrap_err_or()
+    }
+}
+
+pub trait IntoCResultExt<T> {
+    fn into_c_result(self) -> T;
+}
+
+impl IntoCResultExt<c_int> for SDKResult<u32> {
+    fn into_c_result(self) -> c_int {
+        self.map(|value| value as _)
+            .unwrap_or_else(|error| error as _)
+    }
+}
+
+impl IntoCResultExt<c_float> for SDKResult<f32> {
+    fn into_c_result(self) -> c_float {
+        self.map(|value| value as _)
+            .unwrap_or_else(|error| error as isize as _)
+    }
+}
 
 impl Into<c_int> for WootingAnalogResult {
     fn into(self) -> c_int {

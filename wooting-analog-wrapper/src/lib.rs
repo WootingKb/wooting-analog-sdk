@@ -14,7 +14,8 @@ pub(crate) const SDK_ABI_VERSION: u32 = 0;
 /// Provides the major version of the SDK, a difference in this value to what is expected (SDK_ABI_VERSION) indicates that
 /// there may be some breaking changes that have been made so the SDK should not be attempted to be used
 pub fn version() -> SDKResult<u32> {
-    return unsafe { wooting_analog_version().into() };
+    unsafe { wooting_analog_version() }
+        .into_sdk_result()
 }
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -26,19 +27,21 @@ pub fn version() -> SDKResult<u32> {
 /// * `Err(FunctionNotFound)`: The SDK is either not installed or could not be found
 /// * `Err(IncompatibleVersion)`: The installed SDK is incompatible with this wrapper as they are on different Major versions
 pub fn initialise() -> SDKResult<u32> {
-    return unsafe { wooting_analog_initialise().into() };
+    unsafe { wooting_analog_initialise() }
+        .into_sdk_result()
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
 pub fn is_initialised() -> bool {
-    return unsafe { wooting_analog_is_initialised() };
+    unsafe { wooting_analog_is_initialised() }
 }
 
 /// Uninitialises the SDK, returning it to an empty state, similar to how it would be before first initialisation
 /// # Expected Returns
 /// * `Ok(())`: Indicates that the SDK was successfully uninitialised
 pub fn uninitialise() -> SDKResult<()> {
-    return unsafe { wooting_analog_uninitialise().into() };
+    unsafe { wooting_analog_uninitialise() }
+        .into_sdk_result()
 }
 
 /// Sets the type of Keycodes the Analog SDK will receive (in `read_analog`) and output (in `read_full_buffer`).
@@ -56,7 +59,8 @@ pub fn uninitialise() -> SDKResult<()> {
 /// * `Err(NotAvailable)`: The given `KeycodeType` is present, but not supported on the current platform
 /// * `Err(UnInitialized)`: The SDK is not initialised
 pub fn set_keycode_mode(mode: KeycodeType) -> SDKResult<()> {
-    return unsafe { wooting_analog_set_keycode_mode(mode).into() };
+    unsafe { wooting_analog_set_keycode_mode(mode) }
+        .into_sdk_result()
 }
 
 /// Reads the Analog value of the key with identifier `code` from any connected device. The set of key identifiers that is used
@@ -80,7 +84,8 @@ pub fn set_keycode_mode(mode: KeycodeType) -> SDKResult<()> {
 /// * `Err(UnInitialized)`: The SDK is not initialised
 /// * `Err(NoDevices)`: There are no connected devices
 pub fn read_analog(code: u16) -> SDKResult<f32> {
-    return unsafe { wooting_analog_read_analog(code).into() };
+    unsafe { wooting_analog_read_analog(code) }
+        .into_sdk_result()
 }
 
 /// Reads the Analog value of the key with identifier `code` from the device with id `device_id`. The set of key identifiers that is used
@@ -94,7 +99,8 @@ pub fn read_analog(code: u16) -> SDKResult<f32> {
 /// * `Err(UnInitialized)`: The SDK is not initialised
 /// * `Err(NoDevices)`: There are no connected devices with id `device_id`
 pub fn read_analog_device(code: u16, device_id: DeviceID) -> SDKResult<f32> {
-    return unsafe { wooting_analog_read_analog_device(code, device_id).into() };
+    unsafe { wooting_analog_read_analog_device(code, device_id) }
+        .into_sdk_result()
 }
 
 /// Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
@@ -110,7 +116,8 @@ pub fn read_analog_device(code: u16, device_id: DeviceID) -> SDKResult<f32> {
 pub fn set_device_event_cb(
     cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI), //TODO: Make this accept a closure
 ) -> SDKResult<()> {
-    return unsafe { wooting_analog_set_device_event_cb(cb).into() };
+    return unsafe { wooting_analog_set_device_event_cb(cb) }
+        .into_sdk_result();
 }
 
 /// Clears the device event callback that has been set
@@ -119,7 +126,8 @@ pub fn set_device_event_cb(
 /// * `Ok(())`: The callback was cleared successfully
 /// * `Err(UnInitialized)`: The SDK is not initialised
 pub fn clear_device_event_cb() -> SDKResult<()> {
-    return unsafe { wooting_analog_clear_device_event_cb().into() };
+    unsafe { wooting_analog_clear_device_event_cb() }
+        .into_sdk_result()
 }
 
 /// Returns all connected devices with a max Vector return length of `max_devices` (as many that can fit in the buffer)
@@ -137,7 +145,7 @@ pub fn get_connected_devices_info(max_devices: usize) -> SDKResult<Vec<DeviceInf
 
         let ret: SDKResult<u32> =
             wooting_analog_get_connected_devices_info(buffer.as_mut_ptr(), max_devices as c_uint)
-                .into();
+                .into_sdk_result();
 
         return ret
             .clone()
@@ -182,7 +190,7 @@ pub fn read_full_buffer_device(
             max_items as u32,
             device_id,
         )
-        .into();
+        .into_sdk_result();
 
         return ret
             .clone()
