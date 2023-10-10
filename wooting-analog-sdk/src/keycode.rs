@@ -357,7 +357,7 @@ mod tests {
                     for keycode in keycode_types.iter() {
                         if *keycode == KeycodeType::ScanCode1 {
                             let val = hid_to_code(code, keycode).unwrap_or(0);
-                            assert!(val < 0x100 || (val & 0xFF00) == 0xE000);
+                            assert!(val < 0x100 || (val & 0xFF00) == 0xE000|| (val & 0xFF00) == 0xE100);
                         } else {
                             assert!(hid_to_code(code, keycode).unwrap_or(0) < 0x100);
                         }
