@@ -91,7 +91,8 @@ float wooting_analog_read_analog_device(unsigned short code,
 /// # Expected Returns
 /// * `Ok`: The callback was set successfully
 /// * `UnInitialized`: The SDK is not initialised
-WootingAnalogResult wooting_analog_set_device_event_cb(void (*cb)(WootingAnalog_DeviceEventType, WootingAnalog_DeviceInfo_FFI*));
+WootingAnalogResult wooting_analog_set_device_event_cb(void (*cb)(WootingAnalog_DeviceEventType,
+                                                                  WootingAnalog_DeviceInfo_FFI*));
 
 /// Clears the device event callback that has been set
 ///
