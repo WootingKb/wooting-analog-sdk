@@ -245,6 +245,34 @@ impl DeviceImplementation for Wooting60HEARM {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+struct WootingUwU();
+
+impl DeviceImplementation for WootingUwU {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: 0x1500,
+            usage_page: 0xFF54,
+            has_modes: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct WootingUwURgb();
+
+impl DeviceImplementation for WootingUwURgb {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: 0x1510,
+            usage_page: 0xFF54,
+            has_modes: true,
+        }
+    }
+}
 /// A fully contained device which uses `device_impl` to interface with the `device`
 struct Device {
     pub device_info: DeviceInfo,
@@ -445,6 +473,8 @@ impl WootingPlugin {
             Box::new(WootingTwoHEARM()),
             Box::new(Wooting60HE()),
             Box::new(Wooting60HEARM()),
+            Box::new(WootingUwU()),
+            Box::new(WootingUwURgb()),
         ];
         let mut hid = match HidApi::new() {
             Ok(mut api) => {
