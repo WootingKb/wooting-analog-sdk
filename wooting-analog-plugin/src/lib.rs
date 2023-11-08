@@ -476,7 +476,7 @@ impl WootingPlugin {
             Box::new(WootingUwU()),
             Box::new(WootingUwURgb()),
         ];
-        let mut hid = match HidApi::new() {
+        let mut hid = match HidApi::new_without_enumerate() {
             Ok(mut api) => {
                 //An attempt at trying to ensure that all the devices have been found in the initialisation of the plugins
                 if let Err(e) = api.refresh_devices() {
