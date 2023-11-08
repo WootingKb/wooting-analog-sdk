@@ -8,8 +8,10 @@ use wooting_analog_common::*;
 
 lazy_static! {
     pub static ref ANALOG_SDK: Mutex<AnalogSDK> = {
-        //TODO: Consider switching this to file logging, or remove entirely and leave logging up to library user
-        if let Err(e) = env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("info")){
+        // Initialising logger with default "off".
+        // If the library user wants logging, they can set the RUST_LOG environment variable, e.g. to "info".
+        // TODO: Consider using file logging or allowing the user to set a custom log callback.
+        if let Err(e) = env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("off")){
             println!("ERROR: Could not initialise logging. '{:?}'", e);
         }
 
