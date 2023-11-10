@@ -2,6 +2,7 @@ use ffi_support::FfiStr;
 use libloading::{Library, Symbol};
 use log::*;
 use std::collections::HashMap;
+use std::ffi::CStr;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
 use wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
@@ -103,7 +104,7 @@ impl CPlugin {
         fn _name() -> FfiStr<'static>;
 
         fn _read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
-        fn _device_info(buffer: *mut *mut DeviceInfo, len: c_uint) -> c_int;
+        fn _device_info(buffer: *mut *mut DeviceInfo_FFI, len: c_uint) -> c_int;
     }
 }
 
@@ -181,7 +182,7 @@ impl Plugin for CPlugin {
     }
 
     fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
-        let mut device_infos: Vec<*mut DeviceInfo> = vec![std::ptr::null_mut(); 10];
+        let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
 
         match self
             ._device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
@@ -193,14 +194,14 @@ impl Plugin for CPlugin {
                 let devices = device_infos
                     .drain(..)
                     .map(|dev| {
-                        //Box it to get our instance back and then clone it as we want to leave the freeing
-                        //up to the plugin to do. This is so we can try and somewhat keep up with C's semantics
-                        //as it wouldn't really be expected for this function to free it up as it is not what
-                        //allocated it in the first place
-                        let boxed = Box::from_raw(dev);
-                        let device = boxed.as_ref().clone();
-                        Box::into_raw(boxed);
-                        device
+                        DeviceInfo {
+                            vendor_id: (*dev).vendor_id,
+                            product_id: (*dev).product_id,
+                            manufacturer_name: CStr::from_ptr((*dev).manufacturer_name).to_str().unwrap().to_owned(),
+                            device_name: CStr::from_ptr((*dev).device_name).to_str().unwrap().to_owned(),
+                            device_id: (*dev).device_id,
+                            device_type: (*dev).device_type.clone(),
+                        }
                     })
                     .collect();
                 Ok(devices).into()
