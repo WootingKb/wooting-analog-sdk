@@ -67,7 +67,7 @@ macro_rules! lib_wrap_option {
     };
 }
 
-const CPLUGIN_ABI_VERSION: u32 = 0;
+const CPLUGIN_ABI_VERSION: u32 = 1;
 
 pub struct CPlugin {
     lib: Library,
