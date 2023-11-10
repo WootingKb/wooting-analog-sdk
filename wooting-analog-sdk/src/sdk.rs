@@ -515,7 +515,7 @@ mod tests {
     unsafe impl SharedMemCast for SharedState {}
 
     fn shared_init() {
-        env_logger::try_init_from_env(env_logger::Env::from("trace"))
+        env_logger::try_init_from_env(env_logger::Env::from("debug"))
             .map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
     }
 
@@ -800,7 +800,7 @@ mod tests {
         let got_cb_inner = got_cb.clone();
 
         sdk.set_device_event_cb(move |event, device| {
-            debug!("We got that callbackkkk");
+            println!("We got that callbackkkk {:?} {:?}", event, device);
             got_cb_inner.store(true, Ordering::Relaxed);
 
             //A couple of basic checks to ensure the callback gets valid data
@@ -813,6 +813,7 @@ mod tests {
         assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
         assert_eq!(sdk.read_full_buffer(30, 0).0.unwrap().get(&5), Some(&0.4));
         let device = sdk.get_device_info().0.unwrap().first().unwrap().clone();
+        println!("Got device: {:?}", device);
         assert_eq!(device.device_id, 7);
 
         //Wait a wee bit to ensure the callback has been executed
