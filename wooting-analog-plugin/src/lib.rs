@@ -4,8 +4,6 @@ extern crate hidapi;
 extern crate wooting_analog_plugin_dev;
 #[macro_use]
 extern crate objekt;
-extern crate chrono;
-extern crate timer;
 
 use hidapi::DeviceInfo as DeviceInfoHID;
 use hidapi::{HidApi, HidDevice};
@@ -17,7 +15,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::{str, thread};
-use timer::{Guard, Timer};
 use wooting_analog_plugin_dev::wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
 
@@ -388,22 +385,20 @@ impl Drop for Device {
 }
 
 pub struct WootingPlugin {
-    initialised: bool,
+    initialised: Arc<AtomicBool>,
     device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>>,
     devices: Arc<Mutex<HashMap<DeviceID, Device>>>,
-    timer: Timer,
-    worker_guard: Option<Guard>,
+    thread: Option<JoinHandle<()>>,
 }
 
 const PLUGIN_NAME: &str = "Wooting Official Plugin";
 impl WootingPlugin {
     fn new() -> Self {
         WootingPlugin {
-            initialised: false,
+            initialised: Arc::new(false.into()),
             device_event_cb: Arc::new(Mutex::new(None)),
             devices: Arc::new(Mutex::new(Default::default())),
-            timer: timer::Timer::new(),
-            worker_guard: None,
+            thread: None,
         }
     }
 
@@ -493,36 +488,38 @@ impl WootingPlugin {
         //We wanna call it in this thread first so we can get hold of any connected devices now so we can return an accurate result for initialise
         init_device_closure(&hid, &self.devices, &self.device_event_cb, &device_impls);
 
-        self.worker_guard = Some({
-            let t_devices = Arc::clone(&self.devices);
-            let t_device_event_cb = Arc::clone(&self.device_event_cb);
-            self.timer
-                .schedule_repeating(chrono::Duration::milliseconds(500), move || {
-                    //Check if any of the devices have disconnected and get rid of them if they have
-                    {
-                        let mut disconnected: Vec<u64> = vec![];
-                        for (&id, device) in t_devices.lock().unwrap().iter() {
-                            if !device.connected.load(Ordering::Relaxed) {
-                                disconnected.push(id);
-                            }
-                        }
-
-                        for id in disconnected.iter() {
-                            let device = t_devices.lock().unwrap().remove(id).unwrap();
-                            t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {
-                                cb(DeviceEventType::Disconnected, &device.device_info);
-                                Some(0)
-                            });
+        let t_initialised = Arc::clone(&self.initialised);
+        let t_devices = Arc::clone(&self.devices);
+        let t_device_event_cb = Arc::clone(&self.device_event_cb);
+        self.thread = Some(thread::spawn(move || {
+            while t_initialised.load(Ordering::Relaxed) {
+                //Check if any of the devices have disconnected and get rid of them if they have
+                {
+                    let mut disconnected: Vec<u64> = vec![];
+                    for (&id, device) in t_devices.lock().unwrap().iter() {
+                        if !device.connected.load(Ordering::Relaxed) {
+                            disconnected.push(id);
                         }
                     }
 
-                    if let Err(e) = hid.refresh_devices() {
-                        error!("We got error while refreshing devices. Err: {}", e);
+                    for id in disconnected.iter() {
+                        let device = t_devices.lock().unwrap().remove(id).unwrap();
+                        t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {
+                            cb(DeviceEventType::Disconnected, &device.device_info);
+                            Some(0)
+                        });
                     }
-                    init_device_closure(&hid, &t_devices, &t_device_event_cb, &device_impls);
-                })
-        });
-        debug!("Started timer");
+                }
+
+                if let Err(e) = hid.refresh_devices() {
+                    error!("We got error while refreshing devices. Err: {}", e);
+                }
+                init_device_closure(&hid, &t_devices, &t_device_event_cb, &device_impls);
+
+                thread::sleep(std::time::Duration::from_millis(500));
+            }
+        }));
+        debug!("Started thread");
         Ok(self.devices.lock().unwrap().len() as u32).into()
     }
 }
@@ -542,24 +539,25 @@ impl Plugin for WootingPlugin {
 
         let ret = self.init_worker();
         self.device_event_cb.lock().unwrap().replace(callback);
-        self.initialised = ret.is_ok();
+        self.initialised.store(ret.is_ok(), Ordering::Relaxed);
         ret
     }
 
     fn is_initialised(&mut self) -> bool {
-        self.initialised
+        self.initialised.load(Ordering::Relaxed)
     }
 
     fn unload(&mut self) {
-        self.devices.lock().unwrap().drain();
-        drop(self.worker_guard.take());
-        self.initialised = false;
+        self.initialised.store(false, Ordering::Relaxed);
+        if let Some(t) = self.thread.take() {
+            t.join().unwrap();
+        };
 
         info!("{} unloaded", PLUGIN_NAME);
     }
 
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
-        if !self.initialised {
+        if !self.initialised.load(Ordering::Relaxed) {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
@@ -606,7 +604,7 @@ impl Plugin for WootingPlugin {
         max_length: usize,
         device_id: DeviceID,
     ) -> SDKResult<HashMap<c_ushort, c_float>> {
-        if !self.initialised {
+        if !self.initialised.load(Ordering::Relaxed) {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
@@ -651,7 +649,7 @@ impl Plugin for WootingPlugin {
     }
 
     fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
-        if !self.initialised {
+        if !self.initialised.load(Ordering::Relaxed) {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
