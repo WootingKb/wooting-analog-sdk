@@ -557,6 +557,7 @@ impl Plugin for WootingPlugin {
         if let Some(t) = self.thread.take() {
             t.join().unwrap();
         };
+        self.devices.lock().unwrap().drain();
 
         info!("{} unloaded", PLUGIN_NAME);
     }
