@@ -492,31 +492,36 @@ impl WootingPlugin {
         let t_devices = Arc::clone(&self.devices);
         let t_device_event_cb = Arc::clone(&self.device_event_cb);
         self.thread = Some(thread::spawn(move || {
+            let mut i = 0;
             while t_initialised.load(Ordering::Relaxed) {
-                //Check if any of the devices have disconnected and get rid of them if they have
-                {
-                    let mut disconnected: Vec<u64> = vec![];
-                    for (&id, device) in t_devices.lock().unwrap().iter() {
-                        if !device.connected.load(Ordering::Relaxed) {
-                            disconnected.push(id);
+                if i == 500 {
+                    i = 0;
+
+                    //Check if any of the devices have disconnected and get rid of them if they have
+                    {
+                        let mut disconnected: Vec<u64> = vec![];
+                        for (&id, device) in t_devices.lock().unwrap().iter() {
+                            if !device.connected.load(Ordering::Relaxed) {
+                                disconnected.push(id);
+                            }
+                        }
+
+                        for id in disconnected.iter() {
+                            let device = t_devices.lock().unwrap().remove(id).unwrap();
+                            t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {
+                                cb(DeviceEventType::Disconnected, &device.device_info);
+                                Some(0)
+                            });
                         }
                     }
 
-                    for id in disconnected.iter() {
-                        let device = t_devices.lock().unwrap().remove(id).unwrap();
-                        t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {
-                            cb(DeviceEventType::Disconnected, &device.device_info);
-                            Some(0)
-                        });
+                    if let Err(e) = hid.refresh_devices() {
+                        error!("We got error while refreshing devices. Err: {}", e);
                     }
+                    init_device_closure(&hid, &t_devices, &t_device_event_cb, &device_impls);
                 }
-
-                if let Err(e) = hid.refresh_devices() {
-                    error!("We got error while refreshing devices. Err: {}", e);
-                }
-                init_device_closure(&hid, &t_devices, &t_device_event_cb, &device_impls);
-
-                thread::sleep(std::time::Duration::from_millis(500));
+                thread::sleep(std::time::Duration::from_millis(10));
+                i += 10;
             }
         }));
         debug!("Started thread");
