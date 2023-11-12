@@ -6,7 +6,17 @@ If you wish to use the SDK, you should be dynamically linking to the `wooting-an
 
 To get started, make sure you have the SDK & Wooting plugin installed. Follow the installation instructions from the [SDK Readme](https://github.com/WootingKb/wooting-analog-sdk).
 
+### C/C++
+
 Then download & extract the `.tar.gz` for the platform you’re targeting from the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases). Inside the `$extract/wrapper` directory you’ll find the wrapper lib you should link to and all the headers you may need.
+
+### Rust
+
+Add the following to your crate's dependencies:
+
+```TOML
+wooting-analog-wrapper = { git = "https://github.com/WootingKb/wooting-analog-sdk" }
+```
 
 ## Keycodes
 
