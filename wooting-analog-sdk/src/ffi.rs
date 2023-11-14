@@ -3,20 +3,53 @@ use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::sync::Mutex;
 use std::{panic, slice};
+use std::ffi::{c_char, CString};
 use wooting_analog_common::FromPrimitive;
 use wooting_analog_common::*;
 
 lazy_static! {
     pub static ref ANALOG_SDK: Mutex<AnalogSDK> = {
-        // Initialising logger with default "off".
-        // If the library user wants logging, they can set the RUST_LOG environment variable, e.g. to "info".
-        // TODO: Consider using file logging or allowing the user to set a custom log callback.
-        if let Err(e) = env_logger::try_init_from_env(env_logger::Env::default().default_filter_or("off")){
-            println!("ERROR: Could not initialise logging. '{:?}'", e);
-        }
-
-        Mutex::new(AnalogSDK::new())
+        let sdk = Mutex::new(AnalogSDK::new());
+        let lock = sdk.lock().unwrap();
+        // I have no idea why this function doesn't seem to exist, I've already spent too many hours
+        log::set_boxed_logger(Box::new(lock.logger));
+        sdk
     };
+}
+
+#[no_mangle]
+pub extern "C" fn wooting_analog_set_log_cb(
+    cb: Option<extern "C" fn(u32, *const c_char, *const c_char)>
+) {
+    let callback : Option<Box<dyn Fn(&log::Record) + 'static + Send>>;
+    match cb {
+        Some(value) => {
+            callback = Some(Box::new(move |record: &log::Record| {
+                let level = record.level() as usize as u32;
+
+                let module_path = match record.module_path() {
+                    Some(path) => {
+                        let string = CString::new(path)
+                            .expect("module path was not a valid c-string");
+                        string.as_ptr()
+                    },
+                    None => std::ptr::null(),
+                };
+
+                let args = record.args().to_string();
+                let args = CString::new(args)
+                    .expect("arguments where not a valid c-string");
+
+                value(level, module_path, args.as_ptr());
+            }));
+        }
+        None => callback = None,
+    }
+
+    ANALOG_SDK
+        .lock()
+        .unwrap()
+        .set_log_cb(callback);
 }
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -425,8 +458,10 @@ mod tests {
     }
 
     fn shared_init() {
+        /*
         env_logger::try_init_from_env(env_logger::Env::from("trace"))
             .map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
+         */
     }
 
     #[test]
