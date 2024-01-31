@@ -19,6 +19,10 @@ lazy_static! {
 
 unsafe impl Send for AnalogSDK {}
 
+pub struct AnalogSDKLogger {
+    callback: Arc<Mutex<Option<Box<dyn Fn(&log::Record) + Send>>>>,
+}
+
 pub struct AnalogSDK {
     pub initialised: bool,
     pub keycode_mode: KeycodeType,
@@ -26,6 +30,7 @@ pub struct AnalogSDK {
     plugins: Vec<Box<dyn Plugin>>,
     loaded_libraries: Vec<Library>,
     device_event_callback: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, DeviceInfo) + Send>>>>,
+    pub logger: AnalogSDKLogger,
 }
 
 pub fn print_error(err: Error) -> Error {
@@ -36,6 +41,25 @@ pub fn print_error(err: Error) -> Error {
 pub fn print_warn(err: Error) -> Error {
     warn!("{:#}", err);
     err
+}
+
+impl log::Log for AnalogSDKLogger {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        let callback = self.callback
+            .lock()
+            .unwrap()
+            .as_ref();
+        match callback {
+            Some(cb) => cb(record),
+            None => {}
+        }
+    }
+
+    fn flush(&self) {}
 }
 
 #[cfg(target_os = "macos")]
@@ -53,7 +77,24 @@ impl AnalogSDK {
             initialised: false,
             keycode_mode: KeycodeType::HID,
             device_event_callback: Arc::new(Mutex::new(None)),
+            logger: AnalogSDKLogger {
+                callback: Arc::new(Mutex::new(None))
+            }
         }
+    }
+
+    pub fn set_log_cb(
+        &mut self,
+        cb: Option<impl Fn(&log::Record) + 'static + Send>,
+    ) {
+        let mut holder = self.logger.callback
+            .lock()
+            .unwrap();
+
+        match cb {
+            Some(value) => holder.replace(Box::new(value)),
+            None => holder.take(),
+        };
     }
 
     pub fn initialise(&mut self) -> SDKResult<u32> {
@@ -515,8 +556,11 @@ mod tests {
     unsafe impl SharedMemCast for SharedState {}
 
     fn shared_init() {
+        /* TODO I honestly have no idea, I'm going to let someone else figure this out because I
+            already spent too many hours trying to get this patch to work.
         env_logger::try_init_from_env(env_logger::Env::from("trace"))
             .map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
+         */
     }
 
     #[test]

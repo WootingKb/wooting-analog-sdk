@@ -8,7 +8,6 @@ extern crate scancode;
 
 #[macro_use]
 extern crate lazy_static;
-extern crate env_logger;
 #[cfg(windows)]
 extern crate winapi;
 extern crate wooting_analog_common;
