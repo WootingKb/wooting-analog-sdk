@@ -3103,15 +3103,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "timer"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31d42176308937165701f50638db1c31586f183f1aab416268216577aec7306b"
-dependencies = [
- "chrono",
-]
-
-[[package]]
 name = "tinyvec"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3944,12 +3935,10 @@ dependencies = [
 name = "wooting-analog-plugin"
 version = "0.7.0"
 dependencies = [
- "chrono",
  "env_logger 0.7.1",
  "hidapi",
  "log",
  "objekt",
- "timer",
  "wooting-analog-plugin-dev",
 ]
 

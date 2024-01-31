@@ -17,8 +17,6 @@ wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 hidapi = { version = "^1.2", features = ["linux-static-hidraw"], default-features = false }
 env_logger = "^0.7"
 objekt = "^0.1"
-timer = "^0.2"
-chrono = "^0.4"
 
 [lib]
 crate-type = ["cdylib"]
