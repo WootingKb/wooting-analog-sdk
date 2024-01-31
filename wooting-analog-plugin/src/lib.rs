@@ -247,6 +247,21 @@ impl DeviceImplementation for Wooting60HEARM {
 }
 
 #[derive(Debug, Clone)]
+struct Wooting60HEPlus();
+
+impl DeviceImplementation for Wooting60HEPlus {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: 0x1320,
+            usage_page: 0xFF54,
+            has_modes: true,
+        }
+    }
+}
+
+
+#[derive(Debug, Clone)]
 struct WootingUwU();
 
 impl DeviceImplementation for WootingUwU {
@@ -273,6 +288,7 @@ impl DeviceImplementation for WootingUwURgb {
         }
     }
 }
+
 /// A fully contained device which uses `device_impl` to interface with the `device`
 struct Device {
     pub device_info: DeviceInfo,
@@ -473,6 +489,7 @@ impl WootingPlugin {
             Box::new(WootingTwoHEARM()),
             Box::new(Wooting60HE()),
             Box::new(Wooting60HEARM()),
+            Box::new(Wooting60HEPlus()),
             Box::new(WootingUwU()),
             Box::new(WootingUwURgb()),
         ];
