@@ -42,6 +42,8 @@ main() {
     # rustup default nightly
     cargo make build-target-release
 
+    # Codesign dlls before packaging up
+    ./ci/codesign_dll.sh
 
     mkdir $stage/plugins
     mkdir $stage/plugins/lib

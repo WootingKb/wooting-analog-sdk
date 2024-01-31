@@ -4,11 +4,14 @@ command = "cargo"
 args = ["wix" , "-p", "wooting-analog-sdk", "--nocapture", "--output", "${WIN_INSTALLER_PATH}"]
 
 [tasks.sign-win-installer]
-condition = {env_true = ["CARGO_MAKE_CI"]}
+env = {CODESIGN_SCRIPT_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/ci/codesign.ps1"}
+# condition = {env_true = ["CARGO_MAKE_CI"]}
 dependencies = ["win-installer"]
+script_runner = "bash"
+# bash ../ci/codesign.sh
 script = [
 '''
-bash ../ci/codesign.sh
+powershell $CODESIGN_SCRIPT_PATH $WIN_INSTALLER_PATH
 '''
 ]
 
