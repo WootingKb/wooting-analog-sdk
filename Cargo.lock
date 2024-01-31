@@ -3942,7 +3942,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-plugin"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "chrono",
  "env_logger 0.7.1",
@@ -3963,7 +3963,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-sdk"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bimap",
@@ -3982,7 +3982,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-sdk-updater"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "chrono",
  "clap",
