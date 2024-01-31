@@ -61,11 +61,6 @@ enum class WootingAnalogResult {
   WootingAnalogResult_DLLNotFound = -1990,
 };
 
-/// The core `DeviceInfo` struct which contains all the interesting information
-/// for a particular device. This is for use internally and should be ignored if you're
-/// trying to use it when trying to interact with the SDK using the wrapper
-struct WootingAnalog_DeviceInfo;
-
 using WootingAnalog_DeviceID = uint64_t;
 
 /// The core `DeviceInfo` struct which contains all the interesting information
@@ -86,21 +81,3 @@ struct WootingAnalog_DeviceInfo_FFI {
   /// Hardware type of the Device
   WootingAnalog_DeviceType device_type;
 };
-
-extern "C" {
-
-/// Create a new device info struct. This is only for use in Plugins that are written in C
-/// Rust plugins should use the native constructor
-/// The memory for the struct has been allocated in Rust. So `drop_device_info` must be called
-/// for the memory to be properly released
-WootingAnalog_DeviceInfo *new_device_info(uint16_t vendor_id,
-                                          uint16_t product_id,
-                                          char *manufacturer_name,
-                                          char *device_name,
-                                          WootingAnalog_DeviceID device_id,
-                                          WootingAnalog_DeviceType device_type);
-
-/// Drops the given `DeviceInfo`
-void drop_device_info(WootingAnalog_DeviceInfo *device);
-
-} // extern "C"
