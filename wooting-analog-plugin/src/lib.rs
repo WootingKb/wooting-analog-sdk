@@ -479,6 +479,14 @@ impl WootingPlugin {
                 }
             };
 
+        let refresh_devices = |hid: &mut HidApi| -> hidapi::HidResult<()> {
+                hid.reset_devices()?;
+                hid.add_devices(WOOTING_VID, 0)?;
+                hid.add_devices(0x03EB, 0xFF01)?;
+                hid.add_devices(0x03EB, 0xFF02)?;
+                Ok(())
+            };
+
         let device_impls: Vec<Box<dyn DeviceImplementation>> = vec![
             Box::new(WootingOne()),
             Box::new(WootingTwo()),
@@ -493,10 +501,10 @@ impl WootingPlugin {
             Box::new(WootingUwU()),
             Box::new(WootingUwURgb()),
         ];
-        let mut hid = match HidApi::new() {
+        let mut hid = match HidApi::new_without_enumerate() {
             Ok(mut api) => {
                 //An attempt at trying to ensure that all the devices have been found in the initialisation of the plugins
-                if let Err(e) = api.refresh_devices() {
+                if let Err(e) = refresh_devices(&mut api) {
                     error!("We got error while refreshing devices. Err: {}", e);
                 }
                 api
@@ -533,7 +541,7 @@ impl WootingPlugin {
                         }
                     }
 
-                    if let Err(e) = hid.refresh_devices() {
+                    if let Err(e) = refresh_devices(&mut hid) {
                         error!("We got error while refreshing devices. Err: {}", e);
                     }
                     init_device_closure(&hid, &t_devices, &t_device_event_cb, &device_impls);
