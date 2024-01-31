@@ -7,12 +7,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-self_update = "^0.6"
+self_update = "^0.36"
 clap = "~2.33.0"
 log = "^0.4"
 json = "^0.11"
 simplelog = "^0.7"
 chrono = "0.4"
+reqwest = "0.11"
 
 
 [dependencies.winapi]
