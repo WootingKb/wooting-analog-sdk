@@ -68,6 +68,11 @@ main() {
     # Copy wrapper items
     cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext $stage/wrapper/
     cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$lib_ext $stage/wrapper/lib/
+
+    if [ $RUNNER_OS = Windows ]; then
+        cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext.$lib_ext $stage/wrapper/
+    fi
+
     cp target/release-artifacts/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
     cp target/release-artifacts/${lib_prefix}wooting_analog_test_plugin.$shared_lib_ext $stage/wrapper/sdk/
     # Include Wooting Plugin & Virtual Keyboard app
