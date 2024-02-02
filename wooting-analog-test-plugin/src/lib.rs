@@ -34,8 +34,6 @@ pub struct SharedState {
     pub manufacturer_name: [u8; 20],
     /// Device name
     pub device_name: [u8; 20],
-    /// Unique device ID, which should be generated using `generate_device_id`
-    pub device_id: DeviceID,
 
     pub device_type: DeviceType,
 
@@ -63,7 +61,6 @@ impl WootingAnalogTestPlugin {
 
         let t_buffer = Arc::clone(&buffer);
         let t_device = Arc::clone(&device);
-        let t_device_id = Arc::clone(&device_id);
         let t_device_event_cb = Arc::clone(&device_event_cb);
         let t_device_connected = Arc::clone(&device_connected);
         let t_thread_running = Arc::clone(&thread_running);
@@ -108,7 +105,6 @@ impl WootingAnalogTestPlugin {
                 };
                 shared_state.vendor_id = 0x03eb;
                 shared_state.product_id = 0xFFFF;
-                shared_state.device_id = 1;
                 shared_state.device_type = DeviceType::Keyboard;
                 shared_state.device_connected = false;
                 shared_state.dirty_device_info = false;
@@ -145,10 +141,9 @@ impl WootingAnalogTestPlugin {
                             .to_string(),
                             from_ut8f_to_null(&state.device_name[..], state.device_name.len())
                                 .to_string(),
-                            state.device_id,
+                            1,
                             state.device_type.clone(),
                         );
-                        *t_device_id.lock().unwrap() = state.device_id;
                         t_device.lock().unwrap().replace(dev);
                     }
                     if *t_device_connected.lock().unwrap() != state.device_connected {
