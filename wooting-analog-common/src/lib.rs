@@ -3,13 +3,12 @@ extern crate enum_primitive_derive;
 extern crate ffi_support;
 extern crate num_traits;
 
-use ffi_support::FfiStr;
+use std::convert::TryFrom;
 pub use num_traits::{FromPrimitive, ToPrimitive};
 #[cfg(feature = "serdes")]
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
-use std::ops::Deref;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::{c_char, c_float, c_int};
 use thiserror::Error;
 
 #[cfg(target_os = "macos")]
@@ -217,7 +216,7 @@ pub enum DeviceEventType {
 }
 
 #[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive, Error)]
+#[derive(Debug, Default, PartialEq, Clone, Primitive, Error)]
 #[repr(C)]
 pub enum WootingAnalogResult {
     #[error("All OK")]
@@ -241,6 +240,7 @@ pub enum WootingAnalogResult {
     #[error("No Plugins were found")]
     NoPlugins = -1995isize,
     /// The specified function was not found in the library
+    #[default]
     #[error("The specified function was not found in the library")]
     FunctionNotFound = -1994isize,
     /// No Keycode mapping to HID was found for the given Keycode
@@ -265,67 +265,66 @@ impl WootingAnalogResult {
     pub fn is_ok_or_no_device(&self) -> bool {
         *self == WootingAnalogResult::Ok || *self == WootingAnalogResult::NoDevices
     }
-}
 
-impl Default for WootingAnalogResult {
-    fn default() -> Self {
-        WootingAnalogResult::FunctionNotFound
+    pub fn into_sdk_result(self) -> SDKResult<()> {
+        if self.is_ok() { Ok(()) } else { Err(self) }
     }
 }
 
-#[derive(Debug)]
-pub struct SDKResult<T>(pub std::result::Result<T, WootingAnalogResult>);
+pub type SDKResult<T> = Result<T, WootingAnalogResult>;
 
-impl<T> Default for SDKResult<T> {
-    fn default() -> Self {
-        Err(Default::default()).into()
+pub trait IntoSDKResultExt<T> {
+    fn into_sdk_result(self) -> SDKResult<T>;
+}
+
+impl IntoSDKResultExt<u32> for c_int {
+    fn into_sdk_result(self) -> SDKResult<u32> {
+        u32::try_from(self).map_err(|_|
+            WootingAnalogResult::try_from(self)
+                .unwrap_or(WootingAnalogResult::Failure)
+        )
     }
 }
 
-impl<T> Deref for SDKResult<T> {
-    type Target = std::result::Result<T, WootingAnalogResult>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> From<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn from(ptr: std::result::Result<T, WootingAnalogResult>) -> Self {
-        SDKResult(ptr)
-    }
-}
-
-impl<T> Into<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn into(self) -> std::result::Result<T, WootingAnalogResult> {
-        self.0
-    }
-}
-
-//TODO: Figure out a way to not have to use this for the lib_wrap_option in the sdk
-impl<'a> From<FfiStr<'a>> for SDKResult<FfiStr<'a>> {
-    fn from(res: FfiStr<'a>) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl From<c_int> for SDKResult<c_int> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
+impl IntoSDKResultExt<f32> for f32 {
+    fn into_sdk_result(self) -> SDKResult<f32> {
+        match self {
+            //the RFC was made with matching exact values in mind,
+            //to prevent problems with structural vs semantic equality (e.g. -0 vs +0).
+            //there was never any consensus about how ranges should be treated.
+            //none of this matters though, as the RFC got rejected. the lint just hasn't been removed yet
+            #[allow(illegal_floating_point_literal_pattern)]
+            0_f32..=1_f32 => Ok(self),
+            _ => (self as c_int).into_sdk_result().map(|v| v as f32) //wtf
         }
     }
 }
 
-impl From<c_int> for SDKResult<u32> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res as u32).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
+pub trait IntoWootingAnalogResultExt {
+    fn into_wooting_analog_result(self) -> WootingAnalogResult;
+}
+
+impl IntoWootingAnalogResultExt for SDKResult<()> {
+    fn into_wooting_analog_result(self) -> WootingAnalogResult {
+        self.map(|_| WootingAnalogResult::Ok).unwrap_or_else(|e| e) //for some reason rust doesnt have .unwrap_err_or()
+    }
+}
+
+pub trait IntoCResultExt<T> {
+    fn into_c_result(self) -> T;
+}
+
+impl IntoCResultExt<c_int> for SDKResult<u32> {
+    fn into_c_result(self) -> c_int {
+        self.map(|value| value as _)
+            .unwrap_or_else(|error| error as _)
+    }
+}
+
+impl IntoCResultExt<c_float> for SDKResult<f32> {
+    fn into_c_result(self) -> c_float {
+        self.map(|value| value as _)
+            .unwrap_or_else(|error| error as isize as _)
     }
 }
 
@@ -335,71 +334,9 @@ impl Into<c_int> for WootingAnalogResult {
     }
 }
 
-impl From<u32> for SDKResult<u32> {
-    fn from(res: u32) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl Into<i32> for SDKResult<u32> {
-    fn into(self) -> i32 {
-        match self.0 {
-            Ok(v) => v as i32,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<c_int> for SDKResult<c_int> {
-    fn into(self) -> c_int {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl From<f32> for SDKResult<f32> {
-    fn from(res: f32) -> Self {
-        if res >= 0.0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_f32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
 impl Into<f32> for WootingAnalogResult {
     fn into(self) -> f32 {
         (self as i32) as f32
-    }
-}
-
-impl Into<f32> for SDKResult<f32> {
-    fn into(self) -> f32 {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<WootingAnalogResult> for SDKResult<()> {
-    fn into(self) -> WootingAnalogResult {
-        match self.0 {
-            Ok(_) => WootingAnalogResult::Ok,
-            Err(e) => e,
-        }
-    }
-}
-
-impl From<WootingAnalogResult> for SDKResult<()> {
-    fn from(res: WootingAnalogResult) -> Self {
-        if res.is_ok() {
-            Ok(()).into()
-        } else {
-            Err(res).into()
-        }
     }
 }
 

@@ -11,7 +11,7 @@ fn main() {
     assert!(!sdk::is_initialised());
     let init_result: SDKResult<u32> = sdk::initialise();
 
-    match init_result.0 {
+    match init_result {
         Ok(device_num) => {
             assert!(sdk::is_initialised());
             println!("SDK Successfully initialised with {} devices", device_num);
@@ -51,7 +51,6 @@ fn use_sdk(device_num: u32) {
 
     // get_connected_devices_info() -> SDKResult<Vec<DeviceInfo>>
     let devices: Vec<DeviceInfo> = sdk::get_connected_devices_info(DEVICE_BUFFER_MAX)
-        .0
         .unwrap();
     assert_eq!(device_num, devices.len() as u32);
     for (i, device) in devices.iter().enumerate() {
@@ -63,7 +62,7 @@ fn use_sdk(device_num: u32) {
         let mut new_output: Option<String> = None;
         let read_result: SDKResult<HashMap<u16, f32>> =
             sdk::read_full_buffer(ANALOG_BUFFER_READ_MAX);
-        match read_result.0 {
+        match read_result {
             Ok(analog_data) => {
                 let mut sorted_data = analog_data.iter().collect::<Vec<(&u16, &f32)>>();
                 sorted_data.sort_by_key(|x| x.0);

@@ -224,7 +224,7 @@ fn from_ut8f_to_null(bytes: &[u8], max_len: usize) -> &str {
 
 impl Plugin for WootingAnalogTestPlugin {
     fn name(&mut self) -> SDKResult<&'static str> {
-        Ok("Wooting Analog Test Plugin").into()
+        Ok("Wooting Analog Test Plugin")
     }
 
     fn initialise(
@@ -235,8 +235,7 @@ impl Plugin for WootingAnalogTestPlugin {
             Ok(1)
         } else {
             Ok(0)
-        }
-        .into();
+        };
         self.device_event_cb.lock().unwrap().replace(cb);
         ret
     }
@@ -267,12 +266,12 @@ impl Plugin for WootingAnalogTestPlugin {
         }
         debug!("Finished with devices");
 
-        Ok(devices).into()
+        Ok(devices)
     }
 
     fn read_analog(&mut self, code: u16, device: u64) -> SDKResult<f32> {
         if !*self.device_connected.lock().unwrap() {
-            return Err(WootingAnalogResult::NoDevices).into();
+            return Err(WootingAnalogResult::NoDevices);
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
@@ -284,9 +283,8 @@ impl Plugin for WootingAnalogTestPlugin {
                 .cloned()
                 .or(Some(0.0))
                 .unwrap())
-            .into()
         } else {
-            Err(WootingAnalogResult::NoDevices).into()
+            Err(WootingAnalogResult::NoDevices)
         }
     }
 
@@ -296,7 +294,7 @@ impl Plugin for WootingAnalogTestPlugin {
         device: u64,
     ) -> SDKResult<HashMap<u16, f32>> {
         if !*self.device_connected.lock().unwrap() {
-            return Err(WootingAnalogResult::NoDevices).into();
+            return Err(WootingAnalogResult::NoDevices);
         }
 
         if device == 0 || device == *self.device_id.lock().unwrap() {
@@ -314,9 +312,9 @@ impl Plugin for WootingAnalogTestPlugin {
             //Store the newPressedKeys for the next call
             self.pressed_keys = new_pressed_keys;
 
-            Ok(buffer).into()
+            Ok(buffer)
         } else {
-            Err(WootingAnalogResult::NoDevices).into()
+            Err(WootingAnalogResult::NoDevices)
         }
     }
 }
