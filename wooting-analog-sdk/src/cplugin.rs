@@ -2,7 +2,6 @@ use ffi_support::FfiStr;
 use libloading::{Library, Symbol};
 use log::*;
 use std::collections::HashMap;
-use std::ffi::CStr;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
 use wooting_analog_common::*;
 use wooting_analog_plugin_dev::*;
@@ -68,10 +67,11 @@ macro_rules! lib_wrap_option {
     };
 }
 
-const CPLUGIN_ABI_VERSION: u32 = 0;
+const CPLUGIN_ABI_VERSION: u32 = 1;
 
 pub struct CPlugin {
     lib: Library,
+    cb_data_ptr: Option<*mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>,
     //funcs: HashMap<&'static str, Option<Symbol>>
 }
 
@@ -93,22 +93,32 @@ impl CPlugin {
 
         Ok(CPlugin {
             lib,
-            //funcs: HashMap::new()
+            cb_data_ptr: None, //funcs: HashMap::new()
         })
         .into()
     }
 
     lib_wrap_option! {
         //c_name has to be over here due to it not being part of the Plugin trait
-        fn _initialise(data: *mut c_void, callback: extern "C" fn(*mut c_void, DeviceEventType, *mut DeviceInfo)) -> i32;
-        fn _name() -> FfiStr<'static>;
+        fn initialise(data: *const c_void, callback: extern "C" fn(*mut c_void, DeviceEventType, *const DeviceInfo_FFI)) -> i32;
+        fn name() -> FfiStr<'static>;
 
-        fn _read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
-        fn _device_info(buffer: *mut *mut DeviceInfo_FFI, len: c_uint) -> c_int;
+        fn read_analog(code: u16, device: DeviceID) -> f32;
+        fn read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
+        fn device_info(buffer: *mut *const DeviceInfo_FFI, len: c_uint) -> c_int;
+    }
+
+    lib_wrap! {
+        fn is_initialised() -> bool;
+        fn unload();
     }
 }
 
-extern "C" fn call_closure(data: *mut c_void, event: DeviceEventType, device_raw: *mut DeviceInfo) {
+extern "C" fn call_closure(
+    data: *mut c_void,
+    event: DeviceEventType,
+    device_raw: *const DeviceInfo_FFI,
+) {
     debug!("Got into the callclosure");
     unsafe {
         if data.is_null() {
@@ -116,23 +126,21 @@ extern "C" fn call_closure(data: *mut c_void, event: DeviceEventType, device_raw
             return;
         }
 
-        let device = Box::from_raw(device_raw);
+        let device_info = device_raw.as_ref().unwrap().into_device_info();
 
         let callback_ptr =
             Box::from_raw(data as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>);
 
-        (*callback_ptr)(event, &device);
+        (*callback_ptr)(event, &device_info);
+
         //Throw it back into raw to prevent it being dropped so the callback can be called multiple times
         Box::into_raw(callback_ptr);
-        //We also want to convert this back to a pointer as we want the C Plugin to be in control and aware of
-        //when this memory is being dropped
-        Box::into_raw(device);
     }
 }
 
 impl Plugin for CPlugin {
     fn name(&mut self) -> SDKResult<&'static str> {
-        self._name().0.map(|s| s.as_str()).into()
+        self.name().0.map(|s| s.as_str()).into()
     }
 
     fn initialise(
@@ -140,10 +148,15 @@ impl Plugin for CPlugin {
         callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
     ) -> SDKResult<u32> {
         let data = Box::into_raw(Box::new(callback));
-        self._initialise(data as *mut _, call_closure)
+        self.cb_data_ptr = Some(data);
+        self.initialise(data as *const _, call_closure)
             .0
             .map(|res| res as u32)
             .into()
+    }
+
+    fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
+        self.read_analog(code, device).0.into()
     }
 
     fn read_full_buffer(
@@ -157,7 +170,7 @@ impl Plugin for CPlugin {
         analog_buffer.resize(max_length, 0.0);
         let count: usize = {
             let ret = self
-                ._read_full_buffer(
+                .read_full_buffer(
                     code_buffer.as_ptr(),
                     analog_buffer.as_ptr(),
                     max_length as c_uint,
@@ -182,10 +195,10 @@ impl Plugin for CPlugin {
     }
 
     fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
-        let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
+        let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
 
         match self
-            ._device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
+            .device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
             .0
             .map(|no| no as u32)
         {
@@ -193,16 +206,7 @@ impl Plugin for CPlugin {
                 device_infos.truncate(num as usize);
                 let devices = device_infos
                     .drain(..)
-                    .map(|dev| {
-                        DeviceInfo {
-                            vendor_id: (*dev).vendor_id,
-                            product_id: (*dev).product_id,
-                            manufacturer_name: CStr::from_ptr((*dev).manufacturer_name).to_str().unwrap().to_owned(),
-                            device_name: CStr::from_ptr((*dev).device_name).to_str().unwrap().to_owned(),
-                            device_id: (*dev).device_id,
-                            device_type: (*dev).device_type.clone(),
-                        }
-                    })
+                    .map(|dev| dev.as_ref().unwrap().into_device_info())
                     .collect();
                 Ok(devices).into()
             },
@@ -210,12 +214,19 @@ impl Plugin for CPlugin {
         }
     }
 
-    lib_wrap! {
-        fn is_initialised() -> bool;
-        fn unload();
+    fn is_initialised(&mut self) -> bool {
+        self.is_initialised()
     }
-    lib_wrap_option! {
-        fn read_analog(code: u16, device: DeviceID) -> f32;
-        //fn neg(x: u32, y: u32) -> u32;
+
+    fn unload(&mut self) {
+        self.unload();
+        // Drop cb_data_ptr
+        if let Some(ptr) = self.cb_data_ptr {
+            unsafe {
+                drop(Box::from_raw(
+                    ptr as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
+                ));
+            }
+        }
     }
 }
