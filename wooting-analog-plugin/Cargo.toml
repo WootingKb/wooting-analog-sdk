@@ -14,7 +14,7 @@ log = "^0.4"
 # For dev
 wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 # wooting-analog-plugin-dev = "^0.6"
-hidapi = { version = "^1.2", features = ["linux-static-hidraw"], default-features = false }
+hidapi = { version = "^2.5", features = ["linux-static-hidraw"], default-features = false }
 env_logger = "^0.7"
 objekt = "^0.1"
 
