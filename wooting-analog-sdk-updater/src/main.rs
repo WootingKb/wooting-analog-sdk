@@ -10,7 +10,7 @@ extern crate chrono;
 
 use chrono::Utc;
 use clap::{App, Arg};
-use self_update::backends::github::{Release, ReleaseAsset};
+use self_update::update::{Release, ReleaseAsset};
 use self_update::version::bump_is_greater;
 use simplelog::*;
 use std::fs::OpenOptions;
@@ -19,7 +19,7 @@ use std::process::Command;
 #[cfg(windows)]
 use winapi::um::winuser;
 
-const INSTALLER_PATH: &str = "installer.msi";
+const INSTALLER_PATH: &str = "wooting_analog_sdk_installer.msi";
 const PKG_VER: &str = env!("CARGO_PKG_VERSION");
 
 fn find_installer_asset(release: &Release) -> Option<&ReleaseAsset> {
@@ -50,14 +50,17 @@ fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>>
     info!("installing");
     match find_installer_asset(&release) {
         Some(asset) => {
-            let tmp_dir = self_update::TempDir::new("wooting_analog_sdk_updater")?;
+            let tmp_dir = self_update::TempDir::new()?;
             let tmp_msi_path = tmp_dir.path().join(INSTALLER_PATH);
-            info!("Downloading into temp file: {:?}", tmp_msi_path);
+            info!("Downloading {:?} into temp file: {:?}", asset, tmp_msi_path);
             //Put it into lower scope to force File to go out of scope to close it & finish writing
             {
                 let tmp_msi = ::std::fs::File::create(&tmp_msi_path)?;
 
-                self_update::Download::from_url(&asset.download_url).download_to(&tmp_msi)?;
+                self_update::Download::from_url(&asset.download_url)
+                    .set_header(reqwest::header::ACCEPT, "application/octet-stream".parse()?)
+                    .show_progress(true)
+                    .download_to(&tmp_msi)?;
                 info!("Finished downloading update");
             }
 
@@ -149,7 +152,7 @@ fn main() {
     debug!("Called with parameters {:?}", matches);
 
     let r = check_for_update().expect("Failed to check for updates");
-    let release_ver = r.tag.trim_start_matches('v');
+    let release_ver = r.version.trim_start_matches('v');
     let update_available = bump_is_greater(PKG_VER, release_ver).unwrap_or(false);
     debug!(
         "Github release: {} ours: {}, update available: {}",
@@ -159,7 +162,7 @@ fn main() {
     let data = object! {
         "name" => "Wooting Analog SDK",
         "update_available" => update_available,
-        "new_version"    => r.version(),
+        "new_version"    => r.version.clone(),
         "version"     => PKG_VER,
         "release_title" => r.name.clone(),
         "release_notes" => r.body.clone()
@@ -173,7 +176,7 @@ fn main() {
             {
                 if !matches.is_present("quiet") {
                     let title = "Wooting Analog SDK Update\0";
-                    let message = format!("A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0", r.tag, PKG_VER);
+                    let message = format!("A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0", r.version, PKG_VER);
                     let l_msg: Vec<u16> = message.encode_utf16().collect();
                     let l_title: Vec<u16> = title.encode_utf16().collect();
                     unsafe {
