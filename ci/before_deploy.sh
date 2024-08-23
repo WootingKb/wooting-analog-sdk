@@ -46,12 +46,10 @@ main() {
     mkdir $stage/plugins
     mkdir $stage/plugins/lib
     mkdir $stage/plugins/includes
-    mkdir $stage/plugins/includes-cpp
 
     mkdir $stage/wrapper
     mkdir $stage/wrapper/lib
     mkdir $stage/wrapper/includes
-    mkdir $stage/wrapper/includes-cpp
     mkdir $stage/wrapper/sdk
 
     # Copy Plugin items
@@ -62,11 +60,6 @@ main() {
     cp includes/plugin.h $stage/plugins/includes/
     cp includes/wooting-analog-plugin-dev.h $stage/plugins/includes/
     cp includes/wooting-analog-common.h $stage/plugins/includes/
-
-    ## Copy cpp headers
-    cp includes-cpp/wooting-analog-plugin-dev.h $stage/plugins/includes-cpp/
-    cp includes-cpp/wooting-analog-common.h $stage/plugins/includes-cpp/
-
     ## Copy docs
     cp PLUGINS.md $stage/plugins/
 
@@ -84,10 +77,6 @@ main() {
     ## Copy c headers
     cp includes/wooting-analog-wrapper.h $stage/wrapper/includes/
     cp includes/wooting-analog-common.h $stage/wrapper/includes/
-
-    ## Copy cpp headers
-    cp includes-cpp/wooting-analog-wrapper.h $stage/wrapper/includes-cpp/
-    cp includes-cpp/wooting-analog-common.h $stage/wrapper/includes-cpp/
 
     ## Copy docs
     cp SDK_USAGE.md $stage/wrapper/

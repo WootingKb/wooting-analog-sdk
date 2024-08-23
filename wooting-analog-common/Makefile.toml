@@ -1,21 +1,15 @@
 [env]
 HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes"
-HEADER_OUTPUT_DIR_CPP="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes-cpp"
 
 HEADER_NAME="wooting-analog-common.h"
 
 HEADER_PATH_CLEAN="${HEADER_OUTPUT_DIR_C}/wooting-analog-common*"
-HEADER_PATH_CLEAN_CPP="${HEADER_OUTPUT_DIR_CPP}/wooting-analog-common*"
 
 PLUGIN_GEN_PATH="${CARGO_MAKE_WORKING_DIRECTORY}/cbindgen-plugin.toml"
 
-[tasks.header-cpp]
-command = "cbindgen"
-args = ["-l", "c++", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_CPP}/${HEADER_NAME}"]
-
 [tasks.header-c]
 command = "cbindgen"
-args = ["-l", "c", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
+args = ["-l", "c", "--cpp-compat", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
 
 [tasks.cbindgen-install]
 install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
@@ -24,7 +18,7 @@ args = ["--version"]
 
 [tasks.cbindgen]
 #TODO: Check the rustup_component_name arg to see if it is the correct name
-dependencies=["cbindgen-install", "header-c", "header-cpp"]
+dependencies=["cbindgen-install", "header-c"]
 
 [tasks.gen-headers]
 env = { CBINDGEN_ARGS="-v" }
@@ -40,7 +34,6 @@ script_runner = "@shell"
 script = [
 '''
 rm ${HEADER_PATH_CLEAN}
-rm ${HEADER_PATH_CLEAN_CPP}
 '''
 ]
 

@@ -168,7 +168,7 @@ The deb package will be located in `$gitroot/target/debian`
 
 ### Outputs
 
-All build outputs can be found under `target/debug`, with generated headers coming under the `includes` and `includes-cpp` directories.
+All build outputs can be found under `target/debug`, with generated headers coming under the `includes` directory.
 
 Currently the headers have to be manually generated and kept in the repo. When intentional changes are made, the testing phase verifies that the pre-generated headers match what would be generated now to ensure that accidental changes aren't made to the output of the header generation.
 
