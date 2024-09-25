@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include "wooting-analog-common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
 ///
@@ -154,3 +158,7 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            float *analog_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus

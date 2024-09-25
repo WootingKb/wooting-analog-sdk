@@ -142,6 +142,10 @@ typedef struct WootingAnalog_DeviceInfo_FFI {
   enum WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo_FFI;
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 /**
  * Create a new device info struct. This is only for use in Plugins that are written in C
  * Rust plugins should use the native constructor
@@ -159,3 +163,7 @@ struct WootingAnalog_DeviceInfo *new_device_info(uint16_t vendor_id,
  * Drops the given `DeviceInfo`
  */
 void drop_device_info(struct WootingAnalog_DeviceInfo *device);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus

@@ -8,6 +8,14 @@
 #include <stdlib.h>
 #include "wooting-analog-common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 WootingAnalog_DeviceID generate_device_id(const char* serial_number,
                                           uint16_t vendor_id,
                                           uint16_t product_id);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
