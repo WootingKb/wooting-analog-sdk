@@ -28,7 +28,7 @@ const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
 /// Struct holding the information we need to find the device and the analog interface
 struct DeviceHardwareID {
     vid: u16,
-    pid: u16,
+    pid: Option<u16>,
     usage_page: u16,
     has_modes: bool,
 }
@@ -47,7 +47,7 @@ trait DeviceImplementation: objekt::Clone + Send {
             device.product_id()
         };
         //Check if the pid & hid match
-        pid.eq(&hid.pid)
+        (hid.pid.is_none() || hid.pid.map_or(false, |hid_pid| pid == hid_pid))
             && device.vendor_id().eq(&hid.vid)
             && device.usage_page().eq(&hid.usage_page)
     }
@@ -117,7 +117,7 @@ impl DeviceImplementation for WootingOne {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
             vid: 0x03EB,
-            pid: 0xFF01,
+            pid: Some(0xFF01),
             usage_page: 0xFF54,
             has_modes: false,
         }
@@ -135,7 +135,7 @@ impl DeviceImplementation for WootingTwo {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
             vid: 0x03EB,
-            pid: 0xFF02,
+            pid: Some(0xFF02),
             usage_page: 0xFF54,
             has_modes: false,
         }
@@ -147,139 +147,13 @@ impl DeviceImplementation for WootingTwo {
 }
 
 #[derive(Debug, Clone)]
-struct WootingOneV2();
+struct WootingNewFirmware();
 
-impl DeviceImplementation for WootingOneV2 {
+impl DeviceImplementation for WootingNewFirmware {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
             vid: WOOTING_VID,
-            pid: 0x1100,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct WootingTwoV2();
-
-impl DeviceImplementation for WootingTwoV2 {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1200,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-#[derive(Debug, Clone)]
-struct WootingLekker();
-
-impl DeviceImplementation for WootingLekker {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1210,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct WootingTwoHE();
-
-impl DeviceImplementation for WootingTwoHE {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1220,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct WootingTwoHEARM();
-
-impl DeviceImplementation for WootingTwoHEARM {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1230,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Wooting60HE();
-
-impl DeviceImplementation for Wooting60HE {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1300,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Wooting60HEARM();
-
-impl DeviceImplementation for Wooting60HEARM {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1310,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Wooting60HEPlus();
-
-impl DeviceImplementation for Wooting60HEPlus {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1320,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-
-#[derive(Debug, Clone)]
-struct WootingUwU();
-
-impl DeviceImplementation for WootingUwU {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1500,
-            usage_page: 0xFF54,
-            has_modes: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct WootingUwURgb();
-
-impl DeviceImplementation for WootingUwURgb {
-    fn device_hardware_id(&self) -> DeviceHardwareID {
-        DeviceHardwareID {
-            vid: WOOTING_VID,
-            pid: 0x1510,
+            pid: None,
             usage_page: 0xFF54,
             has_modes: true,
         }
@@ -485,16 +359,7 @@ impl WootingPlugin {
         let device_impls: Vec<Box<dyn DeviceImplementation>> = vec![
             Box::new(WootingOne()),
             Box::new(WootingTwo()),
-            Box::new(WootingOneV2()),
-            Box::new(WootingTwoV2()),
-            Box::new(WootingLekker()),
-            Box::new(WootingTwoHE()),
-            Box::new(WootingTwoHEARM()),
-            Box::new(Wooting60HE()),
-            Box::new(Wooting60HEARM()),
-            Box::new(Wooting60HEPlus()),
-            Box::new(WootingUwU()),
-            Box::new(WootingUwURgb()),
+            Box::new(WootingNewFirmware()),
         ];
         let mut hid = match HidApi::new_without_enumerate() {
             Ok(mut api) => {
