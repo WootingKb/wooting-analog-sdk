@@ -28,7 +28,7 @@ const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
 /// Struct holding the information we need to find the device and the analog interface
 struct DeviceHardwareID {
     vid: u16,
-    pid: u16,
+    pid: Option<u16>,
     usage_page: u16,
     has_modes: bool,
 }
@@ -47,7 +47,7 @@ trait DeviceImplementation: objekt::Clone + Send {
             device.product_id()
         };
         //Check if the pid & hid match
-        (hid.pid == 0 || pid.eq(&hid.pid))
+        (hid.pid.is_none() || hid.pid.map_or(false, |hid_pid| pid == hid_pid))
             && device.vendor_id().eq(&hid.vid)
             && device.usage_page().eq(&hid.usage_page)
     }
@@ -117,7 +117,7 @@ impl DeviceImplementation for WootingOne {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
             vid: 0x03EB,
-            pid: 0xFF01,
+            pid: Some(0xFF01),
             usage_page: 0xFF54,
             has_modes: false,
         }
@@ -135,7 +135,7 @@ impl DeviceImplementation for WootingTwo {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
             vid: 0x03EB,
-            pid: 0xFF02,
+            pid: Some(0xFF02),
             usage_page: 0xFF54,
             has_modes: false,
         }
@@ -153,7 +153,7 @@ impl DeviceImplementation for WootingNewFirmware {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
             vid: WOOTING_VID,
-            pid: 0,
+            pid: None,
             usage_page: 0xFF54,
             has_modes: true,
         }
