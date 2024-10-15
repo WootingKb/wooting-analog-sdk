@@ -4025,7 +4025,6 @@ dependencies = [
  "anyhow",
  "bimap",
  "cmake",
- "env_logger 0.7.1",
  "ffi-support",
  "lazy_static",
  "libloading 0.7.3",
