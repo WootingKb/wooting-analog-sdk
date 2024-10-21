@@ -40,7 +40,11 @@ jobs:
           default: true
           target: ${{ matrix.target }}
       - uses: davidB/rust-cargo-make@v1
+        # This doesn't work on custom win runner, so we just skip it as it's installed already anyway
+        if: ${{ ! startsWith(matrix.os, 'win-sign') }}
       - uses: Swatinem/rust-cache@v1
+        # Caching not needed on custom runner
+        if: ${{ ! startsWith(matrix.os, 'win-sign') }}
         with:
           sharedKey: ${{ matrix.target }}
       - name: Run deploy script
