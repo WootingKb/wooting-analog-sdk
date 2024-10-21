@@ -25,3 +25,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run tests
         run: cargo make test-flow
+      - name: Verify generated headers
+        run: cargo make verify-headers

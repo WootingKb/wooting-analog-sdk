@@ -1,44 +1,46 @@
 [env]
-HEADER_NAME="wooting-analog-wrapper.h"
-HEADER_OUTPUT_DIR_C="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes"
+HEADER_NAME = "wooting-analog-wrapper.h"
+HEADER_OUTPUT_DIR_C = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes"
 
 [tasks.header-c]
 command = "cbindgen"
-args = ["-l", "c", "--cpp-compat", "${CBINDGEN_ARGS}", "--clean", "-o", "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}"]
+args = [
+    "-l",
+    "c",
+    "--cpp-compat",
+    "${CBINDGEN_ARGS}",
+    "--clean",
+    "-o",
+    "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}",
+]
 #Have had to throw in clean as well as there's some weird cases where cbindgen will fail when generating all headers
 
 [tasks.cbindgen-install]
-install_crate = { crate_name = "cbindgen", rustup_component_name="cbindgen", binary="cbindgen", test_arg = "--help" }
+install_crate = { crate_name = "cbindgen", rustup_component_name = "cbindgen", binary = "cbindgen", test_arg = "--help" }
 command = "cbindgen"
 args = ["--version"]
 
 [tasks.cbindgen]
-dependencies=["cbindgen-install", "header-c"]
+dependencies = ["cbindgen-install", "header-c"]
 
 [tasks.gen-headers]
-env = { CBINDGEN_ARGS="-v" }
+env = { CBINDGEN_ARGS = "-v" }
 run_task = "cbindgen"
 
 [tasks.verify-headers]
-env = { CBINDGEN_ARGS="--verify" }
+env = { CBINDGEN_ARGS = "--verify" }
 run_task = "cbindgen"
 
 [tasks.clean-headers]
 #env = { HEADER_POSTFIX="*" }
 script_runner = "@shell"
-script = [
-'''
+script = ['''
 rm ${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}
-'''
-]
+''']
 
-
-
-[tasks.post-test]
-dependencies=["verify-headers"]
 
 [tasks.post-build]
-dependencies=["gen-headers"]
+dependencies = ["gen-headers"]
 
 [tasks.clean]
 #dependencies=["clean-headers"]
