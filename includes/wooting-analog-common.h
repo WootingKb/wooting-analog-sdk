@@ -165,5 +165,5 @@ struct WootingAnalog_DeviceInfo *new_device_info(uint16_t vendor_id,
 void drop_device_info(struct WootingAnalog_DeviceInfo *device);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus

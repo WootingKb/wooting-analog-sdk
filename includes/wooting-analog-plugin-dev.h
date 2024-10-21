@@ -17,5 +17,5 @@ WootingAnalog_DeviceID generate_device_id(const char* serial_number,
                                           uint16_t product_id);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus

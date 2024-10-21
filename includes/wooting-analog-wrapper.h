@@ -160,5 +160,5 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            WootingAnalog_DeviceID device_id);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
