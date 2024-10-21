@@ -16,8 +16,8 @@ jobs:
             target: aarch64-apple-darwin
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          # - os: windows-2019
-          #   target: x86_64-pc-windows-msvc
+          - os: win-signing
+            target: x86_64-pc-windows-msvc
 
     runs-on: ${{ matrix.os }}
 
@@ -45,15 +45,25 @@ jobs:
           sharedKey: ${{ matrix.target }}
       - name: Run deploy script
         shell: bash
+        # Signing key env is required for signing dll's on windows
+        env:
+          TIMESTAMP: ${{secrets.WIN_EV_CSC_TIMESTAMP}}
+          CERT_FILE: ${{secrets.WIN_EV_CSC_CERT_FILE}}
+          CRYPT_PROVIDER: ${{secrets.WIN_EV_CSC_CRYPT_PROVIDER}}
+          READER: ${{secrets.WIN_EV_CSC_READER}}
+          PASS: ${{secrets.WIN_EV_CSC_PASS}}
+          CONTAINER: ${{secrets.WIN_EV_CSC_CONTAINER}}
         run: sh ci/before_deploy.sh
       - name: Build Windows Installer
         shell: bash
-        env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-          WIN_CSC_DESC: ${{ secrets.WIN_CSC_DESC }}
-          WIN_CSC_SUBJECTNAME: ${{ secrets.WIN_CSC_SUBJECTNAME }}
         if: runner.os == 'Windows'
+        env:
+          TIMESTAMP: ${{secrets.WIN_EV_CSC_TIMESTAMP}}
+          CERT_FILE: ${{secrets.WIN_EV_CSC_CERT_FILE}}
+          CRYPT_PROVIDER: ${{secrets.WIN_EV_CSC_CRYPT_PROVIDER}}
+          READER: ${{secrets.WIN_EV_CSC_READER}}
+          PASS: ${{secrets.WIN_EV_CSC_PASS}}
+          CONTAINER: ${{secrets.WIN_EV_CSC_CONTAINER}}
         run: cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET
       - name: Build debian package
         if: startsWith(matrix.os, 'ubuntu')
