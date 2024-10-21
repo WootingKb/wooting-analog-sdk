@@ -1,6 +1,6 @@
 [package]
 name = "wooting-analog-sdk-updater"
-version = "0.7.0"
+version = "0.7.5"
 authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
 edition = "2018"
 

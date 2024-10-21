@@ -3989,7 +3989,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-common"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "enum-primitive-derive",
  "ffi-support",
@@ -4001,7 +4001,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-plugin"
-version = "0.7.0"
+version = "0.7.5"
 dependencies = [
  "env_logger 0.7.1",
  "hidapi",
@@ -4012,7 +4012,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-plugin-dev"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "ffi-support",
  "wooting-analog-common",
@@ -4020,7 +4020,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-sdk"
-version = "0.7.0"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bimap",
@@ -4039,7 +4039,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-sdk-updater"
-version = "0.7.0"
+version = "0.7.5"
 dependencies = [
  "chrono",
  "clap",
@@ -4052,7 +4052,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-test-plugin"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "env_logger 0.8.4",
  "log",
@@ -4062,7 +4062,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-virtual-control"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "env_logger 0.8.4",
  "iced",
@@ -4075,7 +4075,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-wrapper"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "ctrlc",
  "lazy_static",
