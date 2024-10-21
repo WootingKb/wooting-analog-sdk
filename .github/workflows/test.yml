@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - name: Setup Build Environment
@@ -18,12 +18,12 @@ jobs:
           sudo apt update
           sudo apt install libudev-dev libhidapi-dev
       - name: Setup rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - uses: davidB/rust-cargo-make@v1
         with:
-          version: 0.35.16
-      - uses: Swatinem/rust-cache@v1
+          version: 0.37.23
+      - uses: Swatinem/rust-cache@v2
       - name: Run tests
         run: cargo make test-flow
+      - name: Verify generated headers
+        run: cargo make verify-headers
