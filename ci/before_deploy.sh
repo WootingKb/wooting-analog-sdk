@@ -3,7 +3,7 @@
 set -ex
 
 main() {
-    local src=$(pwd) 
+    local src=$(pwd)
           stage=
           lib_ext=
           lib_prefix=
@@ -37,13 +37,15 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
-    # Currently the --out-dir flag is 'unstable' so unfortunately need to switch to nightly for the build to work properly 
+    # Currently the --out-dir flag is 'unstable' so unfortunately need to switch to nightly for the build to work properly
     # Don't need to use this currently as the rust-toolchain file specifies the rust version to use
     # rustup default nightly
     cargo make build-target-release
 
-    # Codesign dlls before packaging up
-    ./ci/codesign_dll.sh
+    # Codesign dlls before packaging up. This should only be running on Windows
+    if [ $RUNNER_OS = "Windows" ]; then
+        ./ci/codesign_dll.sh
+    fi
 
     mkdir $stage/plugins
     mkdir $stage/plugins/lib
