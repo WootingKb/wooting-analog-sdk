@@ -11,13 +11,8 @@ $PREV_PATH = $env:PATH
 
 $env:PATH += ";C:/Program Files (x86)/Windows Kits/10/bin/$WINDOWS_SDK_VER/x64/"
 
-# $Password = ConvertTo-SecureString -String $Env:WIN_CSC_KEY_PASSWORD -AsPlainText -Force
-# Import-PfxCertificate -FilePath cert.pfx -CertStoreLocation Cert:\LocalMachine\My -Password $Password
-
 # Passing in $args allows the caller to specify multiple files to be signed at once
-signtool.exe sign /tr $env:TimestampServer /td sha256 /fd sha256 /n $Env:WIN_CSC_SUBJECTNAME $args
+signtool.exe sign /fd sha256 /td sha256 /tr ${Env:TIMESTAMP}?td=sha256 /f $Env:CERT_FILE /csp "$Env:CRYPT_PROVIDER" /kc "[${Env:READER}{{${Env:PASS}}}]=${Env:CONTAINER}" $args
 signtool.exe verify /pa $args
-# Start-Process -NoNewWindow -Wait 'signtool.exe' -ArgumentList "sign /tr `"$env:TimestampServer`" /td sha256 /fd sha256 /n `"$Env:WIN_CSC_SUBJECTNAME`" `"$File`""
-# Start-Process -NoNewWindow -Wait 'signtool.exe' -ArgumentList "verify /pa `"$File`""
 
 $env:PATH = $PREV_PATH
