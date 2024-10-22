@@ -501,8 +501,6 @@ mod tests {
         pub manufacturer_name: [u8; 20],
         /// Device name
         pub device_name: [u8; 20],
-        /// Unique device ID, which should be generated using `generate_device_id`
-        pub device_id: u64,
 
         pub device_type: DeviceType,
 
@@ -676,7 +674,7 @@ mod tests {
             let mut shared_state = get_wlock(&mut shmem);
             shared_state.analog_values[analog_key] = analog_val;
             shared_state.device_connected = true;
-            shared_state.device_id
+            1
         };
 
         wait_for_connected(&got_connected, 5, true);
