@@ -34,10 +34,10 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     trace!("catch unwind result: {:?}", result);
     match result {
         Ok(c) => c,
-        Err(e) =>{
+        Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
-        } ,
+        }
     }
 }
 
@@ -72,7 +72,7 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
             if let Some(mut old_devices) = old {
                 for dev in old_devices.drain(..) {
                     unsafe {
-                        Box::from_raw(dev);
+                        drop(Box::from_raw(dev));
                     }
                 }
             }
@@ -195,7 +195,7 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
             cb(event, device_raw);
             //We need to box up the pointer again to ensure it is properly dropped
             unsafe {
-                Box::from_raw(device_raw);
+                drop(Box::from_raw(device_raw));
             }
         })
         .into()
@@ -253,7 +253,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
                 if let Some(mut old_devices) = old {
                     for dev in old_devices.drain(..) {
                         unsafe {
-                            Box::from_raw(dev);
+                            drop(Box::from_raw(dev));
                         }
                     }
                 }
@@ -360,6 +360,7 @@ mod tests {
     use std::sync::{Arc, MutexGuard};
     use std::time::Duration;
 
+    #[derive(Debug, PartialEq)]
     struct SharedState {
         pub vendor_id: u16,
         /// Device Product ID `pid`
@@ -369,8 +370,6 @@ mod tests {
         pub manufacturer_name: [u8; 20],
         /// Device name
         pub device_name: [u8; 20],
-        /// Unique device ID, which should be generated using `generate_device_id`
-        pub device_id: u64,
 
         pub device_type: DeviceType,
 
@@ -533,7 +532,7 @@ mod tests {
             let mut shared_state = get_wlock(&mut shmem);
             shared_state.analog_values[analog_key] = analog_val;
             shared_state.device_connected = true;
-            shared_state.device_id
+            1
         };
 
         wait_for_connected(5, true);

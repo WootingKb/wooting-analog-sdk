@@ -25,6 +25,7 @@ struct WootingAnalogTestPlugin {
     worker_thread: Option<JoinHandle<()>>,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct SharedState {
     pub vendor_id: u16,
     /// Device Product ID `pid`
@@ -67,7 +68,6 @@ impl WootingAnalogTestPlugin {
 
         let worker_thread = thread::spawn(move || {
             let link_path = std::env::temp_dir().join("wooting-test-plugin.link");
-
             let mut my_shmem = {
                 match SharedMem::open_linked(link_path.as_os_str()) {
                     Ok(v) => v,
@@ -112,6 +112,7 @@ impl WootingAnalogTestPlugin {
                 shared_state.manufacturer_name[0..src.len()].copy_from_slice(src);
                 let src = b"Test Device\x00";
                 shared_state.device_name[0..src.len()].copy_from_slice(src);
+                shared_state.analog_values = [0; 0xFF];
             }
 
             let mut vals = vec![0; 0xFF];
@@ -146,6 +147,7 @@ impl WootingAnalogTestPlugin {
                         );
                         t_device.lock().unwrap().replace(dev);
                     }
+
                     if *t_device_connected.lock().unwrap() != state.device_connected {
                         *t_device_connected.lock().unwrap() = state.device_connected;
                         if let Some(device) = t_device.lock().unwrap().as_ref() {
