@@ -8,6 +8,24 @@ The Wooting Analog SDK is the open driver for Analog keyboards. It's goal is to 
 
 This repo contains all the core cross-platform components of the Wooting Analog SDK. The SDK and most of the components are built on Rust and should run on Windows, Mac and Linux, following the same steps for each platform unless otherwise specified.
 
+## Plugins
+
+This SDK uses Plugins to provide support for Analog hardware, these must be located in a subdirectory of `WootingAnalogPlugins`. Which can be found in these places on each platform:
+
+| OS      | Plugins Directory                        |
+| ------- | ---------------------------------------- |
+| Windows | `C:\Program Files\WootingAnalogPlugins\` |
+| Linux   | `/usr/local/share/WootingAnalogPlugins/` |
+| Mac     | `/usr/local/share/WootingAnalogPlugins/` |
+
+So an example path on Windows would be:
+
+```
+C:\Program Files\WootingAnalogPlugins\wooting-analog-plugin\wooting_analog_plugin.dll
+```
+
+**NOTE: The SDK needs at least the `wooting_analog_plugin` to read input from the keyboard**
+
 ## Installing
 
 ### Windows
@@ -26,7 +44,14 @@ On Linux the primarily installation method is the `deb` package, which includes 
 
 - Download & Extract the [latest release](https://github.com/WootingKb/wooting-analog-sdk/releases) `wooting-analog-sdk-v*.*.*-x86_64-unknown-linux-gnu.tar.gz`
 - Copy `$extract/wrapper/sdk/libwooting_analog_sdk.so` to `/usr/lib`. (Or to some directory and add that path to the `LD_LIBRARY_PATH` environment variable)
-- Follow the installation instructions for the [Wooting Analog Plugin](https://github.com/WootingKb/wooting-analog-plugin)
+- Now create the correct folder and store the dynamic library for the analog plugin there:
+```
+sudo mkdir -p /usr/local/share/WootingAnalogPlugins/wooting-analog-plugin
+```
+and then copy the analog plugin to that location 
+```
+sudo cp $extract/wrapper/sdk/libwooting_analog_plugin.so /usr/local/share/WootingAnalogPlugins/wooting-analog-plugin/
+```
 
 ### Mac
 
@@ -48,21 +73,7 @@ brew install wootingkb/wooting/wooting-analog-sdk
 - Additionally, you may need to adjust security settings for OSX to let it run. For [reference](https://github.com/hashicorp/terraform/issues/23033#issuecomment-542302933)
 - Follow the installation instructions for the [Wooting Analog Plugin](https://github.com/WootingKb/wooting-analog-plugin)
 
-## Plugins
 
-This SDK uses Plugins to provide support for Analog hardware, these must be located in a subdirectory of `WootingAnalogPlugins`. Which can be found in these places on each platform:
-
-| OS      | Plugins Directory                        |
-| ------- | ---------------------------------------- |
-| Windows | `C:\Program Files\WootingAnalogPlugins\` |
-| Linux   | `/usr/local/share/WootingAnalogPlugins/` |
-| Mac     | `/usr/local/share/WootingAnalogPlugins/` |
-
-So an example path on Windows would be:
-
-```
-C:\Program Files\WootingAnalogPlugins\wooting-analog-plugin\wooting_analog_plugin.dll
-```
 
 ## Documentation
 
