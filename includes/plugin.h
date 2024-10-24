@@ -5,14 +5,20 @@
 
 #if defined(_WIN32) || defined(WIN32)
 #ifdef ANALOGSDK_EXPORTS
-#define ANALOGSDK_API __declspec(dllexport)
+#define ANALOGSDK_EXPORT __declspec(dllexport)
 #else
-#define ANALOGSDK_API __declspec(dllimport)
+#define ANALOGSDK_EXPORT __declspec(dllimport)
 #endif
 #pragma comment(lib, "userenv.lib")
 #pragma comment(lib, "WS2_32")
 #else
-#define ANALOGSDK_API
+#define ANALOGSDK_EXPORT
+#endif
+
+#ifdef __cplusplus
+#define ANALOGSDK_API extern "C" ANALOGSDK_EXPORT
+#else
+#define ANALOGSDK_API ANALOGSDK_EXPORT
 #endif
 
 const uint32_t ANALOG_SDK_PLUGIN_ABI_VERSION = 0;
