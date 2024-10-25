@@ -1,3 +1,4 @@
+#define ANALOGSDK_EXPORTS
 #include "../../../includes/plugin.h"
 
 static bool initialised = false;
