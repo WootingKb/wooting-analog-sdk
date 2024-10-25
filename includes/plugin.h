@@ -9,8 +9,6 @@
 #else
 #define ANALOGSDK_EXPORT __declspec(dllimport)
 #endif
-#pragma comment(lib, "userenv.lib")
-#pragma comment(lib, "WS2_32")
 #else
 #define ANALOGSDK_EXPORT
 #endif
