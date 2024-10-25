@@ -241,8 +241,8 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
             devices.truncate(device_no);
             // Convert all the DeviceInfo's into DeviceInfo_C pointers
             let c_devices: Vec<*mut DeviceInfo_FFI> = devices
-                .drain(..)
-                .map(|dev| Box::into_raw(Box::new(dev.into())))
+                .iter()
+                .map(|dev| Box::into_raw(Box::new((*dev).clone().into())))
                 .collect();
 
             buff.swap_with_slice(c_devices.clone().as_mut());
