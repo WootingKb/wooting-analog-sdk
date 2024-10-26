@@ -174,8 +174,8 @@ lazy_static! {
         bimap
     };
 
-                                            //VirtualKey, Scancode
-     static ref VIRTUALKEY_OVERRIDE: BiMap<u8, u16> = {
+    //<VirtualKey, Scancode>
+    static ref VIRTUALKEY_OVERRIDE: BiMap<u8, u16> = {
         let mut bimap: BiMap<u8, u16> = BiMap::new();
         bimap.insert(0x60, 0x0052); //NUMPAD0
         bimap.insert(0x61, 0x004f); //NUMPAD1
