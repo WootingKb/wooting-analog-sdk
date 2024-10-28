@@ -47,7 +47,7 @@ jobs:
         # Caching not needed on custom runner
         if: ${{ ! startsWith(matrix.os, 'win-sign') }}
         with:
-          sharedKey: ${{ matrix.target }}
+          shared-key: ${{ matrix.target }}
       - name: Run deploy script
         shell: bash
         # Signing key env is required for signing dll's on windows
