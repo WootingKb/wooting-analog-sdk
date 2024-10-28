@@ -25,7 +25,7 @@ jobs:
       TARGET: ${{ matrix.target }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - name: Setup Build Environment
@@ -34,15 +34,15 @@ jobs:
           sudo apt update
           sudo apt install libudev-dev libhidapi-dev
       - name: Setup rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          override: true
-          default: true
-          target: ${{ matrix.target }}
+          targets: ${{ matrix.target }}
       - uses: davidB/rust-cargo-make@v1
         # This doesn't work on custom win runner, so we just skip it as it's installed already anyway
         if: ${{ ! startsWith(matrix.os, 'win-sign') }}
-      - uses: Swatinem/rust-cache@v1
+        with:
+          version: 0.37.23
+      - uses: Swatinem/rust-cache@v2
         # Caching not needed on custom runner
         if: ${{ ! startsWith(matrix.os, 'win-sign') }}
         with:
@@ -73,7 +73,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET
       - name: Upload artifacts to release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           draft: true
           files: |
