@@ -42,12 +42,12 @@ main() {
     # rustup default nightly
     cargo make build-target-release
 
+    ROOT_DIR=${GITHUB_WORKSPACE:-.}
     ARTIFACT_FOLDER=$ROOT_DIR/target/release-artifacts
 
 
     # Codesign dlls before packaging up. This should only be running on Windows
     if [ $RUNNER_OS = "Windows" ]; then
-        ROOT_DIR=${GITHUB_WORKSPACE:-.}
 
         powershell $ROOT_DIR/ci/codesign.ps1 $ARTIFACT_FOLDER/wooting_analog_sdk.dll $ARTIFACT_FOLDER/wooting_analog_plugin.dll $ARTIFACT_FOLDER/wooting_analog_wrapper.dll $ARTIFACT_FOLDER/wooting-analog-sdk-updater.exe $ARTIFACT_FOLDER/wooting_analog_test_plugin.dll $ARTIFACT_FOLDER/wooting-analog-virtual-control.exe
     fi
