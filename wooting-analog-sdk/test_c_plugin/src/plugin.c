@@ -62,7 +62,7 @@ int read_full_buffer(uint16_t code_buffer[], float analog_buffer[], int len,
 ///
 /// Although, the client should be copying any data they want to use for a
 /// prolonged time as there is no lifetime guarantee on the data.
-int device_info(const WootingAnalog_DeviceInfo_FFI *buffer[], int len) {
+int device_info(WootingAnalog_DeviceInfo_FFI *buffer[], int len) {
   buffer[0] = &deviceInfo;
   return 1;
 }
