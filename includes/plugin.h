@@ -57,7 +57,7 @@ ANALOGSDK_API int read_full_buffer(uint16_t code_buffer[],
 ///
 /// Although, the client should be copying any data they want to use for a
 /// prolonged time as there is no lifetime guarantee on the data.
-ANALOGSDK_API int device_info(const WootingAnalog_DeviceInfo_FFI *buffer[],
+ANALOGSDK_API int device_info(WootingAnalog_DeviceInfo_FFI *buffer[],
                                int len);
 
 /// Function called to get the analog value for a particular HID key `code` from
