@@ -89,17 +89,13 @@ impl DeviceInfo_FFI {
             product_id: self.product_id.clone(),
             // In this case we use CStr rather than CString as we don't want the memory to be dropped here which may cause a double free
             // We leave it up to ffi interface to drop the memory
-            manufacturer_name: unsafe {
-                CStr::from_ptr(self.manufacturer_name)
-                    .to_str()
-                    .unwrap()
-                    .to_owned()
+            manufacturer_name: {
+                let cstr = unsafe { CStr::from_ptr(self.manufacturer_name) };
+                String::from_utf8_lossy(cstr.to_bytes()).to_string()
             },
-            device_name: unsafe {
-                CStr::from_ptr(self.device_name)
-                    .to_str()
-                    .unwrap()
-                    .to_owned()
+            device_name: {
+                let cstr = unsafe { CStr::from_ptr(self.device_name) };
+                String::from_utf8_lossy(cstr.to_bytes()).to_string()
             },
             device_id: self.device_id.clone(),
             device_type: self.device_type.clone(),
