@@ -84,6 +84,15 @@ impl Drop for DeviceInfo_FFI {
 
 impl DeviceInfo_FFI {
     pub fn into_device_info(&self) -> DeviceInfo {
+        let raw = self.device_type.clone() as i32;
+        let device_type = DeviceType::from_i32(raw);
+        if device_type.is_none() {
+            log::error!(
+                "Invalid Device Type when converting DeviceInfo_FFI into DeviceInfo: {}",
+                raw
+            );
+        }
+
         DeviceInfo {
             vendor_id: self.vendor_id.clone(),
             product_id: self.product_id.clone(),
@@ -102,7 +111,7 @@ impl DeviceInfo_FFI {
                     .to_owned()
             },
             device_id: self.device_id.clone(),
-            device_type: self.device_type.clone(),
+            device_type: device_type.unwrap_or(DeviceType::Other),
         }
     }
 }
