@@ -42,9 +42,14 @@ main() {
     # rustup default nightly
     cargo make build-target-release
 
+    ARTIFACT_FOLDER=$ROOT_DIR/target/release-artifacts
+
+
     # Codesign dlls before packaging up. This should only be running on Windows
     if [ $RUNNER_OS = "Windows" ]; then
-        ./ci/codesign_dll.sh
+        ROOT_DIR=${GITHUB_WORKSPACE:-.}
+
+        powershell $ROOT_DIR/ci/codesign.ps1 $ARTIFACT_FOLDER/wooting_analog_sdk.dll $ARTIFACT_FOLDER/wooting_analog_plugin.dll $ARTIFACT_FOLDER/wooting_analog_wrapper.dll $ARTIFACT_FOLDER/wooting-analog-sdk-updater.exe $ARTIFACT_FOLDER/wooting_analog_test_plugin.dll $ARTIFACT_FOLDER/wooting-analog-virtual-control.exe
     fi
 
     mkdir $stage/plugins
@@ -57,8 +62,8 @@ main() {
     mkdir $stage/wrapper/sdk
 
     # Copy Plugin items
-    cp target/release-artifacts/${lib_prefix}wooting_analog_common.$lib_ext $stage/plugins/lib
-    cp target/release-artifacts/${lib_prefix}wooting_analog_plugin_dev.$lib_ext $stage/plugins/lib
+    cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_common.$lib_ext $stage/plugins/lib
+    cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_plugin_dev.$lib_ext $stage/plugins/lib
 
     ## Copy c headers
     cp includes/plugin.h $stage/plugins/includes/
@@ -70,18 +75,18 @@ main() {
 
 
     # Copy wrapper items
-    cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext $stage/wrapper/
-    cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$lib_ext $stage/wrapper/lib/
+    cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext $stage/wrapper/
+    cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_wrapper.$lib_ext $stage/wrapper/lib/
 
     if [ $RUNNER_OS = Windows ]; then
-        cp target/release-artifacts/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext.$lib_ext $stage/wrapper/
+        cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_wrapper.$shared_lib_ext.$lib_ext $stage/wrapper/
     fi
 
-    cp target/release-artifacts/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
-    cp target/release-artifacts/${lib_prefix}wooting_analog_test_plugin.$shared_lib_ext $stage/wrapper/sdk/
+    cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/wrapper/sdk/
+    cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_test_plugin.$shared_lib_ext $stage/wrapper/sdk/
     # Include Wooting Plugin & Virtual Keyboard app
-    cp target/release-artifacts/${lib_prefix}wooting_analog_plugin.$shared_lib_ext $stage/wrapper/sdk/
-    cp target/release-artifacts/wooting-analog-virtual-control$exe_ext $stage/wrapper/sdk/
+    cp $ARTIFACT_FOLDER/${lib_prefix}wooting_analog_plugin.$shared_lib_ext $stage/wrapper/sdk/
+    cp $ARTIFACT_FOLDER/wooting-analog-virtual-control$exe_ext $stage/wrapper/sdk/
 
     ## Copy c headers
     cp includes/wooting-analog-wrapper.h $stage/wrapper/includes/

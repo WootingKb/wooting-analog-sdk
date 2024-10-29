@@ -2,8 +2,6 @@
 if [ $RUNNER_OS = Windows ]; then
   set -e
 
-  export PATH="C:\Program Files (x86)\Windows Kits\10\bin\x64":$PATH
-
 
   powershell Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Scope LocalMachine
   powershell Get-ExecutionPolicy -List
