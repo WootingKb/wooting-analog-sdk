@@ -324,10 +324,18 @@ lazy_static! {
 
 }
 
-#[allow(unused)]
-pub fn vk_to_hid(vk: u16, translate: bool) -> Option<u16> {
+pub fn vk_to_hid(vk: u16) -> Option<u16> {
+    if let Some(&hid) = HID_TO_VK_MAP_US.get_by_right(&(vk as u8)) {
+        return Some(hid as u16);
+    } else {
+        return None;
+    }
+}
+
+#[allow(unused)] // Suppress warning about 'vk' being unused on non-windows
+pub fn vk_to_hid_translate(vk: u16) -> Option<u16> {
     #[cfg(windows)]
-    if translate {
+    {
         let scancode: u16;
         if let Some(&code) = VIRTUALKEY_OVERRIDE.get_by_left(&(vk as u8)) {
             scancode = code;
@@ -340,44 +348,38 @@ pub fn vk_to_hid(vk: u16, translate: bool) -> Option<u16> {
             }
         }
         return scancode_to_hid(scancode);
-    } else {
-        if let Some(&hid) = HID_TO_VK_MAP_US.get_by_right(&(vk as u8)) {
-            return Some(hid as u16);
-        } else {
-            return None;
-        }
     }
 
     #[cfg(not(windows))]
     None
 }
 
-#[allow(unused)]
-pub fn hid_to_vk(hid: u16, translate: bool) -> Option<u16> {
-    #[cfg(windows)]
-    if translate {
-        if let Some(scancode) = hid_to_scancode(hid) {
-            if let Some(&hid) = VIRTUALKEY_OVERRIDE.get_by_right(&scancode) {
-                return Some(hid as u16);
-            }
-
-            use winapi::um::winuser::MapVirtualKeyA;
-            let vk: u32 = unsafe { MapVirtualKeyA(scancode.into(), 3) };
-
-            if (vk == 0) {
-                return None;
-            }
-
-            return Some(vk as u16);
-        } else {
-            return None;
-        }
+pub fn hid_to_vk(hid: u16) -> Option<u16> {
+    if let Some(&vk) = HID_TO_VK_MAP_US.get_by_left(&(hid as u8)) {
+        return Some(vk as u16);
     } else {
-        if let Some(&vk) = HID_TO_VK_MAP_US.get_by_left(&(hid as u8)) {
-            return Some(vk as u16);
-        } else {
+        return None;
+    }
+}
+
+#[allow(unused)] // Suppress warning about 'hid' being unused on non-windows
+pub fn hid_to_vk_translate(hid: u16) -> Option<u16> {
+    #[cfg(windows)]
+    if let Some(scancode) = hid_to_scancode(hid) {
+        if let Some(&hid) = VIRTUALKEY_OVERRIDE.get_by_right(&scancode) {
+            return Some(hid as u16);
+        }
+
+        use winapi::um::winuser::MapVirtualKeyA;
+        let vk: u32 = unsafe { MapVirtualKeyA(scancode.into(), 3) };
+
+        if vk == 0 {
             return None;
         }
+
+        return Some(vk as u16);
+    } else {
+        return None;
     }
 
     #[cfg(not(windows))]
@@ -425,8 +427,8 @@ pub fn code_to_hid(code: u16, mode: &KeycodeType) -> Option<u16> {
             }
         }
         KeycodeType::ScanCode1 => scancode_to_hid(code),
-        KeycodeType::VirtualKey => vk_to_hid(code, false),
-        KeycodeType::VirtualKeyTranslate => vk_to_hid(code, true),
+        KeycodeType::VirtualKey => vk_to_hid(code),
+        KeycodeType::VirtualKeyTranslate => vk_to_hid_translate(code),
     }
 }
 
@@ -448,8 +450,8 @@ pub fn hid_to_code(code: u16, mode: &KeycodeType) -> Option<u16> {
             }
         }
         KeycodeType::ScanCode1 => hid_to_scancode(code),
-        KeycodeType::VirtualKey => hid_to_vk(code, false),
-        KeycodeType::VirtualKeyTranslate => hid_to_vk(code, true),
+        KeycodeType::VirtualKey => hid_to_vk(code),
+        KeycodeType::VirtualKeyTranslate => hid_to_vk_translate(code),
     }
 }
 
@@ -467,7 +469,11 @@ mod tests {
             KeycodeType::VirtualKeyTranslate,
         ];
         #[cfg(not(windows))]
-        let keycode_types = [KeycodeType::HID, KeycodeType::ScanCode1];
+        let keycode_types = [
+            KeycodeType::HID,
+            KeycodeType::ScanCode1,
+            KeycodeType::VirtualKey,
+        ];
         for code in 0..0xFFFF {
             let prefix = (code & 0xFF00) >> 8;
             match prefix {

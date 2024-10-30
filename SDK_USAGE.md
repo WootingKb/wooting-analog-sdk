@@ -105,7 +105,7 @@ By default, the mode is set to HID
 
 ### Notes
 
-- `VirtualKey` and `VirtualKeyTranslate` are only available on Windows
+- `VirtualKeyTranslate` is only available on Windows
 - With all modes except `VirtualKeyTranslate`, the key identifier will point to the physical key on the standard layout. i.e. if you ask for the Q key, it will be the key right to tab regardless of the layout you have selected
 - With `VirtualKeyTranslate`, if you request Q, it will be the key that inputs Q on the current layout, not the key that is Q on the standard layout.
 
@@ -165,9 +165,9 @@ The `device_id` can be found through calling [Get Device Info](#get-connected-de
 ```
 wooting_analog_set_mode(KeycodeType::ScanCode1);
 wooting_analog_read_analog(0x10); //This will get you the value for the key which is Q in the standard US layout (The key just right to tab)
-wooting_analog_set_mode(KeycodeType::VirtualKey); //This will only work on Windows
+wooting_analog_set_mode(KeycodeType::VirtualKey);
 wooting_analog_read_analog(0x51); //This will get you the value for the key that is Q on the standard layout
-wooting_analog_set_mode(KeycodeType::VirtualKeyTranslate); //Also will only work on Windows
+wooting_analog_set_mode(KeycodeType::VirtualKeyTranslate); //This will only work on Windows
 wooting_analog_read_analog(0x51); //This will get you the value for the key that inputs Q on the current layout
 ```
 

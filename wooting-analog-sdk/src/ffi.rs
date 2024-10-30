@@ -105,11 +105,11 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
         return WootingAnalogResult::UnInitialized;
     }
 
-    //TODO: Make it return invalid argument when attempting to use virutal keys on platforms other than win
+    //TODO: Make it return invalid argument when attempting to use VirtualKeyTranslate on platforms other than win
     if let Some(key_mode) = KeycodeType::from_u32(mode) {
         #[cfg(not(windows))]
         {
-            if key_mode == KeycodeType::VirtualKey || key_mode == KeycodeType::VirtualKeyTranslate {
+            if key_mode == KeycodeType::VirtualKeyTranslate {
                 return WootingAnalogResult::NotAvailable;
             }
         }
