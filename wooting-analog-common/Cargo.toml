@@ -1,13 +1,13 @@
 [package]
 name = "wooting-analog-common"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["simon-wh <simon@wooting.io>"]
 edition = "2018"
 license = "MPL-2.0"
 homepage = "https://github.com/WootingKb/wooting-analog-sdk"
 repository = "https://github.com/WootingKb/wooting-analog-sdk"
 description = "Common elements of the Wooting Analog SDK"
-keywords = [ "wooting", "keyboard", "analog", "sdk" ]
+keywords = ["wooting", "keyboard", "analog", "sdk"]
 documentation = "https://docs.rs/wooting-analog-common"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
