@@ -130,7 +130,7 @@ typedef struct WootingAnalog_DeviceInfo_FFI {
    */
   WootingAnalog_DeviceID device_id;
   /**
-   * Hardware type of the Device
+   * Hardware type of the Device see `DeviceType` enum
    */
-  enum WootingAnalog_DeviceType device_type;
+  WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo_FFI;

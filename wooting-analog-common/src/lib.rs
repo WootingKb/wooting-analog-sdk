@@ -39,6 +39,12 @@ pub struct DeviceInfo {
     pub device_type: DeviceType,
 }
 
+// We do this little alias so that we can force cbindgen to rename it to point to the DeviceType enum.
+// For the rust side, we want to have it as a c_int so we can ensure it's valid and within bounds.
+// As just taking it as the enum straight up can cause undefined behaviour if an invalid value is provided
+/// cbindgen:ignore
+type DeviceType_FFI = c_int;
+
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is the version which the consumer of the SDK will receive
 /// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
@@ -55,8 +61,8 @@ pub struct DeviceInfo_FFI {
     pub device_name: *mut c_char,
     /// Unique device ID, which should be generated using `generate_device_id`
     pub device_id: DeviceID,
-    /// Hardware type of the Device
-    pub device_type: DeviceType,
+    /// Hardware type of the Device see `DeviceType` enum
+    pub device_type: DeviceType_FFI,
 }
 
 impl From<DeviceInfo> for DeviceInfo_FFI {
@@ -67,7 +73,7 @@ impl From<DeviceInfo> for DeviceInfo_FFI {
             manufacturer_name: CString::new(device.manufacturer_name).unwrap().into_raw(),
             device_name: CString::new(device.device_name).unwrap().into_raw(),
             device_id: device.device_id,
-            device_type: device.device_type,
+            device_type: device.device_type as c_int,
         }
     }
 }
@@ -84,12 +90,11 @@ impl Drop for DeviceInfo_FFI {
 
 impl DeviceInfo_FFI {
     pub fn into_device_info(&self) -> DeviceInfo {
-        let raw = self.device_type.clone() as i32;
-        let device_type = DeviceType::from_i32(raw);
+        let device_type = DeviceType::from_i32(self.device_type);
         if device_type.is_none() {
             log::error!(
                 "Invalid Device Type when converting DeviceInfo_FFI into DeviceInfo: {}",
-                raw
+                self.device_type
             );
         }
 
