@@ -15,7 +15,6 @@ extern crate wooting_analog_common;
 extern crate wooting_analog_plugin_dev;
 
 #[cfg(test)]
-#[macro_use]
 extern crate shared_memory;
 
 //library modules

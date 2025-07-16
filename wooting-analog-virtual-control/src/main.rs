@@ -251,21 +251,17 @@ impl Key {
         .into()
     }
 
-    fn update(&mut self, shared_state: &mut SharedMem, value: f32) {
+    fn update(&mut self, shared_state: &mut Shmem, value: f32) {
         self.value = value;
-        match shared_state.wlock::<SharedState>(0) {
-            Ok(mut v) => {
-                v.analog_values[self.keycode as usize] = self.value as u8;
-                // info!("Updated key: {}, to {}", self.keycode, self.value);
-            }
-            Err(_) => panic!("Failed to acquire write lock !"),
-        };
+        let v = unsafe { &mut *(shared_state.as_ptr() as *mut u8 as *mut SharedState) };
+        v.analog_values[self.keycode as usize] = self.value as u8;
+        // info!("Updated key: {}, to {}", self.keycode, self.value);
     }
 }
 
 struct AppState {
     keys: Vec<Vec<Key>>,
-    shared_mem: SharedMem,
+    shared_mem: Shmem,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -278,11 +274,11 @@ impl Sandbox for AppState {
     type Message = Message;
 
     fn new() -> Self {
-        let mut shmem = match SharedMem::open_linked(
+        let shmem = match ShmemConf::new().size(4096).flink(
             std::env::temp_dir()
                 .join("wooting-test-plugin.link")
                 .as_os_str(),
-        ) {
+        ).open() {
             Ok(v) => v,
             Err(e) => {
                 info!("Error : {}", e);
@@ -290,28 +286,14 @@ impl Sandbox for AppState {
             }
         };
 
-        info!("Opened link file with info : {}", shmem);
-
-        //Make sure at least one lock exists before using it...
-        if shmem.num_locks() != 1 {
-            println!("Expected to only have 1 lock in shared mapping !");
-            panic!();
-        }
-
         //Tell the plugin that we've connected
         {
-            let mut shared_state = match shmem.wlock::<SharedState>(0) {
-                Ok(v) => v,
-                Err(_) => panic!("Failed to acquire write lock !"),
-            };
+            let shared_state = unsafe { &mut *(shmem.as_ptr() as *mut u8 as *mut SharedState) };
             shared_state.device_connected = true;
         }
         let mut keys = vec![];
         {
-            let state = match shmem.rlock::<SharedState>(0) {
-                Ok(v) => v,
-                Err(_) => panic!("Failed to acquire read lock !"),
-            };
+            let state = unsafe { &mut *(shmem.as_ptr() as *mut u8 as *mut SharedState) };
             for (y, items) in KEYBOARD_LAYOUT.iter().enumerate() {
                 let mut row: Vec<Key> = vec![];
                 for (x, &(name, code, width, height)) in items.iter().enumerate() {
@@ -352,10 +334,8 @@ impl Sandbox for AppState {
                     .update(&mut self.shared_mem, val);
             }
             Message::ConnectedChanged(state) => {
-                match self.shared_mem.wlock::<SharedState>(0) {
-                    Ok(mut shared_state) => shared_state.device_connected = state,
-                    Err(_) => panic!("Failed to acquire read lock !"),
-                };
+                let shared_state = unsafe { &mut *(self.shared_mem.as_ptr() as *mut u8 as *mut SharedState) };
+                shared_state.device_connected = state;
             }
         }
     }
@@ -371,9 +351,7 @@ impl Sandbox for AppState {
         }
         col.push(
             Row::new().push(Checkbox::new(
-                self.shared_mem
-                    .rlock::<SharedState>(0)
-                    .unwrap()
+                unsafe { &mut *(self.shared_mem.as_ptr() as *mut u8 as *mut SharedState) }
                     .device_connected,
                 "Device Connected",
                 Message::ConnectedChanged,
@@ -387,10 +365,7 @@ impl Sandbox for AppState {
 impl Drop for AppState {
     fn drop(&mut self) {
         //Perform cleanup
-        let mut shared_state = match self.shared_mem.wlock::<SharedState>(0) {
-            Ok(v) => v,
-            Err(_) => panic!("Failed to acquire write lock !"),
-        };
+        let shared_state = unsafe { &mut *(self.shared_mem.as_ptr() as *mut u8 as *mut SharedState) };
 
         shared_state.device_connected = false;
         shared_state.analog_values.iter_mut().for_each(|x| *x = 0);

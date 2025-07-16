@@ -25,7 +25,7 @@ wooting-analog-common = { path = "../wooting-analog-common"}
 wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 
 [dev-dependencies]
-shared_memory = "^0.8"
+shared_memory = "^0.12"
 
 [build-dependencies]
 cmake = "0.1"

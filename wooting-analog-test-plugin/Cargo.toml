@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
-shared_memory = "^0.8"
+shared_memory = "^0.12"
 log = "^0.4"
 env_logger = "^0.8"
 

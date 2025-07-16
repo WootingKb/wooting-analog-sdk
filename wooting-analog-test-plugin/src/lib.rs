@@ -44,8 +44,6 @@ pub struct SharedState {
     pub analog_values: [u8; 0xFF],
 }
 
-unsafe impl SharedMemCast for SharedState {}
-
 impl WootingAnalogTestPlugin {
     fn new() -> Self {
         if let Err(e) = env_logger::try_init() {
@@ -68,8 +66,8 @@ impl WootingAnalogTestPlugin {
 
         let worker_thread = thread::spawn(move || {
             let link_path = std::env::temp_dir().join("wooting-test-plugin.link");
-            let mut my_shmem = {
-                match SharedMem::open_linked(link_path.as_os_str()) {
+            let my_shmem = {
+                match ShmemConf::new().size(4096).flink(link_path.as_os_str()).open() {
                     Ok(v) => v,
                     Err(e) => {
                         if link_path.exists() {
@@ -79,7 +77,7 @@ impl WootingAnalogTestPlugin {
                                 error!("Could not delete old link file: {}", e);
                             }
                         }
-                        match SharedMem::create_linked(link_path.as_os_str(), LockType::Mutex, 4096)
+                        match ShmemConf::new().size(4096).flink(link_path.as_os_str()).create()
                         {
                             Ok(m) => m,
                             Err(e) => {
@@ -93,16 +91,10 @@ impl WootingAnalogTestPlugin {
                 }
             };
 
-            info!("{:?}", my_shmem.get_link_path());
+            info!("{:?}", my_shmem.get_flink_path());
 
             {
-                let mut shared_state = match my_shmem.wlock::<SharedState>(0) {
-                    Ok(v) => v,
-                    Err(_) => {
-                        error!("Test plugin Failed to acquire write lock! Stopping...");
-                        return;
-                    }
-                };
+                let shared_state = unsafe { &mut *(my_shmem.as_ptr() as *mut u8 as *mut SharedState) };
                 shared_state.vendor_id = 0x03eb;
                 shared_state.product_id = 0xFFFF;
                 shared_state.device_type = DeviceType::Keyboard;
@@ -122,13 +114,7 @@ impl WootingAnalogTestPlugin {
                 }
 
                 {
-                    let mut state = match my_shmem.wlock::<SharedState>(0) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            warn!("failed to get lock");
-                            continue;
-                        }
-                    };
+                    let state = unsafe { &mut *(my_shmem.as_ptr() as *mut u8 as *mut SharedState) };
 
                     if state.dirty_device_info || t_device.lock().unwrap().is_none() {
                         state.dirty_device_info = false;
@@ -166,8 +152,6 @@ impl WootingAnalogTestPlugin {
                     }
 
                     if !state.device_connected {
-                        //make sure we drop the state so we're not holding the lock while the thread is sleeping
-                        drop(state);
                         thread::sleep(Duration::from_millis(500));
                         continue;
                     }

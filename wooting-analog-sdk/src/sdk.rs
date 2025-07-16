@@ -487,7 +487,7 @@ impl Default for AnalogSDK {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared_memory::*;
+    use shared_memory::ShmemConf;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
@@ -509,8 +509,6 @@ mod tests {
 
         pub analog_values: [u8; 0xFF],
     }
-
-    unsafe impl SharedMemCast for SharedState {}
 
     fn shared_init() {
         env_logger::try_init_from_env(env_logger::Env::from("debug"))
@@ -548,13 +546,6 @@ mod tests {
             Err(WootingAnalogResult::NoPlugins)
         );
         assert!(!sdk.initialised)
-    }
-
-    fn get_wlock(shmem: &mut SharedMem) -> WriteLockGuard<SharedState> {
-        match shmem.wlock::<SharedState>(0) {
-            Ok(v) => v,
-            Err(_) => panic!("Failed to acquire write lock !"),
-        }
     }
 
     //    lazy_static! { static ref  }
@@ -604,11 +595,11 @@ mod tests {
         //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
         ::std::thread::sleep(Duration::from_millis(500));
 
-        let mut shmem = match SharedMem::open_linked(
+        let mut shmem = match ShmemConf::new().size(4096).flink(
             std::env::temp_dir()
                 .join("wooting-test-plugin.link")
                 .as_os_str(),
-        ) {
+        ).open() {
             Ok(v) => v,
             Err(e) => {
                 println!("Error : {}", e);
@@ -641,7 +632,7 @@ mod tests {
         //Check the connected cb is called
         {
             {
-                let mut shared_state = get_wlock(&mut shmem);
+                let shared_state = unsafe { &mut *(shmem.as_ptr() as *mut u8 as *mut SharedState) };
                 shared_state.device_connected = true;
             }
             wait_for_connected(&got_connected, 5, true);
@@ -655,7 +646,7 @@ mod tests {
         //Check the cb is called with disconnected
         {
             {
-                let mut shared_state = get_wlock(&mut shmem);
+                let shared_state = unsafe { &mut *(shmem.as_ptr() as *mut u8 as *mut SharedState) };
                 shared_state.device_connected = false;
             }
             wait_for_connected(&got_connected, 5, false);
@@ -671,7 +662,7 @@ mod tests {
         let analog_key = 5;
         //Connect the device again, set a keycode to a val
         let device_id = {
-            let mut shared_state = get_wlock(&mut shmem);
+            let shared_state = unsafe { &mut *(shmem.as_ptr() as *mut u8 as *mut SharedState) };
             shared_state.analog_values[analog_key] = analog_val;
             shared_state.device_connected = true;
             1
@@ -747,7 +738,7 @@ mod tests {
         sdk().keycode_mode = KeycodeType::HID;
 
         {
-            let mut shared_state = get_wlock(&mut shmem);
+            let shared_state = unsafe { &mut *(shmem.as_ptr() as *mut u8 as *mut SharedState) };
             shared_state.analog_values[analog_key] = 0;
         }
         ::std::thread::sleep(Duration::from_secs(1));
@@ -763,7 +754,7 @@ mod tests {
 
         sdk().clear_device_event_cb();
         {
-            let mut shared_state = get_wlock(&mut shmem);
+            let shared_state = unsafe { &mut *(shmem.as_ptr() as *mut u8 as *mut SharedState) };
             shared_state.device_connected = false;
         }
         ::std::thread::sleep(Duration::from_secs(1));
