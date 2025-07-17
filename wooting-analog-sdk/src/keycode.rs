@@ -302,6 +302,15 @@ lazy_static! {
 
         bimap.insert(0x75, 0x2F); // HELP
 
+        bimap.insert(0xe0, 0xa2); // CONTROL_LEFT
+        bimap.insert(0xe1, 0xa0); // SHIFT_LEFT
+        bimap.insert(0xe2, 0xa4); // ALT_LEFT
+        bimap.insert(0xe3, 0x5b); // META_LEFT
+        bimap.insert(0xe4, 0xa3); // CONTROL_RIGHT
+        bimap.insert(0xe5, 0xa1); // SHIFT_RIGHT
+        bimap.insert(0xe6, 0xa5); // ALT_RIGHT
+        bimap.insert(0xe7, 0x5c); // META_RIGHT
+
         bimap
     };
 
