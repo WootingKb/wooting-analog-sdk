@@ -135,18 +135,18 @@ lazy_static! {
         bimap.insert(0x72, 0x006e); //F23
 
         bimap.insert(0x73, 0x0076); //F24
-        bimap.insert(0x74, 0x0000); //OPEN
+        //bimap.insert(0x74, 0x0000); //OPEN
 
         bimap.insert(0x75, 0xe03b); //HELP
 
         //bimap.insert(0x77, 0x0000); //SELECT
 
-        bimap.insert(0x79, 0x0000); //AGAIN
+        //bimap.insert(0x79, 0x0000); //AGAIN
         bimap.insert(0x7a, 0xe008); //UNDO
         bimap.insert(0x7b, 0xe017); //CUT
         bimap.insert(0x7c, 0xe018); //COPY
         bimap.insert(0x7d, 0xe00a); //PASTE
-        bimap.insert(0x7e, 0x0000); //FIND
+        //bimap.insert(0x7e, 0x0000); //FIND
         bimap.insert(0x7f, 0xe020); //VOLUME_MUTE
 
         bimap.insert(0x80, 0xe030); //VOLUME_UP
