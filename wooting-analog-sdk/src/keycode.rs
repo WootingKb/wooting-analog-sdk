@@ -215,7 +215,6 @@ lazy_static! {
         bimap.insert(0x26, 0x39); // DIGIT9
         bimap.insert(0x27, 0x30); // DIGIT0
 
-        bimap.insert(0x28, 0x0D); // ENTER
         bimap.insert(0x29, 0x1B); // ESCAPE
         bimap.insert(0x2a, 0x08); // BACKSPACE
         bimap.insert(0x2b, 0x09); // TAB
@@ -282,6 +281,8 @@ lazy_static! {
         bimap.insert(0x61, 0x69); // NUMPAD9
         bimap.insert(0x62, 0x60); // NUMPAD0
         bimap.insert(0x63, 0x6E); // NUMPAD_DECIMAL
+
+        bimap.insert(0x28, 0x0D); // ENTER (moved below NUMPAD_ENTER to ensure vk_to_hid(0x0D) responds with 0x28 instead of 0x58)
 
         bimap.insert(0x64, 0xE2); // INTL_BACKSLASH
         bimap.insert(0x65, 0x5D); // CONTEXT_MENU
