@@ -1,8 +1,9 @@
 use crate::SDK_ABI_VERSION;
+use lazy_static::lazy_static;
 use libloading as libl;
 use std::ops::Deref;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
-pub use wooting_analog_common::{
+pub use wooting_analog_sdk::{
     DeviceEventType, DeviceID, DeviceInfo_FFI, KeycodeType, WootingAnalogResult,
 };
 

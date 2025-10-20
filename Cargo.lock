@@ -1260,9 +1260,9 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "hidapi"
-version = "2.5.1"
+version = "2.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830eccace7c861211d0ad04288e5dad690d6711b0db152084da58882ee7a840a"
+checksum = "03b876ecf37e86b359573c16c8366bc3eba52b689884a0fc42ba3f67203d2a8b"
 dependencies = [
  "cc",
  "cfg-if 1.0.0",
@@ -3988,53 +3988,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "wooting-analog-common"
-version = "0.7.1"
-dependencies = [
- "enum-primitive-derive",
- "ffi-support",
- "log",
- "num-traits 0.1.43",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "wooting-analog-plugin"
-version = "0.7.5"
-dependencies = [
- "env_logger 0.7.1",
- "hidapi",
- "log",
- "objekt",
- "wooting-analog-plugin-dev",
-]
-
-[[package]]
-name = "wooting-analog-plugin-dev"
-version = "0.7.1"
-dependencies = [
- "ffi-support",
- "wooting-analog-common",
-]
-
-[[package]]
 name = "wooting-analog-sdk"
 version = "0.7.5"
 dependencies = [
  "anyhow",
  "bimap",
  "cmake",
+ "enum-primitive-derive",
  "env_logger 0.7.1",
  "ffi-support",
+ "hidapi",
  "lazy_static",
  "libloading 0.7.3",
  "log",
+ "num-traits 0.1.43",
+ "objekt",
  "scancode",
  "shared_memory",
+ "thiserror",
  "winapi 0.3.9",
- "wooting-analog-common",
- "wooting-analog-plugin-dev",
 ]
 
 [[package]]
@@ -4051,16 +4023,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wooting-analog-test-plugin"
-version = "0.7.1"
-dependencies = [
- "env_logger 0.8.4",
- "log",
- "shared_memory",
- "wooting-analog-plugin-dev",
-]
-
-[[package]]
 name = "wooting-analog-virtual-control"
 version = "0.7.1"
 dependencies = [
@@ -4069,8 +4031,7 @@ dependencies = [
  "lazy_static",
  "log",
  "shared_memory",
- "wooting-analog-common",
- "wooting-analog-test-plugin",
+ "wooting-analog-sdk",
 ]
 
 [[package]]
@@ -4080,7 +4041,7 @@ dependencies = [
  "ctrlc",
  "lazy_static",
  "libloading 0.5.2",
- "wooting-analog-common",
+ "wooting-analog-sdk",
 ]
 
 [[package]]

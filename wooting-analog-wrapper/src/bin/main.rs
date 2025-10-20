@@ -1,10 +1,8 @@
-use sdk::{DeviceEventType, DeviceInfo, DeviceInfo_FFI, SDKResult};
-// use wooting_analog_common::{DeviceInfo, SDKResult};
-use wooting_analog_wrapper as sdk;
-extern crate ctrlc;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use wooting_analog_sdk::{DeviceEventType, DeviceInfo, DeviceInfo_FFI, SDKResult};
+use wooting_analog_wrapper as sdk;
 
 fn main() {
     println!("Starting Wooting Analog SDK!");

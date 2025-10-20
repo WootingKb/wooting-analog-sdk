@@ -1,13 +1,8 @@
-#[macro_use]
-extern crate log;
-extern crate hidapi;
-extern crate wooting_analog_plugin_dev;
-#[macro_use]
-extern crate objekt;
-
 use hidapi::DeviceInfo as DeviceInfoHID;
 use hidapi::{HidApi, HidDevice};
+use log::*;
 use log::{error, info};
+use objekt::clone_trait_object;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::os::raw::{c_float, c_ushort};
@@ -15,10 +10,84 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::{str, thread};
-use wooting_analog_plugin_dev::wooting_analog_common::*;
-use wooting_analog_plugin_dev::*;
 
-extern crate env_logger;
+use crate::{DeviceEventType, DeviceID, DeviceInfo, DeviceType, SDKResult, WootingAnalogResult};
+
+#[cfg(target_os = "macos")]
+pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
+#[cfg(target_os = "linux")]
+pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
+#[cfg(target_os = "windows")]
+pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
+
+pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The core Plugin trait which needs to be implemented for an Analog Plugin to function
+pub trait Plugin {
+    /// Get a name describing the `Plugin`.
+    fn name(&mut self) -> SDKResult<&'static str>;
+
+    /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
+    fn initialise(
+        &mut self,
+        callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
+    ) -> SDKResult<u32>;
+
+    /// A function fired to check if the plugin is currently initialised
+    fn is_initialised(&mut self) -> bool;
+
+    /// This function is fired by the SDK to collect up all Device Info structs. The memory for the struct should be retained and only dropped
+    /// when the device is disconnected or the plugin is unloaded. This ensures that the Device Info is not garbled when it's being accessed by the client.
+    ///
+    /// # Notes
+    ///
+    /// Although, the client should be copying any data they want to use for a prolonged time as there is no lifetime guarantee on the data.
+    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>>;
+
+    /// A callback fired immediately before the plugin is unloaded. Use this if
+    /// you need to do any cleanup.
+    fn unload(&mut self) {}
+
+    /// Function called to get the analog value for a particular HID key `code` from the device with ID `device`.
+    /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
+    fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32>;
+
+    /// Function called to get the full analog read buffer for a particular device with ID `device`. `max_length` is the maximum amount
+    /// of keys that can be accepted, any more beyond this will be ignored by the SDK.
+    /// If `device` is 0 then no specific device is specified and the data should be read from all devices and combined
+    fn read_full_buffer(
+        &mut self,
+        max_length: usize,
+        device: DeviceID,
+    ) -> SDKResult<HashMap<c_ushort, c_float>>;
+}
+
+/// Declare a plugin type and its constructor.
+///
+/// # Notes
+///
+/// This works by automatically generating an `extern "C"` function with a
+/// pre-defined signature and symbol name. Therefore you will only be able to
+/// declare one plugin per library.
+#[macro_export]
+macro_rules! declare_plugin {
+    ($plugin_type:ty, $constructor:path) => {
+        #[no_mangle]
+        pub extern "C" fn _plugin_create() -> *mut Plugin {
+            // make sure the constructor is the correct type.
+            let constructor: fn() -> $plugin_type = $constructor;
+
+            let object = constructor();
+            let boxed: Box<dyn Plugin> = Box::new(object);
+            Box::into_raw(boxed)
+        }
+
+        #[no_mangle]
+        pub extern "C" fn plugin_version() -> &'static str {
+            ANALOG_SDK_PLUGIN_VERSION
+        }
+    };
+}
 
 const ANALOG_BUFFER_SIZE: usize = 48;
 const ANALOG_MAX_SIZE: usize = 40;
@@ -100,7 +169,7 @@ trait DeviceImplementation: objekt::Clone + Send {
 
     /// Get the unique device ID from the given `device_info`
     fn get_device_id(&self, device_info: &DeviceInfoHID) -> DeviceID {
-        wooting_analog_plugin_dev::generate_device_id(
+        crate::generate_device_id(
             device_info.serial_number().as_ref().unwrap_or(&"NO SERIAL"),
             device_info.vendor_id(),
             device_info.product_id(),
@@ -349,12 +418,12 @@ impl WootingPlugin {
             };
 
         let refresh_devices = |hid: &mut HidApi| -> hidapi::HidResult<()> {
-                hid.reset_devices()?;
-                hid.add_devices(WOOTING_VID, 0)?;
-                hid.add_devices(0x03EB, 0xFF01)?;
-                hid.add_devices(0x03EB, 0xFF02)?;
-                Ok(())
-            };
+            hid.reset_devices()?;
+            hid.add_devices(WOOTING_VID, 0)?;
+            hid.add_devices(0x03EB, 0xFF01)?;
+            hid.add_devices(0x03EB, 0xFF02)?;
+            Ok(())
+        };
 
         let device_impls: Vec<Box<dyn DeviceImplementation>> = vec![
             Box::new(WootingOne()),
@@ -559,3 +628,242 @@ impl Plugin for WootingPlugin {
 }
 
 declare_plugin!(WootingPlugin, WootingPlugin::new);
+
+pub(crate) mod c {
+    use ffi_support::FfiStr;
+    use libloading::{Library, Symbol};
+    use log::*;
+    use log::{error, info};
+    use std::collections::HashMap;
+    use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
+
+    use crate::{
+        DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin, SDKResult,
+        WootingAnalogResult,
+    };
+
+    macro_rules! lib_wrap {
+    //(@as_item $i:item) => {$i};
+
+    (
+        $(
+            fn $fn_names:ident($($fn_arg_names:ident: $fn_arg_tys:ty),*) $(-> $fn_ret_tys:ty)*;
+        )*
+    ) => {
+        $(
+            //lib_wrap! {
+            //    @as_item
+                #[no_mangle]
+                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
+                    unsafe {
+                        type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
+                        //TODO: Retain the obtained function pointer between calls
+                        let func :  Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
+                                    error!("{}", e);
+                                }).ok();
+                        match func {
+                            Some(f) => f($($fn_arg_names),*).into(),
+                            _ => Default::default()
+
+                        }
+                    }
+                }
+            //}
+        )*
+    };
+}
+
+    macro_rules! lib_wrap_option {
+    //(@as_item $i:item) => {$i};
+
+    (
+        $(
+            fn $fn_names:ident($($fn_arg_names:ident: $fn_arg_tys:ty),*) $(-> $fn_ret_tys:ty)*;
+        )*
+    ) => {
+        $(
+            //lib_wrap! {
+            //    @as_item
+                #[no_mangle]
+                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> SDKResult<$fn_ret_tys>)* {
+                    unsafe {
+                        type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
+                        let func :Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
+                                    error!("{}", e);
+                                }).ok();
+                        match func {
+                            Some(f) => f($($fn_arg_names),*).into(),
+                            _ => Err(WootingAnalogResult::FunctionNotFound).into()
+
+                        }
+                    }
+                }
+            //}
+        )*
+    };
+}
+
+    const CPLUGIN_ABI_VERSION: u32 = 1;
+
+    pub struct CPlugin {
+        lib: Library,
+        cb_data_ptr: Option<*mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>,
+        //funcs: HashMap<&'static str, Option<Symbol>>
+    }
+
+    impl CPlugin {
+        pub fn new(lib: Library) -> SDKResult<CPlugin> {
+            unsafe {
+                if let Some(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION").ok() {
+                    let v = **ver;
+                    info!("Got cplugin abi: {:?}", v);
+                    if v != CPLUGIN_ABI_VERSION {
+                        error!(
+                            "CPlugin ABI version does not match! Given: {}, Expected: {}",
+                            v, CPLUGIN_ABI_VERSION
+                        );
+                        return Err(WootingAnalogResult::IncompatibleVersion).into();
+                    }
+                }
+            }
+
+            Ok(CPlugin {
+                lib,
+                cb_data_ptr: None, //funcs: HashMap::new()
+            })
+            .into()
+        }
+
+        lib_wrap_option! {
+            //c_name has to be over here due to it not being part of the Plugin trait
+            fn initialise(data: *const c_void, callback: extern "C" fn(*mut c_void, DeviceEventType, *const DeviceInfo_FFI)) -> i32;
+            fn name() -> FfiStr<'static>;
+
+            fn read_analog(code: u16, device: DeviceID) -> f32;
+            fn read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
+            fn device_info(buffer: *mut *const DeviceInfo_FFI, len: c_uint) -> c_int;
+        }
+
+        lib_wrap! {
+            fn is_initialised() -> bool;
+            fn unload();
+        }
+    }
+
+    extern "C" fn call_closure(
+        data: *mut c_void,
+        event: DeviceEventType,
+        device_raw: *const DeviceInfo_FFI,
+    ) {
+        debug!("Got into the callclosure");
+        unsafe {
+            if data.is_null() {
+                error!("We got a null data pointer in call_closure!");
+                return;
+            }
+
+            let device_info = device_raw.as_ref().unwrap().into_device_info();
+
+            let callback_ptr =
+                Box::from_raw(data as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>);
+
+            (*callback_ptr)(event, &device_info);
+
+            //Throw it back into raw to prevent it being dropped so the callback can be called multiple times
+            Box::into_raw(callback_ptr);
+        }
+    }
+
+    impl Plugin for CPlugin {
+        fn name(&mut self) -> SDKResult<&'static str> {
+            self.name().0.map(|s| s.as_str()).into()
+        }
+
+        fn initialise(
+            &mut self,
+            callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
+        ) -> SDKResult<u32> {
+            let data = Box::into_raw(Box::new(callback));
+            self.cb_data_ptr = Some(data);
+            self.initialise(data as *const _, call_closure)
+                .0
+                .map(|res| res as u32)
+                .into()
+        }
+
+        fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
+            self.read_analog(code, device).0.into()
+        }
+
+        fn read_full_buffer(
+            &mut self,
+            max_length: usize,
+            device: DeviceID,
+        ) -> SDKResult<HashMap<c_ushort, c_float>> {
+            let mut code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length);
+            let mut analog_buffer: Vec<c_float> = Vec::with_capacity(max_length);
+            code_buffer.resize(max_length, 0);
+            analog_buffer.resize(max_length, 0.0);
+            let count: usize = {
+                let ret = self
+                    .read_full_buffer(
+                        code_buffer.as_ptr(),
+                        analog_buffer.as_ptr(),
+                        max_length as c_uint,
+                        device,
+                    )
+                    .0;
+                if let Err(e) = ret {
+                    //debug!("Error got: {:?}",e);
+                    return Err(e).into();
+                }
+                let ret = ret.unwrap();
+                max_length.min(ret as usize)
+            };
+
+            let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
+            //println!("Count was {}", count);
+            for i in 0..count {
+                analog_data.insert(code_buffer[i], analog_buffer[i]);
+            }
+
+            Ok(analog_data).into()
+        }
+
+        fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
+            let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
+
+            match self
+                .device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
+                .0
+                .map(|no| no as u32)
+            {
+                Ok(num) => unsafe {
+                    device_infos.truncate(num as usize);
+                    let devices = device_infos
+                        .drain(..)
+                        .map(|dev| dev.as_ref().unwrap().into_device_info())
+                        .collect();
+                    Ok(devices).into()
+                },
+                Err(e) => Err(e).into(),
+            }
+        }
+
+        fn is_initialised(&mut self) -> bool {
+            self.is_initialised()
+        }
+
+        fn unload(&mut self) {
+            self.unload();
+            // Drop cb_data_ptr
+            if let Some(ptr) = self.cb_data_ptr {
+                unsafe {
+                    drop(Box::from_raw(
+                        ptr as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
+                    ));
+                }
+            }
+        }
+    }
+}

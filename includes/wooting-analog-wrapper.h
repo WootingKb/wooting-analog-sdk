@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "wooting-analog-common.h"
 
 #ifdef __cplusplus
 extern "C" {

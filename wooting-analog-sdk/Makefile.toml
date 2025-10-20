@@ -1,19 +1,24 @@
 [tasks.win-installer]
-env = {WIN_INSTALLER_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi"}
+env = { WIN_INSTALLER_PATH = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/target/wix/${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}-${CARGO_MAKE_RUST_TARGET_ARCH}.msi" }
 command = "cargo"
-args = ["wix" , "-p", "wooting-analog-sdk", "--nocapture", "--output", "${WIN_INSTALLER_PATH}"]
+args = [
+    "wix",
+    "-p",
+    "wooting-analog-sdk",
+    "--nocapture",
+    "--output",
+    "${WIN_INSTALLER_PATH}",
+]
 
 [tasks.sign-win-installer]
-env = {CODESIGN_SCRIPT_PATH="${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/ci/codesign.ps1"}
+env = { CODESIGN_SCRIPT_PATH = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/ci/codesign.ps1" }
 # condition = {env_true = ["CARGO_MAKE_CI"]}
 dependencies = ["win-installer"]
 script_runner = "bash"
 # bash ../ci/codesign.sh
-script = [
-'''
+script = ['''
 powershell $CODESIGN_SCRIPT_PATH $WIN_INSTALLER_PATH
-'''
-]
+''']
 
 [tasks.build-deb]
 command = "cargo"
@@ -21,26 +26,56 @@ args = ["deb", "--no-build", "${@}"]
 
 [tasks.clean]
 dependencies = ["clean-test-c-plugin"]
+# from wooting-analog-plugin-dev, keeping as reminder
+#dependencies=["clean-headers"]
 
 [tasks.clean-test-c-plugin]
 script_runner = "@shell"
-script = [
-'''
+script = ['''
 rm -rf test_c_plugin/build
-'''
+''']
+
+[env]
+HEADER_OUTPUT_DIR_C = "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/includes"
+HEADER_NAME = "wooting-analog-sdk.h"
+HEADER_PATH_CLEAN = "${HEADER_OUTPUT_DIR_C}/wooting-analog-sdk*"
+
+
+[tasks.header-c]
+command = "cbindgen"
+args = [
+    "-l",
+    "c",
+    "--cpp-compat",
+    "${CBINDGEN_ARGS}",
+    "--clean",
+    "-o",
+    "${HEADER_OUTPUT_DIR_C}/${HEADER_NAME}",
 ]
 
-[tasks.pre-test]
-dependencies = ["build-full-deps"]
+[tasks.cbindgen-install]
+install_crate = { crate_name = "cbindgen", rustup_component_name = "cbindgen", binary = "cbindgen", test_arg = "--help" }
+command = "cbindgen"
+args = ["--version"]
 
-[tasks.pre-build]
-dependencies = ["build-full-deps"]
+[tasks.cbindgen]
+#TODO: Check the rustup_component_name arg to see if it is the correct name
+dependencies = ["cbindgen-install", "header-c"]
 
-[tasks.build-full-deps]
+[tasks.gen-headers]
+env = { CBINDGEN_ARGS = "-v" }
+run_task = "cbindgen"
+
+[tasks.verify-headers]
+env = { CBINDGEN_ARGS = "--verify" }
+run_task = "cbindgen"
+
+[tasks.clean-headers]
+#env = { HEADER_POSTFIX="*" }
 script_runner = "@shell"
-script = [
-'''
-cargo build --manifest-path "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-common/Cargo.toml"
-cargo build --manifest-path "${CARGO_MAKE_WORKSPACE_WORKING_DIRECTORY}/wooting-analog-plugin-dev/Cargo.toml"
-'''
-]
+script = ['''
+rm ${HEADER_PATH_CLEAN}
+''']
+
+[tasks.post-build]
+dependencies = ["gen-headers"]

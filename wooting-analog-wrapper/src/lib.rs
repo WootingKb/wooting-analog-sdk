@@ -1,13 +1,9 @@
-#[macro_use]
-extern crate lazy_static;
-extern crate wooting_analog_common;
-
-pub use wooting_analog_common::*;
 pub mod ffi;
 use ffi::*;
 use std::collections::HashMap;
 use std::os::raw::c_uint;
 use std::ptr;
+use wooting_analog_sdk::{DeviceID, DeviceInfo, DeviceInfo_FFI, SDKResult};
 
 pub(crate) const SDK_ABI_VERSION: u32 = 0;
 

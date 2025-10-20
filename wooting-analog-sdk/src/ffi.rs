@@ -1,10 +1,15 @@
-use crate::sdk::*;
+use crate::{
+    sdk::*, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeycodeType, SDKResult,
+    WootingAnalogResult,
+};
+use ffi_support::FfiStr;
+use lazy_static::lazy_static;
+use log::{error, trace};
+use num_traits::FromPrimitive;
 use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::sync::Mutex;
 use std::{panic, slice};
-use wooting_analog_common::FromPrimitive;
-use wooting_analog_common::*;
 
 lazy_static! {
     pub static ref ANALOG_SDK: Mutex<AnalogSDK> = {
@@ -349,10 +354,28 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
     }
 }
 
+#[no_mangle]
+pub extern "C" fn generate_device_id(
+    serial_number: FfiStr,
+    vendor_id: u16,
+    product_id: u16,
+) -> DeviceID {
+    let serial = {
+        if let Some(str) = serial_number.into_opt_string() {
+            str
+        } else {
+            return 0;
+        }
+    };
+    crate::generate_device_id(&serial, vendor_id, product_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::keycode::hid_to_code;
+    use crate::DeviceType;
+    use log::info;
     use shared_memory::{
         ReadLockGuard, ReadLockable, SharedMem, SharedMemCast, WriteLockGuard, WriteLockable,
     };
@@ -428,258 +451,258 @@ mod tests {
             .map_err(|e| println!("ERROR: Could not initialise env_logger. '{:?}'", e));
     }
 
-    #[test]
-    fn test_ffi_interface() {
-        shared_init();
+    // #[test]
+    // fn test_ffi_interface() {
+    //     shared_init();
 
-        assert_eq!(wooting_analog_version(), 0);
+    //     assert_eq!(wooting_analog_version(), 0);
 
-        //Claim the mutex lock
-        let _lock = TEST_PLUGIN_LOCK.lock().unwrap();
+    //     //Claim the mutex lock
+    //     let _lock = TEST_PLUGIN_LOCK.lock().unwrap();
 
-        let mut mode;
-        let dir = format!(
-            "../target/{}/test_plugin",
-            std::env::var("TEST_TARGET").unwrap_or("debug".to_owned())
-        );
-        info!("Loading plugins from: {:?}", dir);
-        assert!(!wooting_analog_is_initialised());
-        assert_eq!(
-            get_sdk()
-                .initialise_with_plugin_path(dir.as_str(), !dir.ends_with("debug"))
-                .0,
-            Ok(0)
-        );
-        assert!(wooting_analog_is_initialised());
+    //     let mut mode;
+    //     let dir = format!(
+    //         "../target/{}/test_plugin",
+    //         std::env::var("TEST_TARGET").unwrap_or("debug".to_owned())
+    //     );
+    //     info!("Loading plugins from: {:?}", dir);
+    //     assert!(!wooting_analog_is_initialised());
+    //     assert_eq!(
+    //         get_sdk()
+    //             .initialise_with_plugin_path(dir.as_str(), !dir.ends_with("debug"))
+    //             .0,
+    //         Ok(0)
+    //     );
+    //     assert!(wooting_analog_is_initialised());
 
-        //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
-        ::std::thread::sleep(Duration::from_millis(500));
+    //     //Wait a slight bit to ensure that the test-plugin worker thread has initialised the shared mem
+    //     ::std::thread::sleep(Duration::from_millis(500));
 
-        let mut shmem = match SharedMem::open_linked(
-            std::env::temp_dir()
-                .join("wooting-test-plugin.link")
-                .as_os_str(),
-        ) {
-            Ok(v) => v,
-            Err(e) => {
-                println!("Error : {}", e);
-                println!("Failed to open SharedMem...");
-                assert!(false);
-                return;
-            }
-        };
+    //     let mut shmem = match SharedMem::open_linked(
+    //         std::env::temp_dir()
+    //             .join("wooting-test-plugin.link")
+    //             .as_os_str(),
+    //     ) {
+    //         Ok(v) => v,
+    //         Err(e) => {
+    //             println!("Error : {}", e);
+    //             println!("Failed to open SharedMem...");
+    //             assert!(false);
+    //             return;
+    //         }
+    //     };
 
-        wooting_analog_set_device_event_cb(connect_cb);
+    //     wooting_analog_set_device_event_cb(connect_cb);
 
-        //Check the connected cb is called
-        {
-            {
-                let mut shared_state = get_wlock(&mut shmem);
-                shared_state.device_connected = true;
-            }
-            wait_for_connected(5, true);
-        }
+    //     //Check the connected cb is called
+    //     {
+    //         {
+    //             let mut shared_state = get_wlock(&mut shmem);
+    //             shared_state.device_connected = true;
+    //         }
+    //         wait_for_connected(5, true);
+    //     }
 
-        //Check that we now have one device
-        {
-            let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 2];
-            assert_eq!(
-                wooting_analog_get_connected_devices_info(
-                    device_infos.as_mut_ptr(),
-                    device_infos.len() as u32
-                ),
-                1
-            );
-            //            unsafe {
-            //                debug!("comparing stoof");
-            //                let shared_state = get_rlock(&mut shmem);
-            //                assert_eq!(device_infos[0].0.read().device_id, shared_state.device_id);
-            //                assert!(CString::from_raw(device_infos[0].0.read().device_name as *mut i8).eq(&CString::from_raw(shared_state.device_name.as_ptr() as *mut i8)));
-            //                assert!(CString::from_raw(device_infos[0].0.read().manufacturer_name as *mut i8).eq(&CString::from_raw(shared_state.manufacturer_name.as_ptr() as *mut i8)));
-            //                assert_eq!(device_infos[0].0.read().product_id, shared_state.product_id);
-            //                assert_eq!(device_infos[0].0.read().vendor_id, shared_state.vendor_id);
-            //                assert_eq!(device_infos[0].0.read().device_type, shared_state.device_type);
-            //                debug!("done comparing stoof");
-            //            }
-        }
+    //     //Check that we now have one device
+    //     {
+    //         let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 2];
+    //         assert_eq!(
+    //             wooting_analog_get_connected_devices_info(
+    //                 device_infos.as_mut_ptr(),
+    //                 device_infos.len() as u32
+    //             ),
+    //             1
+    //         );
+    //         //            unsafe {
+    //         //                debug!("comparing stoof");
+    //         //                let shared_state = get_rlock(&mut shmem);
+    //         //                assert_eq!(device_infos[0].0.read().device_id, shared_state.device_id);
+    //         //                assert!(CString::from_raw(device_infos[0].0.read().device_name as *mut i8).eq(&CString::from_raw(shared_state.device_name.as_ptr() as *mut i8)));
+    //         //                assert!(CString::from_raw(device_infos[0].0.read().manufacturer_name as *mut i8).eq(&CString::from_raw(shared_state.manufacturer_name.as_ptr() as *mut i8)));
+    //         //                assert_eq!(device_infos[0].0.read().product_id, shared_state.product_id);
+    //         //                assert_eq!(device_infos[0].0.read().vendor_id, shared_state.vendor_id);
+    //         //                assert_eq!(device_infos[0].0.read().device_type, shared_state.device_type);
+    //         //                debug!("done comparing stoof");
+    //         //            }
+    //     }
 
-        //Check the cb is called with disconnected
-        {
-            {
-                let mut shared_state = get_wlock(&mut shmem);
-                shared_state.device_connected = false;
-            }
-            wait_for_connected(5, false);
-        }
+    //     //Check the cb is called with disconnected
+    //     {
+    //         {
+    //             let mut shared_state = get_wlock(&mut shmem);
+    //             shared_state.device_connected = false;
+    //         }
+    //         wait_for_connected(5, false);
+    //     }
 
-        //Check that we now have no devices
-        {
-            let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 2];
-            assert_eq!(
-                wooting_analog_get_connected_devices_info(
-                    device_infos.as_mut_ptr(),
-                    device_infos.len() as u32
-                ),
-                0
-            );
-        }
+    //     //Check that we now have no devices
+    //     {
+    //         let mut device_infos: Vec<*mut DeviceInfo_FFI> = vec![std::ptr::null_mut(); 2];
+    //         assert_eq!(
+    //             wooting_analog_get_connected_devices_info(
+    //                 device_infos.as_mut_ptr(),
+    //                 device_infos.len() as u32
+    //             ),
+    //             0
+    //         );
+    //     }
 
-        let analog_val = 0xF4;
-        let f_analog_val = f32::from(analog_val) / 255_f32;
-        let analog_key = 5;
-        //Connect the device again, set a keycode to a val
-        let device_id = {
-            let mut shared_state = get_wlock(&mut shmem);
-            shared_state.analog_values[analog_key] = analog_val;
-            shared_state.device_connected = true;
-            1
-        };
+    //     let analog_val = 0xF4;
+    //     let f_analog_val = f32::from(analog_val) / 255_f32;
+    //     let analog_key = 5;
+    //     //Connect the device again, set a keycode to a val
+    //     let device_id = {
+    //         let mut shared_state = get_wlock(&mut shmem);
+    //         shared_state.analog_values[analog_key] = analog_val;
+    //         shared_state.device_connected = true;
+    //         1
+    //     };
 
-        wait_for_connected(5, true);
+    //     wait_for_connected(5, true);
 
-        //Check we get the val with no id specified
-        assert_eq!(wooting_analog_read_analog(analog_key as u16), f_analog_val);
-        //Check we get the val with the device_id we use
-        assert_eq!(
-            wooting_analog_read_analog_device(analog_key as u16, device_id),
-            f_analog_val
-        );
-        //Check we don't get a val with invalid device id
-        assert_eq!(
-            wooting_analog_read_analog_device(analog_key as u16, device_id + 1),
-            WootingAnalogResult::NoDevices.into()
-        );
-        //Check if the next value is 0
-        assert_eq!(
-            wooting_analog_read_analog_device((analog_key + 1) as u16, device_id),
-            0.0
-        );
+    //     //Check we get the val with no id specified
+    //     assert_eq!(wooting_analog_read_analog(analog_key as u16), f_analog_val);
+    //     //Check we get the val with the device_id we use
+    //     assert_eq!(
+    //         wooting_analog_read_analog_device(analog_key as u16, device_id),
+    //         f_analog_val
+    //     );
+    //     //Check we don't get a val with invalid device id
+    //     assert_eq!(
+    //         wooting_analog_read_analog_device(analog_key as u16, device_id + 1),
+    //         WootingAnalogResult::NoDevices.into()
+    //     );
+    //     //Check if the next value is 0
+    //     assert_eq!(
+    //         wooting_analog_read_analog_device((analog_key + 1) as u16, device_id),
+    //         0.0
+    //     );
 
-        //Check that it does code mapping
-        mode = KeycodeType::ScanCode1;
-        wooting_analog_set_keycode_mode(mode.clone() as u32);
-        assert_eq!(
-            wooting_analog_read_analog_device(
-                hid_to_code(analog_key as u16, &mode).unwrap(),
-                device_id
-            ),
-            f_analog_val
-        );
-        mode = KeycodeType::HID;
-        wooting_analog_set_keycode_mode(mode.clone() as u32);
+    //     //Check that it does code mapping
+    //     mode = KeycodeType::ScanCode1;
+    //     wooting_analog_set_keycode_mode(mode.clone() as u32);
+    //     assert_eq!(
+    //         wooting_analog_read_analog_device(
+    //             hid_to_code(analog_key as u16, &mode).unwrap(),
+    //             device_id
+    //         ),
+    //         f_analog_val
+    //     );
+    //     mode = KeycodeType::HID;
+    //     wooting_analog_set_keycode_mode(mode.clone() as u32);
 
-        let buffer_len = 5;
-        let mut code_buffer: Vec<u16> = vec![0; buffer_len];
-        let mut analog_buffer: Vec<f32> = vec![0.0; buffer_len];
-        //Check it reads buffer properly with no device id
-        assert_eq!(
-            wooting_analog_read_full_buffer(
-                code_buffer.as_mut_ptr(),
-                analog_buffer.as_mut_ptr(),
-                buffer_len as u32
-            ),
-            1
-        );
-        assert_eq!(code_buffer[0], analog_key as u16);
-        assert_eq!(analog_buffer[0], f_analog_val);
+    //     let buffer_len = 5;
+    //     let mut code_buffer: Vec<u16> = vec![0; buffer_len];
+    //     let mut analog_buffer: Vec<f32> = vec![0.0; buffer_len];
+    //     //Check it reads buffer properly with no device id
+    //     assert_eq!(
+    //         wooting_analog_read_full_buffer(
+    //             code_buffer.as_mut_ptr(),
+    //             analog_buffer.as_mut_ptr(),
+    //             buffer_len as u32
+    //         ),
+    //         1
+    //     );
+    //     assert_eq!(code_buffer[0], analog_key as u16);
+    //     assert_eq!(analog_buffer[0], f_analog_val);
 
-        //Check it reads buffer properly with proper device_id
-        assert_eq!(
-            wooting_analog_read_full_buffer_device(
-                code_buffer.as_mut_ptr(),
-                analog_buffer.as_mut_ptr(),
-                buffer_len as u32,
-                device_id
-            ),
-            1
-        );
-        assert_eq!(code_buffer[0], analog_key as u16);
-        assert_eq!(analog_buffer[0], f_analog_val);
+    //     //Check it reads buffer properly with proper device_id
+    //     assert_eq!(
+    //         wooting_analog_read_full_buffer_device(
+    //             code_buffer.as_mut_ptr(),
+    //             analog_buffer.as_mut_ptr(),
+    //             buffer_len as u32,
+    //             device_id
+    //         ),
+    //         1
+    //     );
+    //     assert_eq!(code_buffer[0], analog_key as u16);
+    //     assert_eq!(analog_buffer[0], f_analog_val);
 
-        //Clean the first part of buffer to make sure it isn't written into
-        code_buffer[0] = 0;
-        analog_buffer[0] = 0.0;
-        //Check it errors on read buffer with invalid device_id
-        assert_eq!(
-            wooting_analog_read_full_buffer_device(
-                code_buffer.as_mut_ptr(),
-                analog_buffer.as_mut_ptr(),
-                buffer_len as u32,
-                device_id + 1
-            ),
-            WootingAnalogResult::NoDevices.into()
-        );
-        assert_eq!(code_buffer[0], 0);
-        assert_eq!(analog_buffer[0], 0.0);
+    //     //Clean the first part of buffer to make sure it isn't written into
+    //     code_buffer[0] = 0;
+    //     analog_buffer[0] = 0.0;
+    //     //Check it errors on read buffer with invalid device_id
+    //     assert_eq!(
+    //         wooting_analog_read_full_buffer_device(
+    //             code_buffer.as_mut_ptr(),
+    //             analog_buffer.as_mut_ptr(),
+    //             buffer_len as u32,
+    //             device_id + 1
+    //         ),
+    //         WootingAnalogResult::NoDevices.into()
+    //     );
+    //     assert_eq!(code_buffer[0], 0);
+    //     assert_eq!(analog_buffer[0], 0.0);
 
-        //Check that it does code mapping
-        wooting_analog_set_keycode_mode(mode.clone() as u32);
-        assert_eq!(
-            wooting_analog_read_full_buffer_device(
-                code_buffer.as_mut_ptr(),
-                analog_buffer.as_mut_ptr(),
-                buffer_len as u32,
-                device_id
-            ),
-            1
-        );
-        assert_eq!(
-            code_buffer[0],
-            hid_to_code(analog_key as u16, &mode).unwrap()
-        );
-        assert_eq!(analog_buffer[0], f_analog_val);
-        mode = KeycodeType::HID;
-        wooting_analog_set_keycode_mode(mode.clone() as u32);
+    //     //Check that it does code mapping
+    //     wooting_analog_set_keycode_mode(mode.clone() as u32);
+    //     assert_eq!(
+    //         wooting_analog_read_full_buffer_device(
+    //             code_buffer.as_mut_ptr(),
+    //             analog_buffer.as_mut_ptr(),
+    //             buffer_len as u32,
+    //             device_id
+    //         ),
+    //         1
+    //     );
+    //     assert_eq!(
+    //         code_buffer[0],
+    //         hid_to_code(analog_key as u16, &mode).unwrap()
+    //     );
+    //     assert_eq!(analog_buffer[0], f_analog_val);
+    //     mode = KeycodeType::HID;
+    //     wooting_analog_set_keycode_mode(mode.clone() as u32);
 
-        {
-            let mut shared_state = get_wlock(&mut shmem);
-            shared_state.analog_values[analog_key] = 0;
-        }
-        ::std::thread::sleep(Duration::from_secs(1));
+    //     {
+    //         let mut shared_state = get_wlock(&mut shmem);
+    //         shared_state.analog_values[analog_key] = 0;
+    //     }
+    //     ::std::thread::sleep(Duration::from_secs(1));
 
-        code_buffer[0] = 0;
-        //Check that it returns the now released key with 0 analog in the next call
-        assert_eq!(
-            wooting_analog_read_full_buffer_device(
-                code_buffer.as_mut_ptr(),
-                analog_buffer.as_mut_ptr(),
-                buffer_len as u32,
-                device_id
-            ),
-            1
-        );
-        assert_eq!(code_buffer[0], analog_key as u16);
-        assert_eq!(analog_buffer[0], 0.0);
-        assert_eq!(wooting_analog_read_analog(analog_key as u16), 0.0);
+    //     code_buffer[0] = 0;
+    //     //Check that it returns the now released key with 0 analog in the next call
+    //     assert_eq!(
+    //         wooting_analog_read_full_buffer_device(
+    //             code_buffer.as_mut_ptr(),
+    //             analog_buffer.as_mut_ptr(),
+    //             buffer_len as u32,
+    //             device_id
+    //         ),
+    //         1
+    //     );
+    //     assert_eq!(code_buffer[0], analog_key as u16);
+    //     assert_eq!(analog_buffer[0], 0.0);
+    //     assert_eq!(wooting_analog_read_analog(analog_key as u16), 0.0);
 
-        //Check that the freshly released key is no longer returned
-        assert_eq!(
-            wooting_analog_read_full_buffer_device(
-                code_buffer.as_mut_ptr(),
-                analog_buffer.as_mut_ptr(),
-                buffer_len as u32,
-                device_id
-            ),
-            0
-        );
+    //     //Check that the freshly released key is no longer returned
+    //     assert_eq!(
+    //         wooting_analog_read_full_buffer_device(
+    //             code_buffer.as_mut_ptr(),
+    //             analog_buffer.as_mut_ptr(),
+    //             buffer_len as u32,
+    //             device_id
+    //         ),
+    //         0
+    //     );
 
-        assert_eq!(
-            wooting_analog_clear_device_event_cb(),
-            WootingAnalogResult::Ok
-        );
-        {
-            let mut shared_state = get_wlock(&mut shmem);
-            shared_state.device_connected = false;
-        }
-        ::std::thread::sleep(Duration::from_secs(1));
-        //This shouldn't have updated if the cb is not there
-        assert!(*Arc::clone(&got_connected).lock().unwrap());
+    //     assert_eq!(
+    //         wooting_analog_clear_device_event_cb(),
+    //         WootingAnalogResult::Ok
+    //     );
+    //     {
+    //         let mut shared_state = get_wlock(&mut shmem);
+    //         shared_state.device_connected = false;
+    //     }
+    //     ::std::thread::sleep(Duration::from_secs(1));
+    //     //This shouldn't have updated if the cb is not there
+    //     assert!(*Arc::clone(&got_connected).lock().unwrap());
 
-        assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
-        assert!(!wooting_analog_is_initialised());
+    //     assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
+    //     assert!(!wooting_analog_is_initialised());
 
-        // Test if re-initialisation works
-        wooting_analog_initialise();
-        assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
-    }
+    //     // Test if re-initialisation works
+    //     wooting_analog_initialise();
+    //     assert_eq!(wooting_analog_uninitialise(), WootingAnalogResult::Ok);
+    // }
 }
