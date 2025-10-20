@@ -4000,7 +4000,34 @@ dependencies = [
  "lazy_static",
  "log",
  "shared_memory",
+<<<<<<< LEFT
  "wooting-analog-sdk",
+||||||| BASE
+ "wooting-analog-common",
+ "wooting-analog-test-plugin",
+]
+
+[[package]]
+name = "wooting-analog-wrapper"
+version = "0.7.1"
+dependencies = [
+ "ctrlc",
+ "lazy_static",
+ "libloading 0.5.2",
+ "wooting-analog-common",
+=======
+ "wooting-analog-sdk",
+]
+
+[[package]]
+name = "wooting-analog-wrapper"
+version = "0.7.1"
+dependencies = [
+ "ctrlc",
+ "lazy_static",
+ "libloading 0.5.2",
+ "wooting-analog-sdk",
+>>>>>>> RIGHT
 ]
 
 [[package]]
