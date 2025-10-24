@@ -8,7 +8,6 @@ rpath = true
 resolver = "2"
 
 members = [
-    "wooting-analog-wrapper",
     "wooting-analog-virtual-control",
     "wooting-analog-sdk-updater",
     "wooting-analog-sdk"
