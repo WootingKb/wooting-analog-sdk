@@ -4001,6 +4001,7 @@ dependencies = [
  "log",
  "shared_memory",
 <<<<<<< LEFT
+<<<<<<< LEFT
  "wooting-analog-sdk",
 ||||||| BASE
  "wooting-analog-common",
@@ -4026,6 +4027,19 @@ dependencies = [
  "ctrlc",
  "lazy_static",
  "libloading 0.5.2",
+||||||| original
+ "wooting-analog-sdk",
+]
+
+[[package]]
+name = "wooting-analog-wrapper"
+version = "0.7.1"
+dependencies = [
+ "ctrlc",
+ "lazy_static",
+ "libloading 0.5.2",
+=======
+>>>>>>> RIGHT
  "wooting-analog-sdk",
 >>>>>>> RIGHT
 ]
