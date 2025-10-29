@@ -9,6 +9,7 @@ resolver = "2"
 
 members = [
     "wooting-analog-virtual-control",
-    "wooting-analog-sdk-updater",
     "wooting-analog-sdk"
 ]
+
+exclude = ["wooting-analog-sdk-updater"]

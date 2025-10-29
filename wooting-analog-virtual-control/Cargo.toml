@@ -1,14 +1,13 @@
 [package]
 name = "wooting-analog-virtual-control"
-version = "0.7.1"
+version = "0.8.0"
 authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
-edition = "2018"
-
+edition = "2024"
 
 [dependencies]
+# TODO: replace this with the crates.io version once done
 wooting-analog-sdk = { path = "../wooting-analog-sdk"}
-shared_memory = "^0.8"
-log = "^0.4"
-iced = "^0.4"
-env_logger = "0.8"
-lazy_static = "*"
+shared_memory = "0.12"
+log = "0.4"
+iced = "0.13"
+env_logger = "0.11"
