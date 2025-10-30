@@ -4,7 +4,6 @@ use hidapi::DeviceInfo as DeviceInfoHID;
 use hidapi::{HidApi, HidDevice};
 use log::*;
 use log::{error, info};
-use objekt::clone_trait_object;
 use shared_memory::ShmemConf;
 use std::borrow::Borrow;
 use std::collections::HashMap;
@@ -99,7 +98,7 @@ struct DeviceHardwareID {
 }
 
 /// Trait which defines how the Plugin can communicate with a particular device
-trait DeviceImplementation: objekt::Clone + Send {
+trait DeviceImplementation: DynClone + Send {
     /// Gives the device hardware ID that can be used to obtain the analog interface for this device
     fn device_hardware_id(&self) -> DeviceHardwareID;
 
@@ -173,7 +172,7 @@ trait DeviceImplementation: objekt::Clone + Send {
     }
 }
 
-clone_trait_object!(DeviceImplementation);
+dyn_clone::clone_trait_object!(DeviceImplementation);
 
 #[derive(Debug, Clone)]
 struct WootingOne();
@@ -251,28 +250,33 @@ impl Device {
             let t_buffer = Arc::clone(&buffer);
             let t_connected = Arc::clone(&connected);
 
-            thread::spawn(move || loop {
-                if !t_connected.load(Ordering::Relaxed) {
-                    return 0;
-                }
-
-                match device_impl
-                    .get_analog_buffer(&device, ANALOG_MAX_SIZE)
-                    .into()
-                {
-                    Ok(data) => {
-                        if let Some(data) = data {
-                            let mut m = t_buffer.lock().unwrap();
-                            m.clear();
-                            m.extend(data);
-                        }
-                    }
-                    Err(e) => {
-                        if e != WootingAnalogResult::DeviceDisconnected {
-                            error!("Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...", e);
-                        }
-                        t_connected.store(false, Ordering::Relaxed);
+            thread::spawn(move || {
+                loop {
+                    if !t_connected.load(Ordering::Relaxed) {
                         return 0;
+                    }
+
+                    match device_impl
+                        .get_analog_buffer(&device, ANALOG_MAX_SIZE)
+                        .into()
+                    {
+                        Ok(data) => {
+                            if let Some(data) = data {
+                                let mut m = t_buffer.lock().unwrap();
+                                m.clear();
+                                m.extend(data);
+                            }
+                        }
+                        Err(e) => {
+                            if e != WootingAnalogResult::DeviceDisconnected {
+                                error!(
+                                    "Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...",
+                                    e
+                                );
+                            }
+                            t_connected.store(false, Ordering::Relaxed);
+                            return 0;
+                        }
                     }
                 }
             })
@@ -505,7 +509,9 @@ impl WootingPlugin {
                     Err(e) => {
                         if link_path.exists() {
                             warn!("Error : {}", e);
-                            warn!("Attempted to open exist SharedMemFailed... Falling back to creation");
+                            warn!(
+                                "Attempted to open exist SharedMemFailed... Falling back to creation"
+                            );
                             if let Err(e) = std::fs::remove_file(&link_path) {
                                 error!("Could not delete old link file: {}", e);
                             }
@@ -588,8 +594,6 @@ impl WootingPlugin {
                     }
 
                     if !state.device_connected {
-                        //make sure we drop the state so we're not holding the lock while the thread is sleeping
-                        drop(state);
                         thread::sleep(Duration::from_millis(500));
                         continue;
                     }
@@ -750,7 +754,7 @@ impl Plugin for WootingPlugin {
                         .and_modify(|v| *v = v.max(*value))
                         .or_insert(*value);
                 }
-                
+
                 Ok(analog).into()
             }
         } else

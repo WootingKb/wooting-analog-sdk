@@ -28,8 +28,5 @@ item_types = ["enums", "structs", "typedefs", "functions", "opaque"]
 "WootingAnalogResult" = "WootingAnalogResult"
 "DeviceType_FFI" = "WootingAnalog_DeviceType"
 
-[parse]
-expand = ["wooting-analog-sdk"]
-
 [enum]
 prefix_with_name = true

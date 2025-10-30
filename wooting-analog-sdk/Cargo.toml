@@ -1,8 +1,8 @@
 [package]
 name = "wooting-analog-sdk"
-version = "0.7.5"
+version = "0.8.0"
 authors = ["simon-wh <simon@wooting.io>"]
-edition = "2018"
+edition = "2024"
 license = "MPL-2.0"
 description = "Wooting Analog SDK"
 repository = "https://github.com/WootingKb/wooting-analog-sdk"
@@ -16,18 +16,17 @@ ffi = []
 
 [dependencies]
 log = "0.4"
-env_logger = "^0.7"
-enum-primitive-derive = "0.2"
-libloading = "^0.7"
-thiserror = "1.0"
-anyhow = "~1.0"
-num-traits = "^0.1"
-lazy_static = "*"
+env_logger = "0.11"
+enum-primitive-derive = "0.3"
+libloading = "0.8"
+thiserror = "2"
+anyhow = "1"
+num-traits = "0.2"
 ffi-support = "0.4"
-scancode = "0.1.2"
-bimap = "0.4"
-hidapi = { version = "^2.5", features = ["linux-static-hidraw"], default-features = false }
-objekt = "^0.1"
+scancode = "0.1"
+bimap = "0.6"
+hidapi = { version = "2.6", features = ["linux-static-hidraw"], default-features = false }
+dyn-clone = "1"
 serde = { version = "1", features = ["derive"], optional = true }
 shared_memory = "0.12"
 
