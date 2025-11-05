@@ -1,3 +1,5 @@
+
+
 pub(crate) mod c;
 
 use hidapi::DeviceInfo as DeviceInfoHID;
@@ -353,7 +355,7 @@ pub struct WootingPlugin {
 
 const PLUGIN_NAME: &str = "Wooting Official Plugin";
 impl WootingPlugin {
-     fn new() -> Self {
+    pub(crate) fn new() -> Self {
         WootingPlugin {
             initialised: Arc::new(false.into()),
             device_event_cb: Arc::new(Mutex::new(None)),

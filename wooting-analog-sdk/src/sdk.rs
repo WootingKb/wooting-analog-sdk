@@ -1,16 +1,8 @@
-<<<<<<< LEFT
-use crate::keycode::*;
-use crate::plugin::c::CPlugin;
-use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
-use crate::plugin::DEFAULT_PLUGIN_DIR;
-||||||| BASE
 use crate::keycode::*;
 use crate::plugin::c::CPlugin;
 use crate::plugin::WootingPlugin;
 use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
 use crate::plugin::DEFAULT_PLUGIN_DIR;
-=======
->>>>>>> RIGHT
 use crate::DeviceEventType;
 use crate::DeviceID;
 use crate::DeviceInfo;
@@ -18,16 +10,10 @@ use crate::KeycodeType;
 use crate::Plugin;
 use crate::SDKResult;
 use crate::WootingAnalogResult;
-use crate::keycode::*;
-use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
-use crate::plugin::DEFAULT_PLUGIN_DIR;
-use crate::plugin::WootingPlugin;
-use crate::plugin::c::CPlugin;
 use anyhow::bail;
 use anyhow::{Context, Error, Result};
 use libloading::{Library, Symbol};
 use log::debug;
-use log::set_logger;
 use log::trace;
 use log::{error, info, warn};
 use std::collections::HashMap;
