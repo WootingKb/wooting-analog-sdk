@@ -36,12 +36,6 @@ pub struct DeviceInfo {
     pub device_type: DeviceType,
 }
 
-// We do this little alias so that we can force cbindgen to rename it to point to the DeviceType enum.
-// For the rust side, we want to have it as a c_int so we can ensure it's valid and within bounds.
-// As just taking it as the enum straight up can cause undefined behaviour if an invalid value is provided
-/// cbindgen:ignore
-type DeviceType_FFI = c_int;
-
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is the version which the consumer of the SDK will receive
 /// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
@@ -171,6 +165,12 @@ pub enum KeycodeType {
 }
 
 pub type DeviceID = u64;
+
+// We do this little alias so that we can force cbindgen to rename it to point to the DeviceType enum.
+// For the rust side, we want to have it as a c_int so we can ensure it's valid and within bounds.
+// As just taking it as the enum straight up can cause undefined behaviour if an invalid value is provided
+/// cbindgen:ignore
+type DeviceType_FFI = c_int;
 
 #[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
