@@ -354,22 +354,6 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
     }
 }
 
-#[no_mangle]
-pub extern "C" fn generate_device_id(
-    serial_number: FfiStr,
-    vendor_id: u16,
-    product_id: u16,
-) -> DeviceID {
-    let serial = {
-        if let Some(str) = serial_number.into_opt_string() {
-            str
-        } else {
-            return 0;
-        }
-    };
-    crate::generate_device_id(&serial, vendor_id, product_id)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
