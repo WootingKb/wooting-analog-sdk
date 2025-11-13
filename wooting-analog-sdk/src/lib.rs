@@ -195,7 +195,7 @@ pub enum DeviceEventType {
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive, Error)]
+#[derive(Debug, PartialEq, Clone, Primitive, Error, Copy)]
 #[repr(C)]
 pub enum WootingAnalogResult {
     #[error("All OK")]
