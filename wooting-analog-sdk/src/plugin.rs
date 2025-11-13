@@ -1,13 +1,10 @@
-#[macro_use]
-extern crate log;
-extern crate hidapi;
-extern crate wooting_analog_plugin_dev;
-#[macro_use]
-extern crate objekt;
+pub(crate) mod c;
 
 use hidapi::DeviceInfo as DeviceInfoHID;
 use hidapi::{HidApi, HidDevice};
+use log::*;
 use log::{error, info};
+use objekt::clone_trait_object;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::os::raw::{c_float, c_ushort};
@@ -15,10 +12,57 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::{str, thread};
-use wooting_analog_plugin_dev::wooting_analog_common::*;
-use wooting_analog_plugin_dev::*;
 
-extern crate env_logger;
+use crate::{DeviceEventType, DeviceID, DeviceInfo, DeviceType, SDKResult, WootingAnalogResult};
+
+#[cfg(target_os = "macos")]
+pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
+#[cfg(target_os = "linux")]
+pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
+#[cfg(target_os = "windows")]
+pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
+
+pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The core Plugin trait which needs to be implemented for an Analog Plugin to function
+pub trait Plugin {
+    /// Get a name describing the `Plugin`.
+    fn name(&mut self) -> SDKResult<&'static str>;
+
+    /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
+    fn initialise(
+        &mut self,
+        callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
+    ) -> SDKResult<u32>;
+
+    /// A function fired to check if the plugin is currently initialised
+    fn is_initialised(&mut self) -> bool;
+
+    /// This function is fired by the SDK to collect up all Device Info structs. The memory for the struct should be retained and only dropped
+    /// when the device is disconnected or the plugin is unloaded. This ensures that the Device Info is not garbled when it's being accessed by the client.
+    ///
+    /// # Notes
+    ///
+    /// Although, the client should be copying any data they want to use for a prolonged time as there is no lifetime guarantee on the data.
+    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>>;
+
+    /// A callback fired immediately before the plugin is unloaded. Use this if
+    /// you need to do any cleanup.
+    fn unload(&mut self) {}
+
+    /// Function called to get the analog value for a particular HID key `code` from the device with ID `device`.
+    /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
+    fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32>;
+
+    /// Function called to get the full analog read buffer for a particular device with ID `device`. `max_length` is the maximum amount
+    /// of keys that can be accepted, any more beyond this will be ignored by the SDK.
+    /// If `device` is 0 then no specific device is specified and the data should be read from all devices and combined
+    fn read_full_buffer(
+        &mut self,
+        max_length: usize,
+        device: DeviceID,
+    ) -> SDKResult<HashMap<c_ushort, c_float>>;
+}
 
 const ANALOG_BUFFER_SIZE: usize = 48;
 const ANALOG_MAX_SIZE: usize = 40;
@@ -100,7 +144,7 @@ trait DeviceImplementation: objekt::Clone + Send {
 
     /// Get the unique device ID from the given `device_info`
     fn get_device_id(&self, device_info: &DeviceInfoHID) -> DeviceID {
-        wooting_analog_plugin_dev::generate_device_id(
+        crate::generate_device_id(
             device_info.serial_number().as_ref().unwrap_or(&"NO SERIAL"),
             device_info.vendor_id(),
             device_info.product_id(),
@@ -349,12 +393,12 @@ impl WootingPlugin {
             };
 
         let refresh_devices = |hid: &mut HidApi| -> hidapi::HidResult<()> {
-                hid.reset_devices()?;
-                hid.add_devices(WOOTING_VID, 0)?;
-                hid.add_devices(0x03EB, 0xFF01)?;
-                hid.add_devices(0x03EB, 0xFF02)?;
-                Ok(())
-            };
+            hid.reset_devices()?;
+            hid.add_devices(WOOTING_VID, 0)?;
+            hid.add_devices(0x03EB, 0xFF01)?;
+            hid.add_devices(0x03EB, 0xFF02)?;
+            Ok(())
+        };
 
         let device_impls: Vec<Box<dyn DeviceImplementation>> = vec![
             Box::new(WootingOne()),
@@ -416,6 +460,17 @@ impl WootingPlugin {
         }));
         debug!("Started thread");
         Ok(self.devices.lock().unwrap().len() as u32).into()
+    }
+
+    #[no_mangle]
+    pub extern "C" fn _plugin_create() -> *mut dyn Plugin {
+        let boxed: Box<dyn Plugin> = Box::new(Self::new());
+        Box::into_raw(boxed)
+    }
+
+    #[no_mangle]
+    pub extern "C" fn plugin_version() -> &'static str {
+        ANALOG_SDK_PLUGIN_VERSION
     }
 }
 
@@ -557,5 +612,3 @@ impl Plugin for WootingPlugin {
         Ok(devices).into()
     }
 }
-
-declare_plugin!(WootingPlugin, WootingPlugin::new);

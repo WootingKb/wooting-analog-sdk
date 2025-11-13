@@ -6,10 +6,9 @@ edition = "2018"
 
 
 [dependencies]
-wooting-analog-common = { path = "../wooting-analog-common"}
+wooting-analog-sdk = { path = "../wooting-analog-sdk"}
 shared_memory = "^0.8"
 log = "^0.4"
 iced = "^0.4"
 env_logger = "0.8"
 lazy_static = "*"
-wooting-analog-test-plugin = { path="../wooting-analog-test-plugin" }

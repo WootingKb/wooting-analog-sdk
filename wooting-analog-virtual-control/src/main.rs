@@ -1,11 +1,30 @@
-extern crate env_logger;
-extern crate log;
-#[macro_use]
-extern crate lazy_static;
+use lazy_static::lazy_static;
 use log::{error, info};
-use shared_memory::*;
 
-use wooting_analog_test_plugin::SharedState;
+use shared_memory::*;
+use std::string::ToString;
+use wooting_analog_sdk::DeviceType;
+
+#[derive(Debug, PartialEq)]
+pub struct SharedState {
+    pub vendor_id: u16,
+    /// Device Product ID `pid`
+    pub product_id: u16,
+    //TODO: Consider switching these to FFiStr
+    /// Device Manufacturer name
+    pub manufacturer_name: [u8; 20],
+    /// Device name
+    pub device_name: [u8; 20],
+
+    pub device_type: DeviceType,
+
+    pub device_connected: bool,
+    pub dirty_device_info: bool,
+
+    pub analog_values: [u8; 0xFF],
+}
+
+unsafe impl SharedMemCast for SharedState {}
 
 lazy_static! {
     static ref KEYBOARD_LAYOUT: Vec<Vec<(&'static str, u16, u16, u16)>> = vec![

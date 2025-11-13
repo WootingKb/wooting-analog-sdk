@@ -1,10 +1,13 @@
 use ffi_support::FfiStr;
 use libloading::{Library, Symbol};
 use log::*;
+use log::{error, info};
 use std::collections::HashMap;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
-use wooting_analog_common::*;
-use wooting_analog_plugin_dev::*;
+
+use crate::{
+    DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin, SDKResult, WootingAnalogResult,
+};
 
 macro_rules! lib_wrap {
     //(@as_item $i:item) => {$i};

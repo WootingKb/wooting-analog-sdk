@@ -1,4 +1,4 @@
-#include "wooting-analog-plugin-dev.h"
+#include "wooting-analog-sdk.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
