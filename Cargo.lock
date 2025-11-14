@@ -3973,6 +3973,7 @@ dependencies = [
  "num-traits 0.1.43",
  "objekt",
  "scancode",
+ "serde",
  "shared_memory",
  "thiserror",
  "winapi 0.3.9",
@@ -4000,7 +4001,48 @@ dependencies = [
  "lazy_static",
  "log",
  "shared_memory",
+<<<<<<< LEFT
+<<<<<<< LEFT
  "wooting-analog-sdk",
+||||||| BASE
+ "wooting-analog-common",
+ "wooting-analog-test-plugin",
+]
+
+[[package]]
+name = "wooting-analog-wrapper"
+version = "0.7.1"
+dependencies = [
+ "ctrlc",
+ "lazy_static",
+ "libloading 0.5.2",
+ "wooting-analog-common",
+=======
+ "wooting-analog-sdk",
+]
+
+[[package]]
+name = "wooting-analog-wrapper"
+version = "0.7.1"
+dependencies = [
+ "ctrlc",
+ "lazy_static",
+ "libloading 0.5.2",
+||||||| original
+ "wooting-analog-sdk",
+]
+
+[[package]]
+name = "wooting-analog-wrapper"
+version = "0.7.1"
+dependencies = [
+ "ctrlc",
+ "lazy_static",
+ "libloading 0.5.2",
+=======
+>>>>>>> RIGHT
+ "wooting-analog-sdk",
+>>>>>>> RIGHT
 ]
 
 [[package]]
