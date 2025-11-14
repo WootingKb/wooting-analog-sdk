@@ -1,9 +1,175 @@
-use lazy_static::lazy_static;
-use log::{error, info};
+use std::{borrow::Borrow, string::ToString, sync::LazyLock};
 
+use env_logger::Env;
+use iced::{
+    alignment,
+    border::Radius,
+    widget::{container, Checkbox, Column, Container, Row, Slider, Text},
+    window, Alignment, Border, Color, Element, Length, Settings, Shadow,
+};
+use log::{error, info};
 use shared_memory::*;
-use std::string::ToString;
 use wooting_analog_sdk::DeviceType;
+
+const KEY_WIDTH: u16 = 60;
+const KEY_SPACING: u16 = 10;
+const WIDGET_PADDING: u16 = 5;
+
+#[derive(Debug, Clone, Copy)]
+enum Message {
+    SliderChanged((usize, usize), f32),
+    ConnectedChanged(bool),
+}
+
+struct AppState {
+    keys: Vec<Vec<Key>>,
+    shared_mem: Shmem,
+}
+
+impl AppState {
+    fn new() -> Self {
+        let shmem = match ShmemConf::new()
+            .flink(
+                std::env::temp_dir()
+                    .join("wooting-test-plugin.link")
+                    .as_os_str(),
+            )
+            .open()
+        {
+            Ok(v) => v,
+            Err(e) => {
+                info!("Error : {}", e);
+                panic!("Failed to open SharedMem...");
+            }
+        };
+
+        //Tell the plugin that we've connected
+        {
+            let shared_state = unsafe { &mut *(shmem.as_ptr() as *mut SharedState) };
+            shared_state.device_connected = true;
+        }
+        let mut keys = vec![];
+        {
+            let state = unsafe { &mut *(shmem.as_ptr() as *mut SharedState) };
+            for (y, items) in KEYBOARD_LAYOUT.iter().enumerate() {
+                let mut row: Vec<Key> = vec![];
+                for (x, &(name, code, width, height)) in items.iter().enumerate() {
+                    // if width == 0 {
+                    //     continue;
+                    // }
+                    row.push(Key::new(
+                        code,
+                        name.to_string(),
+                        width,
+                        height,
+                        state.analog_values[code as usize].into(),
+                        (x, y),
+                    ))
+                }
+                keys.push(row);
+            }
+        }
+
+        Self {
+            keys,
+            shared_mem: shmem,
+        }
+    }
+}
+
+impl Drop for AppState {
+    fn drop(&mut self) {
+        //Perform cleanup
+        let shared_state = unsafe { &mut *(self.shared_mem.as_ptr() as *mut SharedState) };
+
+        shared_state.device_connected = false;
+        shared_state.analog_values.iter_mut().for_each(|x| *x = 0);
+    }
+}
+
+struct Key {
+    keycode: u16,
+    label: String,
+    width: u16,
+    _height: u16,
+    value: f32,
+    xy: (usize, usize),
+}
+
+impl Key {
+    fn new(
+        keycode: u16,
+        label: String,
+        width: u16,
+        height: u16,
+        value: f32,
+        xy: (usize, usize),
+    ) -> Self {
+        Key {
+            keycode,
+            label,
+            width,
+            _height: height,
+            value,
+            xy,
+        }
+    }
+
+    fn width(&self) -> Length {
+        Length::FillPortion(KEY_WIDTH * self.width + (KEY_SPACING * (self.width - 1)))
+    }
+
+    fn height(&self) -> Length {
+        Length::FillPortion(KEY_WIDTH)
+    }
+
+    fn view(&'_ self) -> Element<'_, Message> {
+        let width = self.width();
+        let height = self.height();
+
+        if self.label.is_empty() {
+            return Container::new(Column::new())
+                .width(width)
+                .height(height)
+                .into();
+        }
+
+        Container::new(
+            Column::new()
+                .padding(5)
+                .align_x(Alignment::Center)
+                .push(Text::new(self.label.as_str()).align_x(alignment::Horizontal::Center))
+                .push(
+                    Text::new(format!("{:.3}", self.value.trunc() / 255f32)).color(
+                        Color::from_rgb8(255 - self.value as u8, self.value as u8, 0),
+                    ),
+                )
+                .push(Slider::new(0.0..=255.0, self.value, move |val| {
+                    Message::SliderChanged(self.xy, val)
+                })),
+        )
+        .height(height)
+        .width(width)
+        .style(|_theme| container::Style {
+            text_color: None,
+            background: None,
+            border: Border {
+                color: Color::BLACK,
+                width: 1.0,
+                radius: Radius::new(1.0),
+            },
+            shadow: Shadow::default(),
+        })
+        .into()
+    }
+
+    fn update(&mut self, shared_state: &mut Shmem, value: f32) {
+        self.value = value;
+
+        let v = unsafe { &mut *(shared_state.as_ptr() as *mut SharedState) };
+        v.analog_values[self.keycode as usize] = self.value as u8;
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct SharedState {
@@ -24,10 +190,94 @@ pub struct SharedState {
     pub analog_values: [u8; 0xFF],
 }
 
-unsafe impl SharedMemCast for SharedState {}
+fn main() -> Result<(), iced::Error> {
+    if let Err(e) =
+        env_logger::Builder::from_env(Env::default().default_filter_or("info")).try_init()
+    {
+        error!("Failed to init env_logger: {}", e)
+    }
+    let kb: &Vec<Vec<KeyboardKey>> = KEYBOARD_LAYOUT.borrow();
+    let max_key_width = kb.iter().fold(0, |current: u32, item| {
+        current.max(
+            item.iter()
+                .fold(0, |width: u32, key: &KeyboardKey| width + key.2 as u32),
+        )
+    });
+    let width: u32 = max_key_width * KEY_WIDTH as u32
+        + ((max_key_width - 1) * KEY_SPACING as u32)
+        + WIDGET_PADDING as u32 * 2;
+    let rows = kb.len() as u32;
+    // Add 1 to the number of rows for the Height for the extra row of controls
+    let height =
+        (rows + 1) * (KEY_WIDTH as u32) + (rows * KEY_SPACING as u32) + WIDGET_PADDING as u32 * 2;
 
-lazy_static! {
-    static ref KEYBOARD_LAYOUT: Vec<Vec<(&'static str, u16, u16, u16)>> = vec![
+    iced::application("Wooting Analog Virtual Keyboard", update, view)
+        .window(window::Settings {
+            size: iced::Size {
+                width: width as f32,
+                height: height as f32,
+            },
+            resizable: false,
+            decorations: true,
+            max_size: None,
+            min_size: None,
+            icon: None,
+            transparent: false,
+            level: window::Level::AlwaysOnTop,
+            ..window::Settings::default()
+        })
+        .settings(Settings {
+            default_text_size: iced::Pixels(18.0),
+            ..Settings::default()
+        })
+        .exit_on_close_request(true)
+        .run_with(|| (AppState::new(), iced::Task::none()))
+}
+
+fn update(state: &mut AppState, message: Message) {
+    match message {
+        Message::SliderChanged((x, y), val) => {
+            state
+                .keys
+                .get_mut(y)
+                .unwrap()
+                .get_mut(x)
+                .unwrap()
+                .update(&mut state.shared_mem, val);
+        }
+        Message::ConnectedChanged(connection_changed) => {
+            let shared_state = unsafe { &mut *(state.shared_mem.as_ptr() as *mut SharedState) };
+            shared_state.device_connected = connection_changed;
+        }
+    }
+}
+
+fn view(state: &'_ AppState) -> Element<'_, Message> {
+    let mut col = Column::new().spacing(KEY_SPACING);
+    for key_row in state.keys.iter() {
+        let mut row = Row::new();
+        for key in key_row.iter() {
+            row = row.push(key.view());
+        }
+        col = col.push(row.spacing(KEY_SPACING));
+    }
+    col.push(
+        Row::new().push(
+            Checkbox::new(
+                "Device Connected",
+                unsafe { &mut *(state.shared_mem.as_ptr() as *mut SharedState) }.device_connected,
+            )
+            .on_toggle(Message::ConnectedChanged),
+        ),
+    )
+    .padding(WIDGET_PADDING)
+    .into()
+}
+
+type KeyboardKey = (&'static str, u16, u16, u16);
+
+static KEYBOARD_LAYOUT: LazyLock<Vec<Vec<KeyboardKey>>> = LazyLock::new(|| {
+    vec![
         vec![
             ("Esc", 41, 1, 1),
             ("", 0, 1, 1),
@@ -155,304 +405,5 @@ lazy_static! {
             (".", 99, 1, 1),
             ("", 0, 1, 1),
         ],
-    ];
-}
-// use iced::{slider,HorizontalAlignment, Length, Column, Container, Element, Row, Sandbox, Settings, Slider, Text};
-
-use env_logger::Env;
-use iced::widget::container::Style;
-use iced::{
-    alignment, container, slider, window, Alignment, Checkbox, Color, Column, Container, Element,
-    Length, Row, Sandbox, Settings, Slider, Text,
-};
-use std::borrow::Borrow;
-
-struct Key {
-    slider_state: slider::State,
-    keycode: u16,
-    label: String,
-    width: u16,
-    _height: u16,
-    value: f32,
-    xy: (usize, usize),
-}
-
-const KEY_WIDTH: u16 = 60;
-const KEY_SPACING: u16 = 10;
-const WIDGET_PADDING: u16 = 5;
-
-struct KeyStyle;
-// impl From<KeyStyle> for Box<dyn container::StyleSheet> {
-//     fn from(_: KeyStyle) -> Self {
-//         container::Style {text_color: None,
-//             background: None,
-//             border_radius: 1,
-//             border_width: 1,
-//             border_color: Color::BLACK}.into()
-//     }
-// }
-
-impl container::StyleSheet for KeyStyle {
-    fn style(&self) -> Style {
-        container::Style {
-            text_color: None,
-            background: None,
-            border_radius: 1.0,
-            border_width: 1.0,
-            border_color: Color::BLACK,
-        }
-    }
-}
-
-impl Key {
-    fn new(
-        keycode: u16,
-        label: String,
-        width: u16,
-        height: u16,
-        value: f32,
-        xy: (usize, usize),
-    ) -> Self {
-        Key {
-            slider_state: Default::default(),
-            keycode,
-            label,
-            width,
-            _height: height,
-            value,
-            xy,
-        }
-    }
-
-    fn width(&self) -> Length {
-        Length::Units(KEY_WIDTH * self.width + (KEY_SPACING * (self.width - 1)))
-    }
-
-    fn height(&self) -> Length {
-        Length::Units(KEY_WIDTH)
-    }
-
-    fn view(&mut self) -> Element<Message> {
-        let width = self.width();
-        let height = self.height();
-
-        if self.label.is_empty() {
-            return Container::new(Column::new())
-                .width(width)
-                .height(height)
-                .into();
-        }
-
-        let inner_xy = self.xy.clone();
-        Container::new(
-            Column::new()
-                .padding(5)
-                .align_items(Alignment::Center)
-                .push(
-                    Text::new(self.label.as_str())
-                        .horizontal_alignment(alignment::Horizontal::Center),
-                )
-                .push(
-                    Text::new(format!("{:.3}", self.value.trunc() / 255f32)).color(
-                        Color::from_rgb8(255 - self.value as u8, self.value as u8, 0),
-                    ),
-                )
-                .push(Slider::new(
-                    &mut self.slider_state,
-                    0.0..=255.0,
-                    self.value,
-                    move |val| Message::SliderChanged(inner_xy, val),
-                )),
-        )
-        .height(height)
-        .width(width)
-        .style(KeyStyle)
-        .into()
-    }
-
-    fn update(&mut self, shared_state: &mut SharedMem, value: f32) {
-        self.value = value;
-        match shared_state.wlock::<SharedState>(0) {
-            Ok(mut v) => {
-                v.analog_values[self.keycode as usize] = self.value as u8;
-                // info!("Updated key: {}, to {}", self.keycode, self.value);
-            }
-            Err(_) => panic!("Failed to acquire write lock !"),
-        };
-    }
-}
-
-struct AppState {
-    keys: Vec<Vec<Key>>,
-    shared_mem: SharedMem,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Message {
-    SliderChanged((usize, usize), f32),
-    ConnectedChanged(bool),
-}
-
-impl Sandbox for AppState {
-    type Message = Message;
-
-    fn new() -> Self {
-        let mut shmem = match SharedMem::open_linked(
-            std::env::temp_dir()
-                .join("wooting-test-plugin.link")
-                .as_os_str(),
-        ) {
-            Ok(v) => v,
-            Err(e) => {
-                info!("Error : {}", e);
-                panic!("Failed to open SharedMem...");
-            }
-        };
-
-        info!("Opened link file with info : {}", shmem);
-
-        //Make sure at least one lock exists before using it...
-        if shmem.num_locks() != 1 {
-            println!("Expected to only have 1 lock in shared mapping !");
-            panic!();
-        }
-
-        //Tell the plugin that we've connected
-        {
-            let mut shared_state = match shmem.wlock::<SharedState>(0) {
-                Ok(v) => v,
-                Err(_) => panic!("Failed to acquire write lock !"),
-            };
-            shared_state.device_connected = true;
-        }
-        let mut keys = vec![];
-        {
-            let state = match shmem.rlock::<SharedState>(0) {
-                Ok(v) => v,
-                Err(_) => panic!("Failed to acquire read lock !"),
-            };
-            for (y, items) in KEYBOARD_LAYOUT.iter().enumerate() {
-                let mut row: Vec<Key> = vec![];
-                for (x, &(name, code, width, height)) in items.iter().enumerate() {
-                    // if width == 0 {
-                    //     continue;
-                    // }
-                    row.push(Key::new(
-                        code,
-                        name.to_string(),
-                        width,
-                        height,
-                        state.analog_values[code as usize].into(),
-                        (x, y),
-                    ))
-                }
-                keys.push(row);
-            }
-        }
-
-        Self {
-            keys,
-            shared_mem: shmem,
-        }
-    }
-
-    fn title(&self) -> String {
-        String::from("Wooting Analog Virtual Keyboard")
-    }
-
-    fn update(&mut self, message: Message) {
-        match message {
-            Message::SliderChanged((x, y), val) => {
-                self.keys
-                    .get_mut(y)
-                    .unwrap()
-                    .get_mut(x)
-                    .unwrap()
-                    .update(&mut self.shared_mem, val);
-            }
-            Message::ConnectedChanged(state) => {
-                match self.shared_mem.wlock::<SharedState>(0) {
-                    Ok(mut shared_state) => shared_state.device_connected = state,
-                    Err(_) => panic!("Failed to acquire read lock !"),
-                };
-            }
-        }
-    }
-
-    fn view(&mut self) -> Element<Message> {
-        let mut col = Column::new().spacing(KEY_SPACING);
-        for key_row in self.keys.iter_mut() {
-            let mut row = Row::new();
-            for key in key_row.iter_mut() {
-                row = row.push(key.view());
-            }
-            col = col.push(row.spacing(KEY_SPACING));
-        }
-        col.push(
-            Row::new().push(Checkbox::new(
-                self.shared_mem
-                    .rlock::<SharedState>(0)
-                    .unwrap()
-                    .device_connected,
-                "Device Connected",
-                Message::ConnectedChanged,
-            )),
-        )
-        .padding(WIDGET_PADDING)
-        .into()
-    }
-}
-
-impl Drop for AppState {
-    fn drop(&mut self) {
-        //Perform cleanup
-        let mut shared_state = match self.shared_mem.wlock::<SharedState>(0) {
-            Ok(v) => v,
-            Err(_) => panic!("Failed to acquire write lock !"),
-        };
-
-        shared_state.device_connected = false;
-        shared_state.analog_values.iter_mut().for_each(|x| *x = 0);
-    }
-}
-
-fn main() -> Result<(), iced::Error> {
-    if let Err(e) =
-        env_logger::Builder::from_env(Env::default().default_filter_or("info")).try_init()
-    {
-        error!("Failed to init env_logger: {}", e)
-    }
-    let kb: &Vec<Vec<(&'static str, u16, u16, u16)>> = KEYBOARD_LAYOUT.borrow();
-    let max_key_width = kb.iter().fold(0, |current: u32, item| {
-        current.max(
-            item.iter()
-                .fold(0, |width: u32, key: &(&'static str, u16, u16, u16)| {
-                    width + key.2 as u32
-                }),
-        )
-    });
-    let width: u32 = max_key_width * KEY_WIDTH as u32
-        + ((max_key_width - 1) * KEY_SPACING as u32)
-        + WIDGET_PADDING as u32 * 2;
-    let rows = kb.len() as u32;
-    // Add 1 to the number of rows for the Height for the extra row of controls
-    let height =
-        (rows + 1) * (KEY_WIDTH as u32) + (rows * KEY_SPACING as u32) + WIDGET_PADDING as u32 * 2;
-
-    AppState::run(Settings {
-        window: window::Settings {
-            size: (width, height),
-            resizable: false,
-            decorations: true,
-            always_on_top: false,
-            max_size: None,
-            min_size: None,
-            icon: None,
-            transparent: false,
-            ..window::Settings::default()
-        },
-        default_text_size: 20,
-        exit_on_close_request: true,
-        ..Settings::default()
-    })
-}
+    ]
+});

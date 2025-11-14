@@ -7,33 +7,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef enum WootingAnalog_DeviceEventType {
-  /// Device has been connected
-  WootingAnalog_DeviceEventType_Connected = 1,
-  /// Device has been disconnected
-  WootingAnalog_DeviceEventType_Disconnected = 2,
-} WootingAnalog_DeviceEventType;
-
-typedef enum WootingAnalog_DeviceType {
-  /// Device is of type Keyboard
-  WootingAnalog_DeviceType_Keyboard = 1,
-  /// Device is of type Keypad
-  WootingAnalog_DeviceType_Keypad = 2,
-  /// Device
-  WootingAnalog_DeviceType_Other = 3,
-} WootingAnalog_DeviceType;
-
-typedef enum WootingAnalog_KeycodeType {
-  /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
-  WootingAnalog_KeycodeType_HID = 0,
-  /// Scan code set 1
-  WootingAnalog_KeycodeType_ScanCode1 = 1,
-  /// Windows Virtual Keys
-  WootingAnalog_KeycodeType_VirtualKey = 2,
-  /// Windows Virtual Keys which are translated to the current keyboard locale
-  WootingAnalog_KeycodeType_VirtualKeyTranslate = 3,
-} WootingAnalog_KeycodeType;
-
 typedef enum WootingAnalogResult {
   WootingAnalogResult_Ok = 1,
   /// Item hasn't been initialized
@@ -59,6 +32,33 @@ typedef enum WootingAnalogResult {
   /// Indicates that the Analog SDK could not be found on the system
   WootingAnalogResult_DLLNotFound = -1990,
 } WootingAnalogResult;
+
+typedef enum WootingAnalog_DeviceEventType {
+  /// Device has been connected
+  WootingAnalog_DeviceEventType_Connected = 1,
+  /// Device has been disconnected
+  WootingAnalog_DeviceEventType_Disconnected = 2,
+} WootingAnalog_DeviceEventType;
+
+typedef enum WootingAnalog_KeycodeType {
+  /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
+  WootingAnalog_KeycodeType_HID = 0,
+  /// Scan code set 1
+  WootingAnalog_KeycodeType_ScanCode1 = 1,
+  /// Windows Virtual Keys
+  WootingAnalog_KeycodeType_VirtualKey = 2,
+  /// Windows Virtual Keys which are translated to the current keyboard locale
+  WootingAnalog_KeycodeType_VirtualKeyTranslate = 3,
+} WootingAnalog_KeycodeType;
+
+typedef enum WootingAnalog_DeviceType {
+  /// Device is of type Keyboard
+  WootingAnalog_DeviceType_Keyboard = 1,
+  /// Device is of type Keypad
+  WootingAnalog_DeviceType_Keypad = 2,
+  /// Device
+  WootingAnalog_DeviceType_Other = 3,
+} WootingAnalog_DeviceType;
 
 typedef uint64_t WootingAnalog_DeviceID;
 

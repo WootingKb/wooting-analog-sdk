@@ -1,16 +1,18 @@
 pub(crate) mod c;
 
+use dyn_clone::DynClone;
 use hidapi::DeviceInfo as DeviceInfoHID;
 use hidapi::{HidApi, HidDevice};
 use log::*;
 use log::{error, info};
-use objekt::clone_trait_object;
+use shared_memory::ShmemConf;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::os::raw::{c_float, c_ushort};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use std::time::Duration;
 use std::{str, thread};
 
 use crate::{DeviceEventType, DeviceID, DeviceInfo, DeviceType, SDKResult, WootingAnalogResult};
@@ -69,6 +71,25 @@ const ANALOG_MAX_SIZE: usize = 40;
 const WOOTING_VID: u16 = 0x31e3;
 const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
 
+#[derive(Debug, PartialEq)]
+pub struct SharedState {
+    pub vendor_id: u16,
+    /// Device Product ID `pid`
+    pub product_id: u16,
+    //TODO: Consider switching these to FFiStr
+    /// Device Manufacturer name
+    pub manufacturer_name: [u8; 20],
+    /// Device name
+    pub device_name: [u8; 20],
+
+    pub device_type: DeviceType,
+
+    pub device_connected: bool,
+    pub dirty_device_info: bool,
+
+    pub analog_values: [u8; 0xFF],
+}
+
 /// Struct holding the information we need to find the device and the analog interface
 struct DeviceHardwareID {
     vid: u16,
@@ -78,7 +99,7 @@ struct DeviceHardwareID {
 }
 
 /// Trait which defines how the Plugin can communicate with a particular device
-trait DeviceImplementation: objekt::Clone + Send {
+trait DeviceImplementation: DynClone + Send {
     /// Gives the device hardware ID that can be used to obtain the analog interface for this device
     fn device_hardware_id(&self) -> DeviceHardwareID;
 
@@ -152,7 +173,7 @@ trait DeviceImplementation: objekt::Clone + Send {
     }
 }
 
-clone_trait_object!(DeviceImplementation);
+dyn_clone::clone_trait_object!(DeviceImplementation);
 
 #[derive(Debug, Clone)]
 struct WootingOne();
@@ -230,28 +251,33 @@ impl Device {
             let t_buffer = Arc::clone(&buffer);
             let t_connected = Arc::clone(&connected);
 
-            thread::spawn(move || loop {
-                if !t_connected.load(Ordering::Relaxed) {
-                    return 0;
-                }
-
-                match device_impl
-                    .get_analog_buffer(&device, ANALOG_MAX_SIZE)
-                    .into()
-                {
-                    Ok(data) => {
-                        if let Some(data) = data {
-                            let mut m = t_buffer.lock().unwrap();
-                            m.clear();
-                            m.extend(data);
-                        }
-                    }
-                    Err(e) => {
-                        if e != WootingAnalogResult::DeviceDisconnected {
-                            error!("Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...", e);
-                        }
-                        t_connected.store(false, Ordering::Relaxed);
+            thread::spawn(move || {
+                loop {
+                    if !t_connected.load(Ordering::Relaxed) {
                         return 0;
+                    }
+
+                    match device_impl
+                        .get_analog_buffer(&device, ANALOG_MAX_SIZE)
+                        .into()
+                    {
+                        Ok(data) => {
+                            if let Some(data) = data {
+                                let mut m = t_buffer.lock().unwrap();
+                                m.clear();
+                                m.extend(data);
+                            }
+                        }
+                        Err(e) => {
+                            if e != WootingAnalogResult::DeviceDisconnected {
+                                error!(
+                                    "Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...",
+                                    e
+                                );
+                            }
+                            t_connected.store(false, Ordering::Relaxed);
+                            return 0;
+                        }
                     }
                 }
             })
@@ -322,16 +348,20 @@ pub struct WootingPlugin {
     initialised: Arc<AtomicBool>,
     device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>>,
     devices: Arc<Mutex<HashMap<DeviceID, Device>>>,
+    #[cfg(debug_assertions)]
+    virtual_keyboard_buffer: Arc<Mutex<HashMap<u16, f32>>>,
     thread: Option<JoinHandle<()>>,
 }
 
 const PLUGIN_NAME: &str = "Wooting Official Plugin";
 impl WootingPlugin {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         WootingPlugin {
             initialised: Arc::new(false.into()),
             device_event_cb: Arc::new(Mutex::new(None)),
             devices: Arc::new(Mutex::new(Default::default())),
+            #[cfg(debug_assertions)]
+            virtual_keyboard_buffer: Arc::new(Mutex::new(HashMap::new())),
             thread: None,
         }
     }
@@ -425,6 +455,7 @@ impl WootingPlugin {
         let t_initialised = Arc::clone(&self.initialised);
         let t_devices = Arc::clone(&self.devices);
         let t_device_event_cb = Arc::clone(&self.device_event_cb);
+
         self.thread = Some(thread::spawn(move || {
             let mut i = 0;
             while t_initialised.load(Ordering::Relaxed) {
@@ -458,17 +489,158 @@ impl WootingPlugin {
                 i += 10;
             }
         }));
+
+        // TODO: incorporate virtual keyboard in a better way
+        #[cfg(debug_assertions)]
+        {
+            let t_device_event_cb2 = Arc::clone(&self.device_event_cb);
+
+            let device: Arc<Mutex<Option<DeviceInfo>>> = Arc::new(Mutex::new(None));
+            let device_connected: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+            let thread_running: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+
+            let t_buffer = Arc::clone(&self.virtual_keyboard_buffer);
+            let t_device = Arc::clone(&device);
+            let t_device_connected = Arc::clone(&device_connected);
+            let t_thread_running = Arc::clone(&thread_running);
+
+            thread::spawn(move || {
+                let link_path = std::env::temp_dir().join("wooting-test-plugin.link");
+                let my_shmem = {
+                    match ShmemConf::new()
+                        .size(4096)
+                        .flink(link_path.as_os_str())
+                        .open()
+                    {
+                        Ok(v) => v,
+                        Err(e) => {
+                            if link_path.exists() {
+                                warn!("Error : {}", e);
+                                warn!(
+                                    "Attempted to open exist SharedMemFailed... Falling back to creation"
+                                );
+                                if let Err(e) = std::fs::remove_file(&link_path) {
+                                    error!("Could not delete old link file: {}", e);
+                                }
+                            }
+                            match ShmemConf::new()
+                                .size(4096)
+                                .flink(link_path.as_os_str())
+                                .create()
+                            {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    error!("Test Plugin Error : {}", e);
+                                    error!("Test Plugin Failed to create SharedMem closing!");
+                                    //return;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                };
+
+                info!("{:?}", my_shmem.get_flink_path());
+
+                {
+                    let shared_state = unsafe { &mut *(my_shmem.as_ptr() as *mut SharedState) };
+                    shared_state.vendor_id = 0x03eb;
+                    shared_state.product_id = 0xFFFF;
+                    shared_state.device_type = DeviceType::Keyboard;
+                    shared_state.device_connected = false;
+                    shared_state.dirty_device_info = false;
+                    let src = b"Wooting\x00";
+                    shared_state.manufacturer_name[0..src.len()].copy_from_slice(src);
+                    let src = b"Test Device\x00";
+                    shared_state.device_name[0..src.len()].copy_from_slice(src);
+                    shared_state.analog_values = [0; 0xFF];
+                }
+
+                let mut vals = vec![0; 0xFF];
+                loop {
+                    if !t_thread_running.load(Ordering::SeqCst) {
+                        break;
+                    }
+
+                    {
+                        let state = unsafe { &mut *(my_shmem.as_ptr() as *mut SharedState) };
+
+                        if state.dirty_device_info || t_device.lock().unwrap().is_none() {
+                            state.dirty_device_info = false;
+                            let dev = DeviceInfo::new_with_id(
+                                state.vendor_id,
+                                state.product_id,
+                                from_ut8f_to_null(
+                                    &state.manufacturer_name[..],
+                                    state.manufacturer_name.len(),
+                                )
+                                .to_string(),
+                                from_ut8f_to_null(&state.device_name[..], state.device_name.len())
+                                    .to_string(),
+                                1,
+                                state.device_type.clone(),
+                            );
+                            t_device.lock().unwrap().replace(dev);
+                        }
+
+                        if *t_device_connected.lock().unwrap() != state.device_connected {
+                            *t_device_connected.lock().unwrap() = state.device_connected;
+                            if let Some(device) = t_device.lock().unwrap().as_ref() {
+                                t_device_event_cb2.lock().unwrap().as_ref().and_then(|cb| {
+                                    cb(
+                                        if state.device_connected {
+                                            DeviceEventType::Connected
+                                        } else {
+                                            DeviceEventType::Disconnected
+                                        },
+                                        device,
+                                    );
+                                    Some(0)
+                                });
+                            }
+                        }
+
+                        if !state.device_connected {
+                            thread::sleep(Duration::from_millis(500));
+                            continue;
+                        }
+
+                        vals.copy_from_slice(&state.analog_values[..]);
+                    }
+
+                    let analog: HashMap<u16, f32> = vals
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, &val)| {
+                            if val > 0 {
+                                Some((i as u16, f32::from(val) / 255_f32))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    {
+                        let mut m = t_buffer.lock().unwrap();
+                        m.clear();
+                        m.extend(analog);
+                    }
+                    //t_buffer.lock().unwrap().
+                    thread::sleep(Duration::from_millis(10));
+                }
+            });
+        }
+
         debug!("Started thread");
         Ok(self.devices.lock().unwrap().len() as u32).into()
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub extern "C" fn _plugin_create() -> *mut dyn Plugin {
         let boxed: Box<dyn Plugin> = Box::new(Self::new());
         Box::into_raw(boxed)
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub extern "C" fn plugin_version() -> &'static str {
         ANALOG_SDK_PLUGIN_VERSION
     }
@@ -584,6 +756,14 @@ impl Plugin for WootingPlugin {
             if !any_read {
                 Err(error).into()
             } else {
+                #[cfg(debug_assertions)]
+                for (key, value) in self.virtual_keyboard_buffer.lock().unwrap().iter() {
+                    analog
+                        .entry(*key)
+                        .and_modify(|v| *v = v.max(*value))
+                        .or_insert(*value);
+                }
+
                 Ok(analog).into()
             }
         } else
@@ -611,4 +791,14 @@ impl Plugin for WootingPlugin {
 
         Ok(devices).into()
     }
+}
+
+fn from_ut8f_to_null(bytes: &[u8], max_len: usize) -> &str {
+    use std::str::from_utf8_unchecked;
+    for i in 0..max_len {
+        if bytes[i] == 0 {
+            return unsafe { from_utf8_unchecked(&bytes[0..i]) };
+        }
+    }
+    panic!("Couldnt find null terminator.");
 }
