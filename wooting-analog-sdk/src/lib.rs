@@ -1,25 +1,25 @@
 #[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod keycode;
-pub mod sdk;
 mod plugin;
+pub mod sdk;
 
+pub use crate::plugin::Plugin;
 use enum_primitive_derive::Primitive;
 use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
-#[cfg(feature = "serdes")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
 use std::hash::Hasher;
 use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
 use thiserror::Error;
-pub use crate::plugin::Plugin;
 
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is for use internally and should be ignored if you're
 /// trying to use it when trying to interact with the SDK using the wrapper
-#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub struct DeviceInfo {
     /// Device Vendor ID `vid`
@@ -150,7 +150,7 @@ impl DeviceInfo {
     }
 }
 
-#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum KeycodeType {
@@ -172,7 +172,7 @@ pub type DeviceID = u64;
 /// cbindgen:ignore
 type DeviceType_FFI = c_int;
 
-#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceType {
@@ -184,7 +184,7 @@ pub enum DeviceType {
     Other = 3,
 }
 
-#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
 pub enum DeviceEventType {
@@ -194,7 +194,7 @@ pub enum DeviceEventType {
     Disconnected = 2,
 }
 
-#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive, Error)]
 #[repr(C)]
 pub enum WootingAnalogResult {
@@ -387,7 +387,7 @@ impl Into<bool> for WootingAnalogResult {
     }
 }
 
-#[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Hash, Eq, Primitive)]
 #[repr(C)]
 pub enum HIDCodes {

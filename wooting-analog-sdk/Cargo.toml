@@ -28,6 +28,7 @@ scancode = "0.1.2"
 bimap = "0.4"
 hidapi = { version = "^2.5", features = ["linux-static-hidraw"], default-features = false }
 objekt = "^0.1"
+serde = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
 shared_memory = "^0.8"
