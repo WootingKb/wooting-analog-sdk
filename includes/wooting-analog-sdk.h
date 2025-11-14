@@ -234,10 +234,6 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
 
-WootingAnalog_DeviceID generate_device_id(const char* serial_number,
-                                          uint16_t vendor_id,
-                                          uint16_t product_id);
-
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
