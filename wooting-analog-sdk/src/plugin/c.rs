@@ -20,7 +20,7 @@ macro_rules! lib_wrap {
         $(
             //lib_wrap! {
             //    @as_item
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
@@ -51,7 +51,7 @@ macro_rules! lib_wrap_option {
         $(
             //lib_wrap! {
             //    @as_item
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> SDKResult<$fn_ret_tys>)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
