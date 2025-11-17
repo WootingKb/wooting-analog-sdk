@@ -2,7 +2,6 @@ use crate::{
     DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeycodeType, SDKResult,
     WootingAnalogResult, sdk::*,
 };
-use ffi_support::FfiStr;
 use libloading::{self, Symbol};
 use log::{error, trace};
 use num_traits::FromPrimitive;
@@ -36,7 +35,7 @@ fn find_dll_in_path() -> Option<PathBuf> {
     None
 }
 
-#[cfg(feature = "local_dll")]
+#[cfg(feature = "dist")]
 static LIB: LazyLock<Option<libloading::Library>> = LazyLock::new(|| {
     // #[cfg(target_arch = "x86")]
     // let lib_path = concat!("wooting_analog_sdk", "32");
@@ -65,14 +64,15 @@ static LIB: LazyLock<Option<libloading::Library>> = LazyLock::new(|| {
 // TODO: use crate version
 const SDK_VERSION: i32 = 0;
 
-#[cfg(feature = "local_dll")]
+#[cfg(feature = "dist")]
 static USE_SYS_DLL: LazyLock<bool> = LazyLock::new(|| {
     try_system_dll()
-        .map_err(|e| println!("failed to call sys: {e:?}"))
+        // TODO: clean error message
+        .inspect_err(|e| eprintln!("failed to call sys: {e:?}"))
         .is_ok()
 });
 
-#[cfg(feature = "local_dll")]
+#[cfg(feature = "dist")]
 fn try_system_dll() -> Result<(), WootingAnalogResult> {
     if LIB.is_none() {
         return Err(WootingAnalogResult::DLLNotFound);
@@ -130,7 +130,7 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     //     Err(e) => println!("failed to call sys: {e:?}")
     // }
 
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn() -> i32;
 
@@ -169,7 +169,7 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
 /// there may be some breaking changes that have been made so the SDK should not be attempted to be used
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_version() -> c_int {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn() -> c_int;
 
@@ -204,7 +204,7 @@ pub extern "C" fn wooting_analog_version() -> c_int {
 /// Returns a bool indicating if the Analog SDK has been initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_is_initialised() -> bool {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn() -> bool;
 
@@ -236,7 +236,7 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
 /// * `Ok`: Indicates that the SDK was successfully uninitialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn() -> WootingAnalogResult;
 
@@ -294,7 +294,7 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
 /// * `UnInitialized`: The SDK is not initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn(c_uint) -> WootingAnalogResult;
 
@@ -361,7 +361,7 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
 /// * `WootingAnalogResult::NoDevices`: There are no connected devices
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn(c_ushort) -> c_float;
 
@@ -402,7 +402,7 @@ pub extern "C" fn wooting_analog_read_analog_device(
     code: c_ushort,
     device_id: DeviceID,
 ) -> c_float {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn(c_ushort, DeviceID) -> c_float;
 
@@ -447,7 +447,7 @@ pub extern "C" fn wooting_analog_read_analog_device(
 pub extern "C" fn wooting_analog_set_device_event_cb(
     cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI),
 ) -> WootingAnalogResult {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn(
             cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI),
@@ -496,7 +496,7 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
 /// * `UnInitialized`: The SDK is not initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn() -> WootingAnalogResult;
 
@@ -539,7 +539,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
     buffer: *mut *mut DeviceInfo_FFI,
     len: c_uint,
 ) -> c_int {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn(*mut *mut DeviceInfo_FFI, c_uint) -> c_int;
 
@@ -623,7 +623,7 @@ pub extern "C" fn wooting_analog_read_full_buffer(
     analog_buffer: *mut c_float,
     len: c_uint,
 ) -> c_int {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn(*mut c_ushort, *mut c_float, c_uint) -> c_int;
 
@@ -673,7 +673,7 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
     len: c_uint,
     device_id: DeviceID,
 ) -> c_int {
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
         type FnPtr = extern "C" fn(*mut c_ushort, *mut c_float, c_uint, DeviceID) -> i32;
 
@@ -697,10 +697,10 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         };
     }
 
-    #[cfg(not(feature = "local_dll"))]
+    #[cfg(not(feature = "dist"))]
     println!("hi from system dll");
 
-    #[cfg(feature = "local_dll")]
+    #[cfg(feature = "dist")]
     println!("called normal from local");
 
     let codes = unsafe {
