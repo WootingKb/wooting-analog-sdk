@@ -1,8 +1,3 @@
-use crate::keycode::*;
-use crate::plugin::c::CPlugin;
-use crate::plugin::WootingPlugin;
-use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
-use crate::plugin::DEFAULT_PLUGIN_DIR;
 use crate::DeviceEventType;
 use crate::DeviceID;
 use crate::DeviceInfo;
@@ -10,6 +5,11 @@ use crate::KeycodeType;
 use crate::Plugin;
 use crate::SDKResult;
 use crate::WootingAnalogResult;
+use crate::keycode::*;
+use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
+use crate::plugin::DEFAULT_PLUGIN_DIR;
+use crate::plugin::WootingPlugin;
+use crate::plugin::c::CPlugin;
 use anyhow::bail;
 use anyhow::{Context, Error, Result};
 use libloading::{Library, Symbol};
@@ -23,6 +23,139 @@ use std::sync::{Arc, Mutex};
 use std::{fs, thread};
 
 unsafe impl Send for AnalogSDK {}
+
+pub struct Initialised {
+    plugins: Vec<Box<dyn Plugin>>,
+}
+pub struct Uninitalised {
+    wooting_plugin: Option<WootingPlugin>,
+    plugins: Option<Vec<PathBuf>>,
+}
+pub struct AnalogSDKTest<S = Uninitalised> {
+    state: S,
+}
+impl<S> AnalogSDKTest<S> {}
+
+impl AnalogSDKTest<Uninitalised> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_plugin_directory<P: AsRef<Path>>(mut self, path: P) -> Self {
+        self.state.plugins = Some(vec![path.as_ref().to_path_buf()]);
+        self
+    }
+
+    pub fn with_plugin_directories(mut self, paths: Vec<PathBuf>) -> Self {
+        // TODO: merge them? is this api even worth?
+        self.state.plugins = Some(paths);
+        self
+    }
+
+    pub fn without_wooting_plugin(mut self) -> Self {
+        self.state.wooting_plugin = None;
+        self
+    }
+
+    pub fn initialise(self) -> AnalogSDKTest<Initialised> {
+        // TODO: call `AnalogSDKTest::<S>::with_plugins` instead
+        let mut plugins: Vec<Box<dyn Plugin>> = vec![Box::new(WootingPlugin::new())];
+
+        for p in plugins.iter_mut() {
+            let ret = p.initialise(Box::new(
+                move |_event: DeviceEventType, _device_ref: &DeviceInfo| {},
+            ));
+            println!("{:?}", ret);
+        }
+
+        AnalogSDKTest {
+            state: Initialised { plugins },
+        }
+    }
+}
+
+impl AnalogSDKTest<Initialised> {
+    pub fn read_full_buffer(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<u16, f32>> {
+        let mut analog_data: HashMap<u16, f32> = HashMap::with_capacity(max_length);
+
+        let mut err = WootingAnalogResult::Ok;
+        let mut any_success = false;
+        //Read from all and add up
+        for p in self.state.plugins.iter_mut() {
+            let plugin_data = p
+                .read_full_buffer(max_length - analog_data.len(), device_id)
+                .into();
+            match plugin_data {
+                Ok(mut data) => {
+                    for (hid_code, analog) in data.drain() {
+                        let code = hid_to_code(hid_code, &KeycodeType::HID);
+                        if let Some(code) = code {
+                            let mut total_analog = analog;
+
+                            //No point in checking if the value is already present if we are only looking for data from one device
+                            if device_id == 0 {
+                                if let Some(val) = analog_data.get(&code) {
+                                    total_analog = total_analog.max(*val);
+                                }
+                            }
+                            analog_data.insert(code, total_analog);
+                        } else {
+                            warn!("Couldn't map HID:{} to {:?}", hid_code, KeycodeType::HID);
+                        }
+                    }
+
+                    any_success = true;
+                }
+                Err(e) => {
+                    //TODO: Improve collating of multiple errors
+                    err = e
+                }
+            }
+            //If we are looking for a specific device, just break out when we find one that returns good
+            if device_id != 0 {
+                break;
+            }
+        }
+        if !any_success {
+            return Err(err).into();
+        }
+
+        Ok(analog_data).into()
+    }
+
+    // maybe retain settings from the uninit to init step? could revert to those exact settings here
+    pub fn uninitialise(self) -> AnalogSDKTest<Uninitalised> {
+        AnalogSDKTest {
+            state: Uninitalised {
+                plugins: None,
+                wooting_plugin: Some(WootingPlugin::new()),
+            },
+        }
+    }
+}
+
+impl Default for AnalogSDKTest<Uninitalised> {
+    fn default() -> Self {
+        Self {
+            state: Uninitalised {
+                plugins: None,
+                wooting_plugin: Some(WootingPlugin::new()),
+            },
+        }
+    }
+}
+
+impl Drop for Initialised {
+    fn drop(&mut self) {
+        for plugin in self.plugins.iter_mut() {
+            plugin.unload();
+        }
+    }
+}
 
 pub struct AnalogSDK {
     pub initialised: bool,

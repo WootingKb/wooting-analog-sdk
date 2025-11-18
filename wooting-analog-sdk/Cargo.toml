@@ -13,7 +13,7 @@ keywords = [ "wooting", "keyboard", "analog", "sdk" ]
 
 [features]
 ffi = []
-local_dll = []
+dist = []
 
 [dependencies]
 log = "0.4"
