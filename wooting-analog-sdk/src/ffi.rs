@@ -1,17 +1,19 @@
+#[cfg(feature = "dist")]
+mod delegate_sys;
+
 use crate::{
     DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeycodeType, SDKResult,
     WootingAnalogResult, sdk::*,
 };
-use libloading::{self, Symbol};
 use log::{error, trace};
 use num_traits::FromPrimitive;
 use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
-use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 use std::{env, panic, slice};
+use delegate_sys::USE_SYS_DLL;
 
-pub static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
+static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
     // Initialising logger with default "off".
     // If the library user wants logging, they can set the RUST_LOG environment variable, e.g. to "info".
     // TODO: Consider using file logging or allowing the user to set a custom log callback.
@@ -24,84 +26,6 @@ pub static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
     Mutex::new(AnalogSDK::new())
 });
 
-fn find_dll_in_path() -> Option<PathBuf> {
-    if let Ok(path_var) = std::env::var("PATH") {
-        for dir in std::env::split_paths(&path_var) {
-            if dir.ends_with("wooting-analog-sdk") {
-                return Some(dir);
-            }
-        }
-    }
-    None
-}
-
-#[cfg(feature = "dist")]
-static LIB: LazyLock<Option<libloading::Library>> = LazyLock::new(|| {
-    // #[cfg(target_arch = "x86")]
-    // let lib_path = concat!("wooting_analog_sdk", "32");
-
-    // #[cfg(all(unix, not(target_os = "macos")))]
-    // let lib_path = concat!("lib", "wooting_analog_sdk", ".so");
-    // #[cfg(all(unix, target_os = "macos"))]
-    // let lib_path = concat!("lib", "wooting_analog_sdk", ".dylib");
-    // #[cfg(windows)]
-    // let lib_path = "C:/Program Files/wooting-analog-sdk/wooting_analog_sdk";
-
-    // pretty much windows only, not certain on other platforms if it is the dir with the same name
-    let lib_path =
-        find_dll_in_path().map(|p| p.join(libloading::library_filename("wooting_analog_sdk")))?;
-
-    unsafe {
-        //Attempt to load the library, if it fails print the error and discard the error
-        libloading::Library::new(&lib_path)
-            .map_err(|e| {
-                println!("Unable to load library: {:?}\nErr: {}", lib_path, e);
-            })
-            .ok()
-    }
-});
-
-// TODO: use crate version
-const SDK_VERSION: i32 = 0;
-
-#[cfg(feature = "dist")]
-static USE_SYS_DLL: LazyLock<bool> = LazyLock::new(|| {
-    try_system_dll()
-        // TODO: clean error message
-        .inspect_err(|e| eprintln!("failed to call sys: {e:?}"))
-        .is_ok()
-});
-
-#[cfg(feature = "dist")]
-fn try_system_dll() -> Result<(), WootingAnalogResult> {
-    if LIB.is_none() {
-        return Err(WootingAnalogResult::DLLNotFound);
-    }
-
-    static VERSION_FN: LazyLock<Option<Symbol<extern "C" fn() -> i32>>> = LazyLock::new(|| {
-        LIB.as_ref().and_then(|lib| unsafe {
-            //Get func, print and discard error as we don't need it again
-            lib.get(b"wooting_analog_version")
-                .map_err(|e| {
-                    println!("Could not find symbol 'wooting_analog_version', {}", e);
-                })
-                .ok()
-        })
-    });
-
-    match VERSION_FN.as_deref() {
-        Some(version_fn) => {
-            let version = version_fn();
-
-            if version == SDK_VERSION {
-                Ok(())
-            } else {
-                Err(WootingAnalogResult::IncompatibleVersion)
-            }
-        }
-        _ => Err(WootingAnalogResult::FunctionNotFound),
-    }
-}
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
@@ -111,44 +35,9 @@ fn try_system_dll() -> Result<(), WootingAnalogResult> {
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_initialise() -> c_int {
-    // match try_system_dll() {
-    //     Ok(()) => {
-    //         static INIT_FN: LazyLock<Option<Symbol<extern "C" fn() -> i32>>> = LazyLock::new(|| {
-    //             LIB.as_ref().and_then(|lib| unsafe {
-    //                 //Get func, print and discard error as we don't need it again
-    //                 lib.get(b"wooting_analog_initialise").map_err(|e| {
-    //                     println!("Could not find symbol 'wooting_analog_initialise', {}", e);
-    //                 }).ok()
-    //             })
-    //         });
-
-    //         return match INIT_FN.as_deref() {
-    //             Some(f) => f(),
-    //             _ => WootingAnalogResult::FunctionNotFound.into()
-    //         }
-    //     },
-    //     Err(e) => println!("failed to call sys: {e:?}")
-    // }
-
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn() -> i32;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_initialise")
-                    .map_err(|e| {
-                        println!("Could not find symbol 'wooting_analog_initialise', {}", e);
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_initialise();
     }
 
     let result = panic::catch_unwind(|| {
@@ -171,26 +60,7 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
 pub extern "C" fn wooting_analog_version() -> c_int {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn() -> c_int;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_version")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_version', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_version();
     }
 
     env!("CARGO_PKG_VERSION")
@@ -198,7 +68,7 @@ pub extern "C" fn wooting_analog_version() -> c_int {
         .collect::<Vec<&str>>()
         .first()
         .and_then(|v| v.parse().ok())
-        .unwrap()
+        .expect("crate must have correct package semver format")
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
@@ -206,26 +76,7 @@ pub extern "C" fn wooting_analog_version() -> c_int {
 pub extern "C" fn wooting_analog_is_initialised() -> bool {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn() -> bool;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_is_initialised")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_is_initialised', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_is_initialised();
     }
 
     ANALOG_SDK.lock().unwrap().initialised
@@ -238,23 +89,7 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
 pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn() -> WootingAnalogResult;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_uninitialise")
-                    .map_err(|e| {
-                        println!("Could not find symbol 'wooting_analog_uninitialise', {}", e);
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(),
-            _ => WootingAnalogResult::FunctionNotFound,
-        };
+        return delegate_sys::wooting_analog_uninitialise();
     }
 
     trace!("wooting_analog_uninitialise called");
@@ -296,26 +131,7 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
 pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn(c_uint) -> WootingAnalogResult;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_set_keycode_mode")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_set_keycode_mode', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(mode),
-            _ => WootingAnalogResult::FunctionNotFound,
-        };
+        return delegate_sys::wooting_analog_set_keycode_mode(mode);
     }
 
     if !ANALOG_SDK.lock().unwrap().initialised {
@@ -363,23 +179,7 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
 pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn(c_ushort) -> c_float;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_read_analog")
-                    .map_err(|e| {
-                        println!("Could not find symbol 'wooting_analog_read_analog', {}", e);
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(code),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_read_analog(code);
     }
 
     wooting_analog_read_analog_device(code, 0)
@@ -404,26 +204,7 @@ pub extern "C" fn wooting_analog_read_analog_device(
 ) -> c_float {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn(c_ushort, DeviceID) -> c_float;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_read_analog_device")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_read_analog_device', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(code, device_id),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_read_analog_device(code, device_id);
     }
 
     ANALOG_SDK
@@ -449,28 +230,7 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
 ) -> WootingAnalogResult {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn(
-            cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI),
-        ) -> WootingAnalogResult;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_set_device_event_cb")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_set_device_event_cb', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(cb),
-            _ => WootingAnalogResult::FunctionNotFound,
-        };
+        return delegate_sys::wooting_analog_set_device_event_cb(cb);
     }
 
     ANALOG_SDK
@@ -498,26 +258,7 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
 pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn() -> WootingAnalogResult;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_clear_device_event_cb")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_clear_device_event_cb', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(),
-            _ => WootingAnalogResult::FunctionNotFound,
-        };
+        return delegate_sys::wooting_analog_clear_device_event_cb();
     }
 
     ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
@@ -541,26 +282,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
 ) -> c_int {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn(*mut *mut DeviceInfo_FFI, c_uint) -> c_int;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_get_connected_devices_info")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_get_connected_devices_info', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(buffer, len),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_get_connected_devices_info(buffer, len);
     }
 
     let result: SDKResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
@@ -625,26 +347,7 @@ pub extern "C" fn wooting_analog_read_full_buffer(
 ) -> c_int {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn(*mut c_ushort, *mut c_float, c_uint) -> c_int;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_read_full_buffer")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_read_full_buffer', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(code_buffer, analog_buffer, len),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_read_full_buffer_device(code_buffer, analog_buffer, len, 0);
     }
 
     wooting_analog_read_full_buffer_device(code_buffer, analog_buffer, len, 0)
@@ -675,33 +378,13 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
 ) -> c_int {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        type FnPtr = extern "C" fn(*mut c_ushort, *mut c_float, c_uint, DeviceID) -> i32;
-
-        static FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-            LIB.as_ref().and_then(|lib| unsafe {
-                //Get func, print and discard error as we don't need it again
-                lib.get(b"wooting_analog_read_full_buffer_device")
-                    .map_err(|e| {
-                        println!(
-                            "Could not find symbol 'wooting_analog_read_full_buffer_device', {}",
-                            e
-                        );
-                    })
-                    .ok()
-            })
-        });
-
-        return match FN.as_deref() {
-            Some(f) => f(code_buffer, analog_buffer, len, device_id),
-            _ => WootingAnalogResult::FunctionNotFound.into(),
-        };
+        return delegate_sys::wooting_analog_read_full_buffer_device(
+            code_buffer,
+            analog_buffer,
+            len,
+            device_id,
+        );
     }
-
-    #[cfg(not(feature = "dist"))]
-    println!("hi from system dll");
-
-    #[cfg(feature = "dist")]
-    println!("called normal from local");
 
     let codes = unsafe {
         assert!(!code_buffer.is_null());
@@ -737,188 +420,4 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         }
         Err(e) => e as c_int,
     }
-
-    // match *DLL_LOC {
-    //     DllLocation::System => {
-    //         println!("went through system dll");
-
-    //         type FnPtr = extern "C" fn(*mut c_ushort, *mut c_float, c_uint, DeviceID) -> i32;
-
-    //         static READ_FN: LazyLock<Option<Symbol<FnPtr>>> = LazyLock::new(|| {
-    //             LIB.as_ref().and_then(|lib| unsafe {
-    //                 //Get func, print and discard error as we don't need it again
-    //                 lib.get(b"wooting_analog_read_full_buffer_device").map_err(|e| {
-    //                     println!("Could not find symbol 'wooting_analog_read_full_buffer_device', {}", e);
-    //                 }).ok()
-    //             })
-    //         });
-
-    //         match READ_FN.as_deref() {
-    //             Some(f) => f(code_buffer, analog_buffer, len, device_id),
-    //             _ => WootingAnalogResult::FunctionNotFound.into(),
-    //         }
-    //     }
-    //     DllLocation::Local => {
-    //         println!("went through self");
-
-    //         let codes = unsafe {
-    //             assert!(!code_buffer.is_null());
-
-    //             slice::from_raw_parts_mut(code_buffer, len as usize)
-    //         };
-
-    //         let analog = unsafe {
-    //             assert!(!analog_buffer.is_null());
-
-    //             slice::from_raw_parts_mut(analog_buffer, len as usize)
-    //         };
-
-    //         match ANALOG_SDK
-    //             .lock()
-    //             .unwrap()
-    //             .read_full_buffer(len as usize, device_id)
-    //             .0
-    //         {
-    //             Ok(analog_data) => {
-    //                 //Fill up given slices
-    //                 let mut count: usize = 0;
-    //                 for (code, val) in analog_data.iter() {
-    //                     if count >= codes.len() {
-    //                         break;
-    //                     }
-
-    //                     codes[count] = *code;
-    //                     analog[count] = *val;
-    //                     count += 1;
-    //                 }
-    //                 count as c_int
-    //             }
-    //             Err(e) => e as c_int,
-    //         }
-    //     }
-    // }
-
-    // if USE_SYS_DLL.load(Ordering::Relaxed) {
-    //     static READ_FN: LazyLock<Option<Symbol<extern "C" fn(
-    //         *mut c_ushort,
-    //         *mut c_float,
-    //         c_uint,
-    //         DeviceID
-    //     ) -> i32>>> = LazyLock::new(|| {
-    //         LIB.as_ref().and_then(|lib| unsafe {
-    //             //Get func, print and discard error as we don't need it again
-    //             lib.get(b"wooting_analog_read_full_buffer_device").map_err(|e| {
-    //                 println!("Could not find symbol 'wooting_analog_read_full_buffer_device', {}", e);
-    //             }).ok()
-    //         })
-    //     });
-
-    //     return match READ_FN.as_deref() {
-    //         Some(f) => f(code_buffer, analog_buffer, len, device_id),
-    //         _ => WootingAnalogResult::FunctionNotFound.into()
-    //     }
-    // }
-
-    // let codes = unsafe {
-    //     assert!(!code_buffer.is_null());
-
-    //     slice::from_raw_parts_mut(code_buffer, len as usize)
-    // };
-
-    // let analog = unsafe {
-    //     assert!(!analog_buffer.is_null());
-
-    //     slice::from_raw_parts_mut(analog_buffer, len as usize)
-    // };
-
-    // println!("went through self");
-
-    // match ANALOG_SDK
-    //     .lock()
-    //     .unwrap()
-    //     .read_full_buffer(len as usize, device_id)
-    //     .0
-    // {
-    //     Ok(analog_data) => {
-    //         //Fill up given slices
-    //         let mut count: usize = 0;
-    //         for (code, val) in analog_data.iter() {
-    //             if count >= codes.len() {
-    //                 break;
-    //             }
-
-    //             codes[count] = *code;
-    //             analog[count] = *val;
-    //             count += 1;
-    //         }
-    //         count as c_int
-    //     }
-    //     Err(e) => e as c_int,
-    // }
-
-    // type FnPtr = unsafe extern "C" fn(code_buffer: *mut c_ushort,
-    //     analog_buffer: *mut c_float,
-    //     len: c_uint,
-    //     device_id: DeviceID) -> c_int;
-
-    // if LIB.is_some() {
-    //     if "wooting_analog_read_full_buffer_device" != "wooting_analog_version" && wooting_analog_version() >= 0 && wooting_analog_version() != 0 {
-    //         println!("Cannot access Wooting Analog SDK function as this wrapper is for SDK major version {}, whereas the SDK has major version {}", 0, wooting_analog_version());
-    //         return WootingAnalogResult::IncompatibleVersion.into()
-    //     }
-
-    //         static FUNC: LazyLock<Option<libloading::Symbol<'static, FnPtr>>> = LazyLock::new(|| {
-    //             LIB.as_ref().and_then(|lib| unsafe {
-    //                 //Get func, print and discard error as we don't need it again
-    //                 lib.get(b"wooting_analog_read_full_buffer_device").map_err(|_e| {
-    //                     println!("Could not find symbol '{}', {}", stringify!($fn_names), _e);
-    //                 }).ok()
-    //             })
-    //         });
-
-    //     match FUNC.as_deref() {
-    //         Some(f) => unsafe { f(code_buffer,
-    //     analog_buffer,
-    //     len,
-    //     device_id) },
-    //         _ => WootingAnalogResult::FunctionNotFound.into()
-    //     }
-    // } else {
-    //     let codes = unsafe {
-    //         assert!(!code_buffer.is_null());
-
-    //         slice::from_raw_parts_mut(code_buffer, len as usize)
-    //     };
-
-    //     let analog = unsafe {
-    //         assert!(!analog_buffer.is_null());
-
-    //         slice::from_raw_parts_mut(analog_buffer, len as usize)
-    //     };
-
-    //     println!("went through self");
-
-    //     match ANALOG_SDK
-    //         .lock()
-    //         .unwrap()
-    //         .read_full_buffer(len as usize, device_id)
-    //         .0
-    //     {
-    //         Ok(analog_data) => {
-    //             //Fill up given slices
-    //             let mut count: usize = 0;
-    //             for (code, val) in analog_data.iter() {
-    //                 if count >= codes.len() {
-    //                     break;
-    //                 }
-
-    //                 codes[count] = *code;
-    //                 analog[count] = *val;
-    //                 count += 1;
-    //             }
-    //             count as c_int
-    //         }
-    //         Err(e) => e as c_int,
-    //     }
-    // }
 }
