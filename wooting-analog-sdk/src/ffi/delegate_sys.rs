@@ -75,7 +75,7 @@ macro_rules! delegate_sys {
     ($($fn_name:ident($($args:ident: $fn_args:ty),*) $(-> $fn_ret:ty)*;)*) => {
         $(
             #[must_use]
-            pub(crate) fn $fn_name($($args: $fn_args),*) $(-> $fn_ret)? {
+            pub(in crate::ffi) fn $fn_name($($args: $fn_args),*) $(-> $fn_ret)? {
                 static FN: LazyLock<Option<Symbol<fn($($fn_args),*) $(-> $fn_ret)*>>> =
                     LazyLock::new(|| load_symbol(stringify!($fn_name)));
 
