@@ -8,7 +8,7 @@ use log::{error, info};
 use shared_memory::ShmemConf;
 use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::os::raw::{c_float, c_ushort};
+use std::os::raw::{c_float, c_ushort, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -26,8 +26,9 @@ pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 
 pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// TODO: `Send + Sync` sensible here?
 /// The core Plugin trait which needs to be implemented for an Analog Plugin to function
-pub trait Plugin {
+pub trait Plugin: Send + Sync {
     /// Get a name describing the `Plugin`.
     fn name(&mut self) -> SDKResult<&'static str>;
 
@@ -634,16 +635,15 @@ impl WootingPlugin {
         Ok(self.devices.lock().unwrap().len() as u32).into()
     }
 
-    #[unsafe(no_mangle)]
-    pub extern "C" fn _plugin_create() -> *mut dyn Plugin {
-        let boxed: Box<dyn Plugin> = Box::new(Self::new());
-        Box::into_raw(boxed)
-    }
+    // #[unsafe(no_mangle)]
+    // pub fn plugin_create() -> Box<dyn Plugin> {
+    //     Box::new(Self::new())
+    // }
 
-    #[unsafe(no_mangle)]
-    pub extern "C" fn plugin_version() -> &'static str {
-        ANALOG_SDK_PLUGIN_VERSION
-    }
+    // #[unsafe(no_mangle)]
+    // pub fn plugin_version() -> &'static str {
+    //     ANALOG_SDK_PLUGIN_VERSION
+    // }
 }
 
 impl Plugin for WootingPlugin {

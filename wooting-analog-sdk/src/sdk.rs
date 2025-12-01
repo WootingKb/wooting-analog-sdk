@@ -17,6 +17,7 @@ use log::debug;
 use log::trace;
 use log::{error, info, warn};
 use std::collections::HashMap;
+use std::env::consts::DLL_EXTENSION;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -25,16 +26,37 @@ use std::{fs, thread};
 unsafe impl Send for AnalogSDK {}
 
 pub struct Initialised {
-    plugins: Vec<Box<dyn Plugin>>,
+    pub plugins: Vec<Box<dyn Plugin>>,
 }
 pub struct Uninitalised {
     wooting_plugin: Option<WootingPlugin>,
     plugins: Option<Vec<PathBuf>>,
 }
 pub struct AnalogSDKTest<S = Uninitalised> {
-    state: S,
+    pub keycode_mode: KeycodeType,
+    pub state: S,
 }
-impl<S> AnalogSDKTest<S> {}
+impl<S> AnalogSDKTest<S> {
+    // TODO: these function will be added later when i had a chance to rework the callbacks/closures
+    // pub fn set_device_event_cb(
+    //     &mut self,
+    //     cb: impl Fn(DeviceEventType, DeviceInfo) + 'static + Send,
+    // ) -> SDKResult<()> {
+    //     self.device_event_callback
+    //         .lock()
+    //         .unwrap()
+    //         .replace(Box::new(cb));
+
+    //     Ok(()).into()
+    // }
+
+    // pub fn clear_device_event_cb(&mut self) -> SDKResult<()> {
+    //     self.device_event_callback.lock().unwrap().take();
+
+    //     Ok(()).into()
+    // }
+
+}
 
 impl AnalogSDKTest<Uninitalised> {
     pub fn new() -> Self {
@@ -46,9 +68,18 @@ impl AnalogSDKTest<Uninitalised> {
         self
     }
 
-    pub fn with_plugin_directories(mut self, paths: Vec<PathBuf>) -> Self {
+    pub fn with_plugin_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<Path>,
+    {
         // TODO: merge them? is this api even worth?
-        self.state.plugins = Some(paths);
+        self.state.plugins = Some(
+            paths
+                .into_iter()
+                .map(|p| p.as_ref().to_path_buf())
+                .collect(),
+        );
         self
     }
 
@@ -57,11 +88,52 @@ impl AnalogSDKTest<Uninitalised> {
         self
     }
 
+    pub fn with_mode(mut self, keycode_type: KeycodeType) -> Self {
+        self.keycode_mode = keycode_type;
+        self
+    }
+
     pub fn initialise(self) -> AnalogSDKTest<Initialised> {
-        // TODO: call `AnalogSDKTest::<S>::with_plugins` instead
-        let mut plugins: Vec<Box<dyn Plugin>> = vec![Box::new(WootingPlugin::new())];
+        let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
+
+        if let Some(plugin_dirs) = self.state.plugins {
+            for path in plugin_dirs {
+                println!("loading plugin path: {:?}", path);
+                match new_api::load_plugins(&path) {
+                    Ok(plugs) => {
+                        println!(
+                            "got plugs: {:?}",
+                            plugs.iter().filter(|r| r.is_ok()).count()
+                        );
+                        for plugin in plugs {
+                            match plugin {
+                                Ok(p) => {
+                                    plugins.push(p);
+                                }
+                                Err(err) => eprintln!("failed to load plugin: {err:?}"),
+                            }
+                        }
+                    }
+                    Err(err) => eprintln!("failed to load plugins directory: {path:?} -> {err:?}"),
+                }
+            }
+        }
+
+        if let Some(wooting_plugin) = self.state.wooting_plugin {
+            plugins.push(Box::new(wooting_plugin));
+        }
+
+        println!("going to iterate plugins");
+        println!(
+            "ended up with these plugins: {:?}",
+            plugins
+                .iter_mut()
+                .map(|p| p.name().unwrap())
+                .collect::<Vec<_>>()
+        );
 
         for p in plugins.iter_mut() {
+            println!("going to call init on {}", p.name().unwrap());
             let ret = p.initialise(Box::new(
                 move |_event: DeviceEventType, _device_ref: &DeviceInfo| {},
             ));
@@ -69,12 +141,76 @@ impl AnalogSDKTest<Uninitalised> {
         }
 
         AnalogSDKTest {
+            keycode_mode: self.keycode_mode,
             state: Initialised { plugins },
         }
     }
 }
 
 impl AnalogSDKTest<Initialised> {
+    pub fn get_device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
+        let mut devices: Vec<DeviceInfo> = vec![];
+        let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+        for p in self.state.plugins.iter_mut() {
+            if !p.is_initialised() {
+                continue;
+            }
+
+            //Give a reference to the buffer at the point where there is free space
+            match p.device_info().0 {
+                Ok(mut p_devices) => {
+                    devices.append(&mut p_devices);
+                }
+                Err(e) => {
+                    println!(
+                        "Plugin {:?} failed to fetch devices with error {:?}",
+                        p.name(),
+                        e
+                    );
+                    error = e;
+                }
+            }
+        }
+        if devices.is_empty() && !error.is_ok() {
+            Err(error).into()
+        } else {
+            Ok(devices).into()
+        }
+    }
+
+    pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
+        //Try and map the given keycode to HID
+        let hid_code = code_to_hid(code, &self.keycode_mode);
+        if let Some(hid_code) = hid_code {
+            let mut value: f32 = -1.0;
+            let mut err = WootingAnalogResult::Ok;
+
+            for p in self.state.plugins.iter_mut() {
+                match p.read_analog(hid_code, device_id).into() {
+                    Ok(x) => {
+                        value = value.max(x);
+                        //If we were looking to read from a specific device, we've found that read, so no need to continue
+                        if device_id != 0 {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        //TODO: Improve collating of multiple errors
+                        err = e
+                    }
+                }
+            }
+
+            if value < 0.0 {
+                return Err(err).into();
+            }
+
+            value.into()
+        } else {
+            Err(WootingAnalogResult::NoMapping).into()
+        }
+    }
+
     pub fn read_full_buffer(
         &mut self,
         max_length: usize,
@@ -97,14 +233,14 @@ impl AnalogSDKTest<Initialised> {
                             let mut total_analog = analog;
 
                             //No point in checking if the value is already present if we are only looking for data from one device
-                            if device_id == 0 {
-                                if let Some(val) = analog_data.get(&code) {
-                                    total_analog = total_analog.max(*val);
-                                }
+                            if device_id == 0
+                                && let Some(val) = analog_data.get(&code)
+                            {
+                                total_analog = total_analog.max(*val);
                             }
                             analog_data.insert(code, total_analog);
                         } else {
-                            warn!("Couldn't map HID:{} to {:?}", hid_code, KeycodeType::HID);
+                            println!("Couldn't map HID:{} to {:?}", hid_code, KeycodeType::HID);
                         }
                     }
 
@@ -130,6 +266,7 @@ impl AnalogSDKTest<Initialised> {
     // maybe retain settings from the uninit to init step? could revert to those exact settings here
     pub fn uninitialise(self) -> AnalogSDKTest<Uninitalised> {
         AnalogSDKTest {
+            keycode_mode: self.keycode_mode,
             state: Uninitalised {
                 plugins: None,
                 wooting_plugin: Some(WootingPlugin::new()),
@@ -141,6 +278,7 @@ impl AnalogSDKTest<Initialised> {
 impl Default for AnalogSDKTest<Uninitalised> {
     fn default() -> Self {
         Self {
+            keycode_mode: KeycodeType::HID,
             state: Uninitalised {
                 plugins: None,
                 wooting_plugin: Some(WootingPlugin::new()),
@@ -157,6 +295,92 @@ impl Drop for Initialised {
     }
 }
 
+mod new_api {
+    use anyhow::{Context, Result, bail};
+    use libloading::{Library, Symbol};
+    use log::{debug, info, warn};
+    use std::{env::consts::DLL_EXTENSION, ffi::OsStr, fs, path::Path};
+
+    use crate::{
+        Plugin, WootingAnalogResult,
+        plugin::{ANALOG_SDK_PLUGIN_VERSION, c::CPlugin},
+        sdk::{print_error, print_warn},
+    };
+
+    pub fn load_plugins(path: &Path) -> Result<Vec<Result<Box<dyn Plugin>>>> {
+        if !path.is_dir() {
+            bail!("Path: {:?} is not a dir!", path)
+        }
+
+        let mut plugins = Vec::new();
+
+        for entry in fs::read_dir(path)
+            .with_context(|| format!("Unable to load dir \"{}\"", path.display()))?
+        {
+            let path = entry.context("Err with entry")?.path();
+
+            if path.extension().is_some_and(|ext| ext == DLL_EXTENSION) {
+                println!("Loading plugin: \"{}\"", path.display());
+                unsafe {
+                    plugins.push(
+                        load_plugin(&path)
+                            // .context("Load Plugin failed")
+                            .map_err(print_error),
+                    )
+                }
+            }
+        }
+
+        Ok(plugins)
+    }
+
+    // maybe this should just always load c plugins since we don't support rust plugins anymore
+    // then we can just have a generic function that people can call from the rust side to load
+    // plugins (something like load_plugin<T: impl Plugin>(plugin: T))
+    unsafe fn load_plugin(path: &Path) -> Result<Box<dyn Plugin>> {
+        if path.is_dir() {
+            bail!("Path is directory!");
+        }
+
+        let mut plugin = match CPlugin::new(Library::new(path).unwrap()).0 {
+            Ok(cplugin) => Box::new(cplugin),
+            Err(WootingAnalogResult::IncompatibleVersion) => {
+                bail!("Plugin is a C plugin which is incompatible with this version of the SDK");
+            }
+            Err(_) => {
+                bail!("Plugin isn't a valid C or Rust plugin");
+            }
+        };
+
+        println!("calling name of plugin");
+        let name = plugin.name();
+        match name.0 {
+            Ok(name) => {
+                println!("Loaded plugin: {:?}", name);
+                //plugin.on_plugin_load();
+                Ok(plugin)
+            }
+            Err(WootingAnalogResult::FunctionNotFound) => {
+                bail!("Plugin isn't a valid plugin, name function not found")
+            }
+            Err(e) => {
+                bail!("Plugin failed with unhandled error {:?}", e)
+            }
+        }
+    }
+}
+
+#[test]
+fn test_sendsync() {
+    fn assert_types<T: Send + Sync>() {}
+    assert_types::<AnalogSDKTest<Uninitalised>>();
+    assert_types::<AnalogSDKTest<Initialised>>();
+    assert_types::<Initialised>();
+    // assert_types::<AnalogSDK>();
+    assert_types::<fn(DeviceEventType, DeviceInfo)>();
+    assert_types::<Box<dyn Fn(DeviceEventType, DeviceInfo) + Send + Sync>>();
+}
+
 pub struct AnalogSDK {
     pub initialised: bool,
     pub keycode_mode: KeycodeType,
@@ -167,12 +391,12 @@ pub struct AnalogSDK {
 }
 
 pub fn print_error(err: Error) -> Error {
-    error!("{:#}", err);
+    println!("{:#}", err);
     err
 }
 
 pub fn print_warn(err: Error) -> Error {
-    warn!("{:#}", err);
+    println!("{:#}", err);
     err
 }
 
@@ -208,9 +432,10 @@ impl AnalogSDK {
             self.unload();
         }
 
+        println!("plugin_dir: {plugin_dir:?}");
         let plugin_dir = PathBuf::from(plugin_dir);
         if !plugin_dir.is_dir() {
-            error!(
+            println!(
                 "The plugin directory '{:?}' does not exist! Make sure you have it created and have plugins in there",
                 plugin_dir
             );
@@ -218,14 +443,14 @@ impl AnalogSDK {
         }
         /*let mut plugin_dir = match plugin_dir {
             Ok(v) => {
-                info!(
+                println!(
                     "Found ${}, loading plugins from {:?}",
                     ENV_PLUGIN_DIR_KEY, v
                 );
                 v
             }
             Err(e) => {
-                warn!(
+                println!(
                     "{} is not set, defaulting to {}.\nError: {}",
                     ENV_PLUGIN_DIR_KEY, DEFAULT_PLUGIN_DIR, e
                 );
@@ -235,16 +460,16 @@ impl AnalogSDK {
         let mut load_plugins = |dir: &Path| {
             match self.load_plugins(dir) {
                 Ok(0) => {
-                    info!("No plugins found in {:?}", dir);
+                    println!("No plugins found in {:?}", dir);
                     //self.initialised = false;
                     //WootingAnalogResult::NoPlugins
                 }
                 Ok(i) => {
-                    debug!("Loaded {} plugins from {:?}", i, dir);
+                    println!("Loaded {} plugins from {:?}", i, dir);
                     //WootingAnalogResult::Ok
                 }
                 Err(e) => {
-                    error!("Error: {:?}", e);
+                    println!("Error: {:?}", e);
                     //self.initialised = false;
                 }
             }
@@ -263,7 +488,7 @@ impl AnalogSDK {
                         load_plugins(&dir.path());
                     }
                     Err(e) => {
-                        error!("Error reading directory: {}", e);
+                        println!("Error reading directory: {}", e);
                     }
                 }
             }
@@ -280,24 +505,24 @@ impl AnalogSDK {
                     let opt_cb = arc_cb.clone();
                     let device = device_ref.clone();
                     thread::spawn(move || {
-                        debug!("device event cb thread running");
+                        println!("device event cb thread running");
 
                         opt_cb.lock().unwrap().as_ref().and_then(|cb| {
-                            debug!("calling og callback");
+                            println!("calling og callback");
                             cb(event, device);
                             Some(0)
                         });
                     });
                 },
             ));
-            debug!("{:?}", ret);
+            println!("{:?}", ret);
             if let Ok(num) = ret.0 {
                 plugins_initialised += 1;
                 device_no += num;
             }
         }
 
-        info!("{} plugins successfully initialised", plugins_initialised);
+        println!("{} plugins successfully initialised", plugins_initialised);
 
         self.initialised = plugins_initialised > 0;
         if !self.initialised {
@@ -485,7 +710,7 @@ impl AnalogSDK {
                     devices.append(&mut p_devices);
                 }
                 Err(e) => {
-                    error!(
+                    println!(
                         "Plugin {:?} failed to fetch devices with error {:?}",
                         p.name(),
                         e
@@ -571,7 +796,7 @@ impl AnalogSDK {
                             }
                             analog_data.insert(code, total_analog);
                         } else {
-                            warn!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
+                            println!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
                         }
                     }
 
@@ -597,20 +822,20 @@ impl AnalogSDK {
     /// Unload all plugins and loaded plugin libraries, making sure to fire
     /// their `on_plugin_unload()` methods so they can do any necessary cleanup.
     pub fn unload(&mut self) {
-        debug!("Unloading plugins");
+        println!("Unloading plugins");
         for mut plugin in self.plugins.drain(..) {
             let name = plugin.name().0;
-            trace!("Firing on_plugin_unload for {:?}", name);
+            println!("Firing on_plugin_unload for {:?}", name);
             plugin.unload();
-            debug!("Unload successful for {:?}", name);
+            println!("Unload successful for {:?}", name);
         }
 
-        debug!("Attempting to drop loaded libraries");
+        println!("Attempting to drop loaded libraries");
         self.loaded_libraries.drain(..);
-        debug!("Succeeded dropping loaded libraries");
+        println!("Succeeded dropping loaded libraries");
 
         self.device_event_callback.lock().unwrap().take();
-        debug!("Finished Analog SDK Uninit");
+        println!("Finished Analog SDK Uninit");
 
         self.initialised = false;
     }

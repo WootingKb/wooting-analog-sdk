@@ -20,13 +20,12 @@ macro_rules! lib_wrap {
         $(
             //lib_wrap! {
             //    @as_item
-                #[unsafe(no_mangle)]
                 fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
                         //TODO: Retain the obtained function pointer between calls
                         let func :  Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    error!("{}", e);
+                                    println!("{}", e);
                                 }).ok();
                         match func {
                             Some(f) => f($($fn_arg_names),*).into(),
@@ -51,12 +50,11 @@ macro_rules! lib_wrap_option {
         $(
             //lib_wrap! {
             //    @as_item
-                #[unsafe(no_mangle)]
                 fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> SDKResult<$fn_ret_tys>)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
                         let func :Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    error!("{}", e);
+                                    println!("{}", e);
                                 }).ok();
                         match func {
                             Some(f) => f($($fn_arg_names),*).into(),
@@ -78,14 +76,20 @@ pub struct CPlugin {
     //funcs: HashMap<&'static str, Option<Symbol>>
 }
 
+// TODO: remove, have to rework when redoing closures and exposing over ffi
+// CPlugin is send but not sync because of the callback
+unsafe impl Send for CPlugin {}
+unsafe impl Sync for CPlugin {}
+
 impl CPlugin {
     pub fn new(lib: Library) -> SDKResult<CPlugin> {
         unsafe {
-            if let Some(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION").ok() {
+            println!("getting c plugin version");
+            if let Ok(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION") {
                 let v = **ver;
-                info!("Got cplugin abi: {:?}", v);
+                println!("Got cplugin abi: {:?}", v);
                 if v != CPLUGIN_ABI_VERSION {
-                    error!(
+                    println!(
                         "CPlugin ABI version does not match! Given: {}, Expected: {}",
                         v, CPLUGIN_ABI_VERSION
                     );
@@ -143,6 +147,8 @@ extern "C" fn call_closure(
 
 impl Plugin for CPlugin {
     fn name(&mut self) -> SDKResult<&'static str> {
+        println!("internal name call");
+        println!("{:?}", self.name());
         self.name().0.map(|s| s.as_str()).into()
     }
 
