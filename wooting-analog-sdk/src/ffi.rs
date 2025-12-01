@@ -11,6 +11,7 @@ use std::cell::RefCell;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 use std::sync::{LazyLock, Mutex};
 use std::{env, panic, slice};
+#[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
 
 static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
