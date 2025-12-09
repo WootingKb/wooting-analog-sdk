@@ -1,7 +1,7 @@
 use crate::{DeviceEventType, DeviceID, DeviceInfo_FFI, WootingAnalogResult};
 use libloading::Symbol;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 static SDK_VERSION: LazyLock<i32> = LazyLock::new(|| {
@@ -20,13 +20,25 @@ pub static USE_SYS_DLL: LazyLock<bool> = LazyLock::new(|| {
 });
 
 static LIB: LazyLock<Option<libloading::Library>> = LazyLock::new(|| {
-    #[cfg(target_arch = "x86")]
-    let name = "wooting_analog_sdk32";
+    let base_name = if cfg!(target_arch = "x86") {
+        "wooting_analog_sdk32"
+    } else {
+        "wooting_analog_sdk"
+    };
 
-    #[cfg(not(target_arch = "x86"))]
-    let name = "wooting_analog_sdk";
+    let filename = libloading::library_filename(base_name);
 
-    let lib_path = find_dll_in_path(name).map(|p| p.join(libloading::library_filename(name)))?;
+    let sdk_root = if cfg!(target_os = "windows") {
+        Path::new("C:/Program Files/wooting-analog-sdk/")
+    } else if cfg!(target_os = "macos") {
+        Path::new("/usr/local/lib/")
+    } else {
+        Path::new("/usr/lib/")
+    };
+
+    let lib_path = Some(sdk_root.join(&filename))
+        .filter(|p| p.exists())
+        .or_else(|| find_dll_in_path(filename.to_str()?))?;
 
     unsafe {
         //Attempt to load the library, if it fails print the error and discard the error
@@ -38,15 +50,28 @@ static LIB: LazyLock<Option<libloading::Library>> = LazyLock::new(|| {
     }
 });
 
-fn find_dll_in_path(name: &str) -> Option<PathBuf> {
-    if let Ok(path_var) = std::env::var("PATH") {
-        for dir in std::env::split_paths(&path_var) {
-            if dir.is_dir() && dir.to_str().is_some_and(|d| d == name) {
-                return Some(dir);
-            }
+fn find_dll_in_path(filename: &str) -> Option<PathBuf> {
+    let search_env_var = |key: &str| -> Option<PathBuf> {
+        let env_val = std::env::var_os(key)?;
+        std::env::split_paths(&env_val).find(|dir| dir.join(filename).is_file())
+    };
+
+    #[cfg(target_os = "linux")]
+    if let Some(path) = search_env_var("LD_LIBRARY_PATH") {
+        return Some(path);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(path) = search_env_var("DYLD_LIBRARY_PATH") {
+            return Some(path);
+        }
+        if let Some(path) = search_env_var("LD_LIBRARY_PATH") {
+            return Some(path);
         }
     }
-    None
+
+    search_env_var("PATH")
 }
 
 fn try_system_dll() -> Result<(), WootingAnalogResult> {
