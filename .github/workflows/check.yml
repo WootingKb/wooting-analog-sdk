@@ -4,55 +4,70 @@ on: [push]
 
 jobs:
   check:
-    strategy:
-        fail-fast: false
-        matrix:
-          os:
-            - { name: "Linux", label: "ubuntu-latest" }
-            - { name: "Windows", label: "windows-latest" }
-            - { name: "macOS", label: "macos-latest" }
-    name: Build on ${{ matrix.os.name }}
-    runs-on: ${{ matrix.os.label }}
+    needs: setup
+    name: Cargo check
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
-      - uses: actions/checkout@v4
+        uses: actions/checkout@v4
 
-      - name: Setup Dependencies
-        if: startsWith(matrix.os.label, 'ubuntu')
+      - name: Setup Linux Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libudev
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cargo check
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@v1
         with:
           command: check
           args: --all-features
 
   clippy:
-    name: Clippy
+    needs: setup
+    name: Cargo clippy 
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+
+      - name: Setup Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add clippy
+          components: clippy
+
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: --all-features
   
   msrv:
+    needs: setup
     name: MSRV
+    runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: taiki-e/install-action@cargo-hack
-    - run: cargo hack check --rust-version --feature-powerset --all-targets
+      - uses: actions/checkout@v4
+
+      - name: Setup Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@cargo-hack
+
+      - run: cargo hack check --rust-version --feature-powerset --all-targets
