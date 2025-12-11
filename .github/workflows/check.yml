@@ -1,13 +1,30 @@
-name: Project-wide validity check
+name: Check
 
 on: [push]
 
 jobs:
   check:
-    name: Check
-    runs-on: ubuntu-latest
+    strategy:
+        fail-fast: false
+        matrix:
+          os:
+            - { name: "Linux", label: "ubuntu-latest" }
+            - { name: "Windows", label: "windows-latest" }
+            - { name: "macOS", label: "macos-latest" }
+    name: Build on ${{ matrix.os.name }}
+    runs-on: ${{ matrix.os.label }}
+    
     steps:
-      - uses: actions/checkout@v1
+      - name: Checkout code
+      - uses: actions/checkout@v4
+
+      - name: Setup Dependencies
+        if: startsWith(matrix.os.label, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libudev
+
+      - name: Cargo check
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -20,7 +37,6 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -36,7 +52,6 @@ jobs:
   
   msrv:
     name: MSRV
-    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: taiki-e/install-action@cargo-hack
