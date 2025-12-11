@@ -1,9 +1,3 @@
-[profile.dev]
-rpath = true
-
-[profile.release]
-rpath = true
-
 [workspace]
 default-members = ["wooting-analog-sdk"]
 members = [
@@ -11,4 +5,39 @@ members = [
     "wooting-analog-sdk",
     "wooting-analog-sdk-updater",
 ]
-resolver = "2"
+resolver = "3"
+
+[workspace.package]
+version = "0.8.0"
+authors = ["simon-wh <simon@wooting.io>"]
+edition = "2024"
+license = "MPL-2.0"
+description = "Wooting Analog SDK"
+repository = "https://github.com/WootingKb/wooting-analog-sdk"
+homepage = "https://github.com/WootingKb/wooting-analog-sdk"
+keywords = ["wooting", "keyboard", "analog", "sdk"]
+publish = false
+rust-version = "1.85.1"
+
+[workspace.dependencies]
+log = "0.4"
+shared_memory = "0.12"
+env_logger = "0.11"
+winapi = { version = "0.3", features = ["winuser"] }
+
+[workspace.lints.rust]
+warnings = { level = "warn" }
+
+[workspace.lints.clippy]
+all = { level = "warn" }
+correctness = { level = "warn" }
+suspicious = { level = "warn" }
+style = { level = "warn" }
+complexity = { level = "warn" }
+perf = { level = "warn" }
+
+[profile.dev]
+rpath = true
+
+[profile.release]
+rpath = true
