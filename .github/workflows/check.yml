@@ -4,7 +4,6 @@ on: [push]
 
 jobs:
   check:
-    needs: setup
     name: Cargo check
     runs-on: ubuntu-latest
     
@@ -28,7 +27,6 @@ jobs:
           args: --all-features
 
   clippy:
-    needs: setup
     name: Cargo clippy 
     runs-on: ubuntu-latest
 
@@ -52,7 +50,6 @@ jobs:
           args: --all-features
   
   msrv:
-    needs: setup
     name: MSRV
     runs-on: ubuntu-latest
 
