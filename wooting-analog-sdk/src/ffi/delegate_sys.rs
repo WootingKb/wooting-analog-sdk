@@ -1,6 +1,6 @@
 use crate::{DeviceEventType, DeviceID, DeviceInfo_FFI, WootingAnalogResult};
 use libloading::Symbol;
-use std::os::raw::{c_float, c_int, c_uint, c_ushort};
+use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -97,6 +97,21 @@ fn load_symbol<T>(name: &str) -> Option<Symbol<'_, T>> {
 }
 
 macro_rules! delegate_sys {
+    ($($fn_name:ident($($args:ident: $fn_args:ty),*) -> *const c_char;)*) => {
+        $(
+            #[must_use]
+            pub(in crate::ffi) fn $fn_name($($args: $fn_args),*) -> *const c_char {
+                static FN: LazyLock<Option<Symbol<fn($($fn_args),*) -> *const c_char>>> =
+                    LazyLock::new(|| load_symbol(stringify!($fn_name)));
+
+                return match FN.as_deref() {
+                    Some(f) => f($($args),*),
+                    None => std::ptr::null(),
+                };
+            }
+        )*
+    };
+
     ($($fn_name:ident($($args:ident: $fn_args:ty),*) $(-> $fn_ret:ty)*;)*) => {
         $(
             #[must_use]
@@ -106,7 +121,7 @@ macro_rules! delegate_sys {
 
                 return match FN.as_deref() {
                     Some(f) => f($($args),*),
-                    _ => WootingAnalogResult::FunctionNotFound.into(),
+                    None => WootingAnalogResult::FunctionNotFound.into(),
                 };
             }
         )*
@@ -135,4 +150,8 @@ delegate_sys! {
         len: c_uint,
         device_id: DeviceID
     ) -> c_int;
+}
+
+delegate_sys! {
+    wooting_analog_version_semver() -> *const c_char;
 }

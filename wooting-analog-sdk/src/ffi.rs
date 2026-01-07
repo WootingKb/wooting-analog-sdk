@@ -5,14 +5,14 @@ use crate::{
     DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeycodeType, SDKResult,
     WootingAnalogResult, sdk::*,
 };
+#[cfg(feature = "dist")]
+use delegate_sys::USE_SYS_DLL;
 use log::{error, trace};
 use num_traits::FromPrimitive;
 use std::cell::RefCell;
-use std::os::raw::{c_float, c_int, c_uint, c_ushort};
+use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
 use std::sync::{LazyLock, Mutex};
 use std::{env, panic, slice};
-#[cfg(feature = "dist")]
-use delegate_sys::USE_SYS_DLL;
 
 static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
     // Initialising logger with default "off".
@@ -26,7 +26,6 @@ static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
 
     Mutex::new(AnalogSDK::new())
 });
-
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
 /// of the SDK can be called
@@ -70,6 +69,18 @@ pub extern "C" fn wooting_analog_version() -> c_int {
         .first()
         .and_then(|v| v.parse().ok())
         .expect("crate must have correct package semver format")
+}
+
+/// SDK version as a static null-terminated string in SemVer format.
+#[unsafe(no_mangle)]
+pub extern "C" fn wooting_analog_version_semver() -> *const c_char {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_version_semver();
+    }
+
+    static VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
+    VERSION.as_ptr() as *const c_char
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
@@ -348,7 +359,12 @@ pub extern "C" fn wooting_analog_read_full_buffer(
 ) -> c_int {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        return delegate_sys::wooting_analog_read_full_buffer_device(code_buffer, analog_buffer, len, 0);
+        return delegate_sys::wooting_analog_read_full_buffer_device(
+            code_buffer,
+            analog_buffer,
+            len,
+            0,
+        );
     }
 
     wooting_analog_read_full_buffer_device(code_buffer, analog_buffer, len, 0)
