@@ -438,3 +438,12 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         Err(e) => e as c_int,
     }
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn wooting_analog_using_sys() -> bool {
+    #[cfg(feature = "dist")]
+    { *USE_SYS_DLL }
+
+    #[cfg(not(feature = "dist"))]
+    { true }
+}
