@@ -97,6 +97,9 @@ int wooting_analog_initialise(void);
 /// there may be some breaking changes that have been made so the SDK should not be attempted to be used
 int wooting_analog_version(void);
 
+/// SDK version as a static null-terminated string in SemVer format.
+const char *wooting_analog_version_semver(void);
+
 /// Returns a bool indicating if the Analog SDK has been initialised
 bool wooting_analog_is_initialised(void);
 
@@ -233,6 +236,8 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            float *analog_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
+
+bool wooting_analog_using_sys(void);
 
 #ifdef __cplusplus
 }  // extern "C"

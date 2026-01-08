@@ -13,6 +13,7 @@ keywords = [ "wooting", "keyboard", "analog", "sdk" ]
 
 [features]
 ffi = []
+dist = []
 
 [dependencies]
 log = "0.4"
