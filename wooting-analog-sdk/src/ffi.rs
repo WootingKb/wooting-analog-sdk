@@ -1,16 +1,20 @@
+#[cfg(feature = "dist")]
+mod delegate_sys;
+
 use crate::{
     DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeycodeType, SDKResult,
     WootingAnalogResult, sdk::*,
 };
-use ffi_support::FfiStr;
+#[cfg(feature = "dist")]
+use delegate_sys::USE_SYS_DLL;
 use log::{error, trace};
 use num_traits::FromPrimitive;
 use std::cell::RefCell;
-use std::os::raw::{c_float, c_int, c_uint, c_ushort};
+use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
 use std::sync::{LazyLock, Mutex};
-use std::{panic, slice};
+use std::{env, panic, slice};
 
-pub static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
+static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
     // Initialising logger with default "off".
     // If the library user wants logging, they can set the RUST_LOG environment variable, e.g. to "info".
     // TODO: Consider using file logging or allowing the user to set a custom log callback.
@@ -31,6 +35,11 @@ pub static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
 /// * `NoPlugins`: Meaning that either no plugins were found or some were found but none were successfully initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_initialise() -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_initialise();
+    }
+
     let result = panic::catch_unwind(|| {
         trace!("wooting_analog_initialise called");
         ANALOG_SDK.lock().unwrap().initialise().into()
@@ -49,17 +58,39 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
 /// there may be some breaking changes that have been made so the SDK should not be attempted to be used
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_version() -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_version();
+    }
+
     env!("CARGO_PKG_VERSION")
         .split('.')
         .collect::<Vec<&str>>()
         .first()
         .and_then(|v| v.parse().ok())
-        .unwrap()
+        .expect("crate must have correct package semver format")
+}
+
+/// SDK version as a static null-terminated string in SemVer format.
+#[unsafe(no_mangle)]
+pub extern "C" fn wooting_analog_version_semver() -> *const c_char {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_version_semver();
+    }
+
+    static VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
+    VERSION.as_ptr() as *const c_char
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_is_initialised() -> bool {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_is_initialised();
+    }
+
     ANALOG_SDK.lock().unwrap().initialised
 }
 
@@ -68,6 +99,11 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
 /// * `Ok`: Indicates that the SDK was successfully uninitialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_uninitialise();
+    }
+
     trace!("wooting_analog_uninitialise called");
     let result = panic::catch_unwind(|| {
         //Drop the memory that was being kept for the connected devices info call
@@ -105,6 +141,11 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
 /// * `UnInitialized`: The SDK is not initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_set_keycode_mode(mode);
+    }
+
     if !ANALOG_SDK.lock().unwrap().initialised {
         return WootingAnalogResult::UnInitialized;
     }
@@ -148,6 +189,11 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
 /// * `WootingAnalogResult::NoDevices`: There are no connected devices
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_analog(code);
+    }
+
     wooting_analog_read_analog_device(code, 0)
 }
 
@@ -168,6 +214,11 @@ pub extern "C" fn wooting_analog_read_analog_device(
     code: c_ushort,
     device_id: DeviceID,
 ) -> c_float {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_analog_device(code, device_id);
+    }
+
     ANALOG_SDK
         .lock()
         .unwrap()
@@ -189,6 +240,11 @@ pub extern "C" fn wooting_analog_read_analog_device(
 pub extern "C" fn wooting_analog_set_device_event_cb(
     cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI),
 ) -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_set_device_event_cb(cb);
+    }
+
     ANALOG_SDK
         .lock()
         .unwrap()
@@ -212,6 +268,11 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
 /// * `UnInitialized`: The SDK is not initialised
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_clear_device_event_cb();
+    }
+
     ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
 }
 
@@ -231,6 +292,11 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
     buffer: *mut *mut DeviceInfo_FFI,
     len: c_uint,
 ) -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_get_connected_devices_info(buffer, len);
+    }
+
     let result: SDKResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
     match result.0 {
         Ok(mut devices) => {
@@ -291,6 +357,16 @@ pub extern "C" fn wooting_analog_read_full_buffer(
     analog_buffer: *mut c_float,
     len: c_uint,
 ) -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_full_buffer_device(
+            code_buffer,
+            analog_buffer,
+            len,
+            0,
+        );
+    }
+
     wooting_analog_read_full_buffer_device(code_buffer, analog_buffer, len, 0)
 }
 
@@ -317,6 +393,16 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
     len: c_uint,
     device_id: DeviceID,
 ) -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_full_buffer_device(
+            code_buffer,
+            analog_buffer,
+            len,
+            device_id,
+        );
+    }
+
     let codes = unsafe {
         assert!(!code_buffer.is_null());
 
@@ -351,4 +437,13 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         }
         Err(e) => e as c_int,
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn wooting_analog_using_sys() -> bool {
+    #[cfg(feature = "dist")]
+    { *USE_SYS_DLL }
+
+    #[cfg(not(feature = "dist"))]
+    { true }
 }

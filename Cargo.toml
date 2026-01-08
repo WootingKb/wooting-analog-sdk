@@ -5,10 +5,10 @@ rpath = true
 rpath = true
 
 [workspace]
-resolver = "2"
-
+default-members = ["wooting-analog-sdk"]
 members = [
     "wooting-analog-virtual-control",
     "wooting-analog-sdk",
-    "wooting-analog-sdk-updater"
+    "wooting-analog-sdk-updater",
 ]
+resolver = "2"
