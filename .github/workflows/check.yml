@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   check:
-    name: Cargo check
+    name: cargo check
     runs-on: ubuntu-latest
     
     steps:
@@ -20,14 +20,14 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cargo check
+      - name: cargo check
         uses: actions-rs/cargo@v1
         with:
           command: check
           args: --all-features
 
   clippy:
-    name: Cargo clippy 
+    name: cargo clippy 
     runs-on: ubuntu-latest
 
     steps:
@@ -48,6 +48,38 @@ jobs:
         with:
           command: clippy
           args: --all-features
+
+  verify-headers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt update
+          sudo apt install libudev-dev libhidapi-dev
+
+      - name: Setup rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install cbindgen
+        run: cargo binstall cbindgen --force --no-confirm
+        
+      - name: Verify generated headers
+        run: |
+          cbindgen \
+            --crate wooting-analog-sdk \
+            --output ./includes/wooting-analog-sdk.h \
+            --verify
   
   msrv:
     name: MSRV
