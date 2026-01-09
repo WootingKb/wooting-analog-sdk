@@ -1,23 +1,24 @@
 [package]
 name = "wooting-analog-sdk"
-version = "0.8.0"
-authors = ["simon-wh <simon@wooting.io>"]
-edition = "2024"
-license = "MPL-2.0"
-description = "Wooting Analog SDK"
-repository = "https://github.com/WootingKb/wooting-analog-sdk"
-homepage = "https://github.com/WootingKb/wooting-analog-sdk"
-keywords = [ "wooting", "keyboard", "analog", "sdk" ]
-#categories = []
-#license-file = "../LICENSE"
+description = "An SDK for reading data from analog keyboards, with the main focus on Wooting keyboards"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+publish = true
+rust-version.workspace = true
 
 [features]
 ffi = []
 dist = []
 
 [dependencies]
-log = "0.4"
-env_logger = "0.11"
+log = { workspace = true }
+env_logger = { workspace = true }
+shared_memory = { workspace = true }
 enum-primitive-derive = "0.3"
 libloading = "0.8"
 thiserror = "2"
@@ -29,13 +30,15 @@ bimap = "0.6"
 hidapi = { version = "2.6", features = ["linux-static-hidraw"], default-features = false }
 dyn-clone = "1"
 serde = { version = "1", features = ["derive"], optional = true }
-shared_memory = "0.12"
 
 [build-dependencies]
 cmake = "0.1"
 
+[lints]
+workspace = true
+
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser"] }
+winapi = { workspace = true }
 
 [lib]
 crate-type = ["lib", "cdylib", "staticlib"]
