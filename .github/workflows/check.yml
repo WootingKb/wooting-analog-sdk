@@ -65,6 +65,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - uses: taiki-e/install-action@cargo-hack
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install cargo hack
+        run: cargo binstall cargo-hack --force --no-confirm
 
       - run: cargo hack check --rust-version --feature-powerset --all-targets
