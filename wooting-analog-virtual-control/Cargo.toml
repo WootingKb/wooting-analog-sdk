@@ -1,13 +1,22 @@
 [package]
 name = "wooting-analog-virtual-control"
-version = "0.8.0"
-authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
-edition = "2024"
+description = "A virtual analog keyboard used for testing when a real analog keyboard is unavailable"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+publish = false
+rust-version.workspace = true
 
 [dependencies]
-# TODO: replace this with the crates.io version once done
 wooting-analog-sdk = { path = "../wooting-analog-sdk"}
-shared_memory = "0.12"
-log = "0.4"
+shared_memory = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
 iced = "0.13"
-env_logger = "0.11"
+
+[lints]
+workspace = true
