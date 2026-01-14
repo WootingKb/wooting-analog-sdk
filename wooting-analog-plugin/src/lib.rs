@@ -20,10 +20,17 @@ use wooting_analog_plugin_dev::*;
 
 extern crate env_logger;
 
-const ANALOG_BUFFER_SIZE: usize = 48;
+const ANALOG_BUFFER_SIZE_V1: usize = 48;
+const ANALOG_BUFFER_SIZE_V2: usize = 64;
 const ANALOG_MAX_SIZE: usize = 40;
 const WOOTING_VID: u16 = 0x31e3;
 const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
+
+#[derive(Clone, PartialEq, Debug)]
+enum ProtocolBuffer {
+    V1(HashMap<c_ushort, c_float>),
+    V2(HashMap<KeyCode, AnalogValue>),
+}
 
 /// Struct holding the information we need to find the device and the analog interface
 struct DeviceHardwareID {
@@ -53,7 +60,7 @@ trait DeviceImplementation: objekt::Clone + Send {
     }
 
     /// Convert the given raw `value` into the appropriate float value. The given value should be 0.0f-1.0f
-    fn analog_value_to_float(&self, value: u8) -> f32 {
+    fn analog_value_to_float(&self, value: u16) -> f32 {
         (f32::from(value) / 255_f32).min(1.0)
     }
 
@@ -65,7 +72,7 @@ trait DeviceImplementation: objekt::Clone + Send {
         device: &HidDevice,
         max_length: usize,
     ) -> SDKResult<Option<HashMap<c_ushort, c_float>>> {
-        let mut buffer: [u8; ANALOG_BUFFER_SIZE] = [0; ANALOG_BUFFER_SIZE];
+        let mut buffer: [u8; ANALOG_BUFFER_SIZE_V1] = [0; ANALOG_BUFFER_SIZE_V1];
         let res = device.read_timeout(&mut buffer, 50);
 
         match res {
@@ -90,12 +97,20 @@ trait DeviceImplementation: objekt::Clone + Send {
                 .map(|s| {
                     (
                         ((u16::from(s[0])) << 8) | u16::from(s[1]), // Convert the first 2 bytes into the u16 code
-                        self.analog_value_to_float(s[2]), //Convert the remaining byte into the float analog value
+                        self.analog_value_to_float(s[2] as u16), //Convert the remaining byte into the float analog value
                     )
                 })
                 .collect(),
         ))
         .into()
+    }
+
+    fn get_analog_buffer_with_ctx(
+        &self,
+        _device: &HidDevice,
+        _max_length: usize,
+    ) -> SDKResult<Option<HashMap<KeyCode, AnalogValue>>> {
+        Err(WootingAnalogResult::IncompatibleFirmware).into()
     }
 
     /// Get the unique device ID from the given `device_info`
@@ -111,7 +126,7 @@ trait DeviceImplementation: objekt::Clone + Send {
 clone_trait_object!(DeviceImplementation);
 
 #[derive(Debug, Clone)]
-struct WootingOne();
+struct WootingOne;
 
 impl DeviceImplementation for WootingOne {
     fn device_hardware_id(&self) -> DeviceHardwareID {
@@ -123,13 +138,13 @@ impl DeviceImplementation for WootingOne {
         }
     }
 
-    fn analog_value_to_float(&self, value: u8) -> f32 {
+    fn analog_value_to_float(&self, value: u16) -> f32 {
         ((f32::from(value) * 1.2) / 255_f32).min(1.0)
     }
 }
 
 #[derive(Debug, Clone)]
-struct WootingTwo();
+struct WootingTwo;
 
 impl DeviceImplementation for WootingTwo {
     fn device_hardware_id(&self) -> DeviceHardwareID {
@@ -141,13 +156,13 @@ impl DeviceImplementation for WootingTwo {
         }
     }
 
-    fn analog_value_to_float(&self, value: u8) -> f32 {
+    fn analog_value_to_float(&self, value: u16) -> f32 {
         ((f32::from(value) * 1.2) / 255_f32).min(1.0)
     }
 }
 
 #[derive(Debug, Clone)]
-struct WootingNewFirmware();
+struct WootingNewFirmware;
 
 impl DeviceImplementation for WootingNewFirmware {
     fn device_hardware_id(&self) -> DeviceHardwareID {
@@ -160,10 +175,111 @@ impl DeviceImplementation for WootingNewFirmware {
     }
 }
 
+#[derive(Debug, Clone)]
+struct WootingAnalogProtocolV2;
+
+impl DeviceImplementation for WootingAnalogProtocolV2 {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: None,
+            usage_page: 0xFF53,
+            has_modes: true,
+        }
+    }
+
+    fn get_analog_buffer(
+        &self,
+        device: &HidDevice,
+        max_length: usize,
+    ) -> SDKResult<Option<HashMap<c_ushort, c_float>>> {
+        match self.get_analog_buffer_with_ctx(device, max_length).0 {
+            Ok(data) => match data {
+                Some(data) => Ok(Some(
+                    data.iter()
+                        .map(|(k, v)| (k.inner, v.inner))
+                        .collect::<HashMap<c_ushort, c_float>>(),
+                ))
+                .into(),
+                None => Ok(None).into(),
+            },
+            Err(e) => Err(e).into(),
+        }
+    }
+
+    fn get_analog_buffer_with_ctx(
+        &self,
+        device: &HidDevice,
+        max_length: usize,
+    ) -> SDKResult<Option<HashMap<KeyCode, AnalogValue>>> {
+        let mut buffer: [u8; ANALOG_BUFFER_SIZE_V2] = [0; ANALOG_BUFFER_SIZE_V2];
+        let res = device.read_timeout(&mut buffer, 50);
+
+        match res {
+            Ok(len) => {
+                // If the length is 0 then that means the read timed out, so we shouldn't use it to update values
+                if len == 0 {
+                    return Ok(None).into();
+                }
+            }
+            Err(e) => {
+                error!("Failed to read buffer: {}", e);
+
+                return Err(WootingAnalogResult::DeviceDisconnected).into();
+            }
+        }
+        //println!("{:?}", buffer);
+        Ok(Some(
+            buffer
+                .chunks_exact(4)
+                .take(max_length)
+                .filter(|&b| b[2] != 0)
+                .map(|b| {
+                    let matrix_pos = b[0];
+                    let packed = b[1];
+                    let key = b[2];
+                    let value = b[3];
+
+                    let row = (matrix_pos >> 5) & 0x07;
+                    let col = matrix_pos & 0x1F;
+                    let actuated = (packed & 0x01) != 0;
+                    let value_part = packed & 0x03;
+                    let _reserved = packed >> 3;
+                    let key_namespace = (packed >> 4) & 0x04;
+
+                    let value = ((value as u16) << 2) | value_part as u16;
+
+                    (
+                        KeyCode {
+                            inner: u16::from(key),
+                            metadata: KeyMetadata::Basic {
+                                namespace: key_namespace,
+                            },
+                        },
+                        AnalogValue {
+                            inner: self.analog_value_to_float(value),
+                            metadata: ValueMetadata::Basic {
+                                pos: Position { x: col, y: row },
+                                actuated,
+                            },
+                        },
+                    )
+                })
+                .collect(),
+        ))
+        .into()
+    }
+
+    fn analog_value_to_float(&self, value: u16) -> f32 {
+        (f32::from(value) / 1023.).min(1.0)
+    }
+}
+
 /// A fully contained device which uses `device_impl` to interface with the `device`
 struct Device {
     pub device_info: DeviceInfo,
-    buffer: Arc<Mutex<HashMap<c_ushort, c_float>>>,
+    // buffer: Arc<Mutex<HashMap<c_ushort, c_float>>>,
+    buffer: Arc<Mutex<ProtocolBuffer>>,
     connected: Arc<AtomicBool>,
     pressed_keys: Vec<u16>,
     worker: Option<JoinHandle<i32>>,
@@ -178,8 +294,16 @@ impl Device {
     ) -> (DeviceID, Self) {
         let id_hash = device_impl.get_device_id(device_info);
 
-        let buffer: Arc<Mutex<HashMap<c_ushort, c_float>>> =
-            Arc::new(Mutex::new(Default::default()));
+        let buffer = match device_impl.device_hardware_id().usage_page {
+            0xFF54 => ProtocolBuffer::V1(HashMap::new()),
+            0xFF53 => ProtocolBuffer::V2(HashMap::new()),
+            _ => panic!("TODO:"),
+        };
+        println!(
+            "setup device with usage page: {}",
+            device_impl.device_hardware_id().usage_page
+        );
+        let buffer = Arc::new(Mutex::new(buffer));
         let connected = Arc::new(AtomicBool::new(true));
 
         let worker = {
@@ -191,25 +315,56 @@ impl Device {
                     return 0;
                 }
 
-                match device_impl
-                    .get_analog_buffer(&device, ANALOG_MAX_SIZE)
-                    .into()
-                {
-                    Ok(data) => {
-                        if let Some(data) = data {
-                            let mut m = t_buffer.lock().unwrap();
-                            m.clear();
-                            m.extend(data);
+                match device_impl.device_hardware_id().usage_page {
+                    0xFF54 => {
+                        match device_impl
+                            .get_analog_buffer(&device, ANALOG_MAX_SIZE)
+                            .into()
+                        {
+                            Ok(data) => {
+                                if let Some(data) = data {
+                                    let ProtocolBuffer::V1(ref mut map) = &mut *t_buffer.lock().unwrap() else {
+                                        panic!();
+                                    };
+                                    map.clear();
+                                    map.extend(data);
+                                }
+                            }
+                            Err(e) => {
+                                if e != WootingAnalogResult::DeviceDisconnected {
+                                    error!("Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...", e);
+                                }
+                                t_connected.store(false, Ordering::Relaxed);
+                                return 0;
+                            }
                         }
                     }
-                    Err(e) => {
-                        if e != WootingAnalogResult::DeviceDisconnected {
-                            error!("Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...", e);
+                    0xFF53 => {
+                        match device_impl
+                            .get_analog_buffer_with_ctx(&device, ANALOG_MAX_SIZE)
+                            .into()
+                        {
+                            Ok(data) => {
+                                if let Some(data) = data {
+                                    let ProtocolBuffer::V2(ref mut map) = &mut *t_buffer.lock().unwrap() else {
+                                        panic!();
+                                    };
+
+                                    map.clear();
+                                    map.extend(data);
+                                }
+                            }
+                            Err(e) => {
+                                if e != WootingAnalogResult::DeviceDisconnected {
+                                    error!("Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...", e);
+                                }
+                                t_connected.store(false, Ordering::Relaxed);
+                                return 0;
+                            }
                         }
-                        t_connected.store(false, Ordering::Relaxed);
-                        return 0;
                     }
-                }
+                    _ => panic!("TODO:"),
+                };
             })
         };
 
@@ -239,25 +394,81 @@ impl Device {
     }
 
     fn read_analog(&mut self, code: u16) -> SDKResult<c_float> {
-        (*self.buffer.lock().unwrap().get(&code).unwrap_or(&0.0)).into()
+        match &*self.buffer.lock().unwrap() {
+            ProtocolBuffer::V1(hash_map) => *hash_map.get(&code).unwrap_or(&0.0),
+            ProtocolBuffer::V2(hash_map) => {
+                hash_map
+                    .get(&KeyCode::from(code))
+                    .unwrap_or(&AnalogValue::from(0.0))
+                    .inner
+            }
+        }
+        .into()
     }
 
     fn read_full_buffer(&mut self, _max_length: usize) -> SDKResult<HashMap<c_ushort, c_float>> {
         let mut buffer = self.buffer.lock().unwrap().clone();
         //Collect the new pressed keys
-        let new_pressed_keys: Vec<u16> = buffer.keys().map(|x| *x).collect();
+        let new_pressed_keys = match &buffer {
+            ProtocolBuffer::V1(hash_map) => hash_map.keys().cloned().collect(),
+            ProtocolBuffer::V2(hash_map) => hash_map.keys().cloned().map(|k| k.inner).collect(),
+        };
 
         //Put the old pressed keys into the buffer
         for key in self.pressed_keys.drain(..) {
-            if !buffer.contains_key(&key) {
-                buffer.insert(key, 0.0);
+            match &mut buffer {
+                ProtocolBuffer::V1(hash_map) => {
+                    hash_map.entry(key).or_default();
+                }
+                ProtocolBuffer::V2(hash_map) => {
+                    hash_map.entry(KeyCode::from(key)).or_default();
+                }
             }
         }
 
         //Store the newPressedKeys for the next call
         self.pressed_keys = new_pressed_keys;
 
-        Ok(buffer).into()
+        Ok(match buffer {
+            ProtocolBuffer::V1(hash_map) => hash_map,
+            ProtocolBuffer::V2(hash_map) => {
+                hash_map.iter().map(|(k, v)| (k.inner, v.inner)).collect()
+            }
+        })
+        .into()
+    }
+
+    fn read_full_with_ctx(&mut self) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        let mut buffer = self.buffer.lock().unwrap().clone();
+        //Collect the new pressed keys
+        let new_pressed_keys = match &buffer {
+            ProtocolBuffer::V1(hash_map) => hash_map.keys().cloned().collect(),
+            ProtocolBuffer::V2(hash_map) => hash_map.keys().cloned().map(|k| k.inner).collect(),
+        };
+
+        //Put the old pressed keys into the buffer
+        for key in self.pressed_keys.drain(..) {
+            match &mut buffer {
+                ProtocolBuffer::V1(hash_map) => {
+                    hash_map.entry(key).or_default();
+                }
+                ProtocolBuffer::V2(hash_map) => {
+                    hash_map.entry(KeyCode::from(key)).or_default();
+                }
+            }
+        }
+
+        //Store the newPressedKeys for the next call
+        self.pressed_keys = new_pressed_keys;
+
+        Ok(match buffer {
+            ProtocolBuffer::V1(hash_map) => hash_map
+                .iter()
+                .map(|(k, v)| (KeyCode::from(*k), AnalogValue::from(*v)))
+                .collect(),
+            ProtocolBuffer::V2(hash_map) => hash_map,
+        })
+        .into()
     }
 }
 
@@ -349,17 +560,18 @@ impl WootingPlugin {
             };
 
         let refresh_devices = |hid: &mut HidApi| -> hidapi::HidResult<()> {
-                hid.reset_devices()?;
-                hid.add_devices(WOOTING_VID, 0)?;
-                hid.add_devices(0x03EB, 0xFF01)?;
-                hid.add_devices(0x03EB, 0xFF02)?;
-                Ok(())
-            };
+            hid.reset_devices()?;
+            hid.add_devices(WOOTING_VID, 0)?;
+            hid.add_devices(0x03EB, 0xFF01)?;
+            hid.add_devices(0x03EB, 0xFF02)?;
+            Ok(())
+        };
 
         let device_impls: Vec<Box<dyn DeviceImplementation>> = vec![
-            Box::new(WootingOne()),
-            Box::new(WootingTwo()),
-            Box::new(WootingNewFirmware()),
+            Box::new(WootingOne),
+            Box::new(WootingTwo),
+            Box::new(WootingNewFirmware),
+            Box::new(WootingAnalogProtocolV2),
         ];
         let mut hid = match HidApi::new_without_enumerate() {
             Ok(mut api) => {
@@ -536,6 +748,56 @@ impl Plugin for WootingPlugin {
         {
             match self.devices.lock().unwrap().get_mut(&device_id) {
                 Some(device) => match device.read_full_buffer(max_length).into() {
+                    Ok(val) => Ok(val).into(),
+                    Err(e) => Err(e).into(),
+                },
+                None => Err(WootingAnalogResult::NoDevices).into(),
+            }
+        }
+    }
+
+    fn read_full_with_ctx(
+        &mut self,
+        _max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        if !self.initialised.load(Ordering::Relaxed) {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        if self.devices.lock().unwrap().is_empty() {
+            return Err(WootingAnalogResult::NoDevices).into();
+        }
+
+        //If the Device ID is 0 we want to go through all the connected devices
+        //and combine the analog values
+        if device_id == 0 {
+            let mut analog: HashMap<KeyCode, AnalogValue> = HashMap::new();
+            let mut any_read = false;
+            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+                match device.read_full_with_ctx().into() {
+                    Ok(val) => {
+                        any_read = true;
+                        analog.extend(val);
+                    }
+                    Err(e) => {
+                        error = e;
+                    }
+                }
+            }
+
+            if !any_read {
+                Err(error).into()
+            } else {
+                Ok(analog).into()
+            }
+        } else
+        //If the device id is not 0, we try and find a connected device with that ID and read from it
+        {
+            println!("device not 0");
+            match self.devices.lock().unwrap().get_mut(&device_id) {
+                Some(device) => match device.read_full_with_ctx().into() {
                     Ok(val) => Ok(val).into(),
                     Err(e) => Err(e).into(),
                 },

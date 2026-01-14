@@ -47,6 +47,14 @@ pub trait Plugin {
         max_length: usize,
         device: DeviceID,
     ) -> SDKResult<HashMap<c_ushort, c_float>>;
+
+    fn read_full_with_ctx(
+        &mut self,
+        _max_length: usize,
+        _device: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        Err(WootingAnalogResult::IncompatibleFirmware).into()
+    }
 }
 
 /// Declare a plugin type and its constructor.

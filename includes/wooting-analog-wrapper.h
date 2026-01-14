@@ -138,6 +138,11 @@ int wooting_analog_read_full_buffer(unsigned short *code_buffer,
                                     float *analog_buffer,
                                     unsigned int len);
 
+int wooting_analog_read_full_with_ctx(WootingAnalog_FfiKeyCode *code_buffer,
+                                      WootingAnalog_FfiAnalogValue *analog_buffer,
+                                      unsigned int len,
+                                      WootingAnalog_DeviceID device_id);
+
 /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
 /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
 /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.

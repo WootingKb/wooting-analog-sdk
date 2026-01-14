@@ -138,7 +138,6 @@ pub fn get_connected_devices_info(max_devices: usize) -> SDKResult<Vec<DeviceInf
         let ret: SDKResult<u32> =
             wooting_analog_get_connected_devices_info(buffer.as_mut_ptr(), max_devices as c_uint)
                 .into();
-
         return ret
             .0
             .clone()
@@ -217,4 +216,37 @@ pub fn read_full_buffer_device(
 /// * `Err(NoDevices)`: Indicates no devices are connected
 pub fn read_full_buffer(max_items: usize) -> SDKResult<HashMap<u16, f32>> {
     return read_full_buffer_device(max_items, 0);
+}
+
+pub fn read_full_with_ctx(
+    max_items: usize,
+) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+    unsafe {
+        let mut code_buffer: Vec<FfiKeyCode> = vec![KeyCode::from(0).into(); max_items];
+        let mut analog_buffer: Vec<FfiAnalogValue> = vec![AnalogValue::from(0.0).into(); max_items];
+
+        let ret: SDKResult<u32> = wooting_analog_read_full_with_ctx(
+            code_buffer.as_mut_ptr(),
+            analog_buffer.as_mut_ptr(),
+            max_items as u32,
+            0,
+        )
+        .into();
+
+        return ret
+            .0
+            .clone()
+            .map(|read_num| {
+                let read_num: usize = read_num as usize;
+                code_buffer.truncate(read_num);
+                analog_buffer.truncate(read_num);
+                let mut data: HashMap<KeyCode, AnalogValue> = HashMap::with_capacity(read_num);
+
+                for i in 0..read_num {
+                    data.insert(KeyCode::from(code_buffer[i]), AnalogValue::from(analog_buffer[i]));
+                }
+                data
+            })
+            .into();
+    }
 }

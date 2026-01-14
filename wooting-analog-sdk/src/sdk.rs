@@ -409,9 +409,13 @@ impl AnalogSDK {
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            let plugin_data = p
-                .read_full_buffer(max_length - analog_data.len(), device_id)
-                .into();
+            // Check if we've already collected enough data
+            if analog_data.len() >= max_length {
+                break;
+            }
+
+            let remaining = max_length.saturating_sub(analog_data.len());
+            let plugin_data = p.read_full_buffer(remaining, device_id).into();
             match plugin_data {
                 Ok(mut data) => {
                     for (hid_code, analog) in data.drain() {
@@ -428,6 +432,67 @@ impl AnalogSDK {
                             analog_data.insert(code, total_analog);
                         } else {
                             warn!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
+                        }
+                    }
+
+                    any_success = true;
+                }
+                Err(e) => {
+                    //TODO: Improve collating of multiple errors
+                    err = e
+                }
+            }
+            //If we are looking for a specific device, just break out when we find one that returns good
+            if device_id != 0 {
+                break;
+            }
+        }
+        if !any_success {
+            return Err(err).into();
+        }
+
+        Ok(analog_data).into()
+    }
+
+    pub fn read_full_with_ctx(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        if !self.initialised {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        let mut analog_data: HashMap<KeyCode, AnalogValue> = HashMap::with_capacity(max_length);
+
+        let mut err = WootingAnalogResult::Ok;
+        let mut any_success = false;
+        //Read from all and add up
+        for p in self.plugins.iter_mut() {
+            // Check if we've already collected enough data
+            if analog_data.len() >= max_length {
+                break;
+            }
+
+            let remaining = max_length.saturating_sub(analog_data.len());
+            let plugin_data = p.read_full_with_ctx(remaining, device_id).into();
+            match plugin_data {
+                Ok(mut data) => {
+                    for (hid_code, analog) in data.drain() {
+                        let code = hid_to_code(hid_code.inner, &self.keycode_mode);
+                        if let Some(code) = code {
+
+                            let mut total_analog = analog;
+
+                            //No point in checking if the value is already present if we are only looking for data from one device
+                            if device_id == 0 {
+                                if let Some(val) = analog_data.get(&KeyCode::from(code)) {
+                                    total_analog = total_analog.max(*val);
+                                }
+                            }
+                            analog_data.insert(hid_code, total_analog);
+                        } else {
+                            warn!("Couldn't map HID:{} to {:?}", hid_code.inner, self.keycode_mode);
                         }
                     }
 

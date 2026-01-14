@@ -178,7 +178,7 @@ impl Plugin for CPlugin {
                 )
                 .0;
             if let Err(e) = ret {
-                //debug!("Error got: {:?}",e);
+                debug!("Error got: {:?}",e);
                 return Err(e).into();
             }
             let ret = ret.unwrap();
@@ -186,7 +186,7 @@ impl Plugin for CPlugin {
         };
 
         let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
-        //println!("Count was {}", count);
+        println!("Count was {}", count);
         for i in 0..count {
             analog_data.insert(code_buffer[i], analog_buffer[i]);
         }

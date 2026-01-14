@@ -349,6 +349,49 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
     }
 }
 
+#[no_mangle]
+pub extern "C" fn wooting_analog_read_full_with_ctx(
+    code_buffer: *mut FfiKeyCode,
+    analog_buffer: *mut FfiAnalogValue,
+    len: c_uint,
+    device_id: DeviceID,
+) -> c_int {
+    let codes = unsafe {
+        assert!(!code_buffer.is_null());
+
+        slice::from_raw_parts_mut(code_buffer, len as usize)
+    };
+
+    let analog = unsafe {
+        assert!(!analog_buffer.is_null());
+
+        slice::from_raw_parts_mut(analog_buffer, len as usize)
+    };
+
+    match ANALOG_SDK
+        .lock()
+        .unwrap()
+        .read_full_with_ctx(len as usize, device_id)
+        .0
+    {
+        Ok(analog_data) => {
+            //Fill up given slices
+            let mut count: usize = 0;
+            for (code, val) in analog_data.iter() {
+                if count >= codes.len() {
+                    break;
+                }
+
+                codes[count] = FfiKeyCode::from(*code);
+                analog[count] = FfiAnalogValue::from(*val);
+                count += 1;
+            }
+            count as c_int
+        }
+        Err(e) => e as c_int,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -173,6 +173,240 @@ pub enum KeycodeType {
     VirtualKeyTranslate = 3,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub enum KeyMetadata {
+    #[default]
+    None,
+    Basic {
+        namespace: u8,
+    },
+}
+
+#[derive(Copy, Clone, Eq, Ord, PartialOrd, Debug, Default)]
+pub struct KeyCode {
+    pub inner: u16,
+    pub metadata: KeyMetadata,
+}
+
+impl std::hash::Hash for KeyCode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl PartialEq for KeyCode {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl From<u16> for KeyCode {
+    fn from(value: u16) -> Self {
+        KeyCode {
+            inner: value,
+            metadata: KeyMetadata::None,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub enum ValueMetadata {
+    #[default]
+    None,
+    Basic {
+        pos: Position,
+        actuated: bool,
+    },
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub struct Position {
+    pub x: u8,
+    pub y: u8,
+}
+
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
+pub struct AnalogValue {
+    pub inner: f32,
+    pub metadata: ValueMetadata,
+}
+
+impl AnalogValue {
+    pub fn max(self, other: AnalogValue) -> AnalogValue {
+        if self.inner >= other.inner {
+            self
+        } else {
+            other
+        }
+    }
+}
+
+impl From<f32> for AnalogValue {
+    fn from(value: f32) -> Self {
+        AnalogValue {
+            inner: value,
+            metadata: ValueMetadata::None,
+        }
+    }
+}
+
+#[derive(Copy, Debug, Clone, Primitive)]
+#[repr(C)]
+pub enum FfiKeyMetadataTag {
+    None = 0,
+    Basic = 1,
+}
+
+#[derive(Copy, Debug, Clone)]
+#[repr(C)]
+pub struct FfiKeyMetadata {
+    pub tag: FfiKeyMetadataTag,
+    pub namespace_: u8,
+}
+
+#[derive(Copy, Debug, Clone)]
+#[repr(C)]
+pub struct FfiKeyCode {
+    pub inner: u16,
+    pub metadata: FfiKeyMetadata,
+}
+
+impl From<KeyMetadata> for FfiKeyMetadata {
+    fn from(meta: KeyMetadata) -> Self {
+        match meta {
+            KeyMetadata::None => Self {
+                tag: FfiKeyMetadataTag::None,
+                namespace_: 0,
+            },
+            KeyMetadata::Basic { namespace } => Self {
+                tag: FfiKeyMetadataTag::Basic,
+                namespace_: namespace,
+            },
+        }
+    }
+}
+
+impl From<KeyCode> for FfiKeyCode {
+    fn from(k: KeyCode) -> Self {
+        Self {
+            inner: k.inner,
+            metadata: k.metadata.into(),
+        }
+    }
+}
+
+impl From<FfiKeyMetadata> for KeyMetadata {
+    fn from(meta: FfiKeyMetadata) -> Self {
+        match meta.tag {
+            FfiKeyMetadataTag::None => KeyMetadata::None,
+            FfiKeyMetadataTag::Basic => {
+                KeyMetadata::Basic {
+                    namespace: meta.namespace_,
+                }
+            }
+        }
+    }
+}
+
+impl From<FfiKeyCode> for KeyCode {
+    fn from(k: FfiKeyCode) -> Self {
+        Self {
+            inner: k.inner,
+            metadata: k.metadata.into(),
+        }
+    }
+}
+
+#[derive(Copy, Debug, Clone, Primitive)]
+#[repr(C)]
+pub enum FfiValueMetadataTag {
+    None = 0,
+    Basic = 1,
+}
+
+#[derive(Copy, Debug, Clone)]
+#[repr(C)]
+pub struct FfiPosition {
+    pub x: u8,
+    pub y: u8,
+}
+
+#[derive(Copy, Debug, Clone)]
+#[repr(C)]
+pub struct FfiValueMetadata {
+    pub tag: FfiValueMetadataTag,
+    pub pos: FfiPosition,
+    pub actuated: u8, // NOT bool
+}
+
+#[derive(Copy, Debug, Clone)]
+#[repr(C)]
+pub struct FfiAnalogValue {
+    pub inner: f32,
+    pub metadata: FfiValueMetadata,
+}
+
+impl From<Position> for FfiPosition {
+    fn from(p: Position) -> Self {
+        Self { x: p.x, y: p.y }
+    }
+}
+
+impl From<ValueMetadata> for FfiValueMetadata {
+    fn from(meta: ValueMetadata) -> Self {
+        match meta {
+            ValueMetadata::None => Self {
+                tag: FfiValueMetadataTag::None,
+                pos: FfiPosition { x: 0, y: 0 },
+                actuated: 0,
+            },
+            ValueMetadata::Basic { pos, actuated } => Self {
+                tag: FfiValueMetadataTag::Basic,
+                pos: pos.into(),
+                actuated: actuated as u8,
+            },
+        }
+    }
+}
+
+impl From<AnalogValue> for FfiAnalogValue {
+    fn from(v: AnalogValue) -> Self {
+        Self {
+            inner: v.inner,
+            metadata: v.metadata.into(),
+        }
+    }
+}
+
+impl From<FfiPosition> for Position {
+    fn from(p: FfiPosition) -> Self {
+        Self { x: p.x, y: p.y }
+    }
+}
+
+impl From<FfiValueMetadata> for ValueMetadata {
+    fn from(meta: FfiValueMetadata) -> Self {
+        match meta.tag {
+            FfiValueMetadataTag::None => ValueMetadata::None,
+            FfiValueMetadataTag::Basic => {
+                ValueMetadata::Basic {
+                    pos: meta.pos.into(),
+                    actuated: meta.actuated != 0,
+                }
+            }
+        }
+    }
+}
+
+impl From<FfiAnalogValue> for AnalogValue {
+    fn from(v: FfiAnalogValue) -> Self {
+        Self {
+            inner: v.inner,
+            metadata: v.metadata.into(),
+        }
+    }
+}
+
 pub type DeviceID = u64;
 
 #[cfg_attr(feature = "serdes", derive(Serialize, Deserialize))]
@@ -236,6 +470,9 @@ pub enum WootingAnalogResult {
     /// Indicates that the Analog SDK could not be found on the system
     #[error("The Wooting Analog SDK could not be found on the system")]
     DLLNotFound = -1990isize,
+    /// Unavailable for this firmware version
+    #[error("Unvailable for this firmware version")]
+    IncompatibleFirmware = -1989isize,
 }
 
 impl WootingAnalogResult {

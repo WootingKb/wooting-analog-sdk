@@ -1,5 +1,6 @@
 use crate::SDK_ABI_VERSION;
 use libloading as libl;
+use wooting_analog_common::{FfiAnalogValue, FfiKeyCode};
 use std::ops::Deref;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort};
 pub use wooting_analog_common::{
@@ -203,6 +204,8 @@ dynamic_extern! {
         /// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
         /// * `WootingAnalogResult::NoDevices`: Indicates no devices are connected
         fn wooting_analog_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
+
+        fn wooting_analog_read_full_with_ctx(code_buffer: *mut FfiKeyCode, analog_buffer: *mut FfiAnalogValue, len: c_uint, device_id: DeviceID) -> c_int;
 
         /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
         /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog

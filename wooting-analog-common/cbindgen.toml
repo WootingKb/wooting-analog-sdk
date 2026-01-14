@@ -11,6 +11,13 @@ include = [
     "WootingAnalogResult",
     "KeycodeType",
     "DeviceType",
+    "FfiKeyCode",
+    "FfiKeyMetadata",
+    "FfiKeyMetadataTag",
+    "FfiAnalogValue",
+    "FfiValueMetadata",
+    "FfiValueMetadataTag",
+    "FfiPosition",
 ]
 prefix = "WootingAnalog_"
 renaming_overrides_prefixing = true

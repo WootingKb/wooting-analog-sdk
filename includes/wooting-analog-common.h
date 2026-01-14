@@ -18,40 +18,6 @@ typedef enum WootingAnalog_DeviceEventType {
   WootingAnalog_DeviceEventType_Disconnected = 2,
 } WootingAnalog_DeviceEventType;
 
-typedef enum WootingAnalog_DeviceType {
-  /**
-   * Device is of type Keyboard
-   */
-  WootingAnalog_DeviceType_Keyboard = 1,
-  /**
-   * Device is of type Keypad
-   */
-  WootingAnalog_DeviceType_Keypad = 2,
-  /**
-   * Device
-   */
-  WootingAnalog_DeviceType_Other = 3,
-} WootingAnalog_DeviceType;
-
-typedef enum WootingAnalog_KeycodeType {
-  /**
-   * USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
-   */
-  WootingAnalog_KeycodeType_HID = 0,
-  /**
-   * Scan code set 1
-   */
-  WootingAnalog_KeycodeType_ScanCode1 = 1,
-  /**
-   * Windows Virtual Keys
-   */
-  WootingAnalog_KeycodeType_VirtualKey = 2,
-  /**
-   * Windows Virtual Keys which are translated to the current keyboard locale
-   */
-  WootingAnalog_KeycodeType_VirtualKeyTranslate = 3,
-} WootingAnalog_KeycodeType;
-
 typedef enum WootingAnalogResult {
   WootingAnalogResult_Ok = 1,
   /**
@@ -98,7 +64,55 @@ typedef enum WootingAnalogResult {
    * Indicates that the Analog SDK could not be found on the system
    */
   WootingAnalogResult_DLLNotFound = -1990,
+  /**
+   * Unavailable for this firmware version
+   */
+  WootingAnalogResult_IncompatibleFirmware = -1989,
 } WootingAnalogResult;
+
+typedef enum WootingAnalog_KeycodeType {
+  /**
+   * USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
+   */
+  WootingAnalog_KeycodeType_HID = 0,
+  /**
+   * Scan code set 1
+   */
+  WootingAnalog_KeycodeType_ScanCode1 = 1,
+  /**
+   * Windows Virtual Keys
+   */
+  WootingAnalog_KeycodeType_VirtualKey = 2,
+  /**
+   * Windows Virtual Keys which are translated to the current keyboard locale
+   */
+  WootingAnalog_KeycodeType_VirtualKeyTranslate = 3,
+} WootingAnalog_KeycodeType;
+
+typedef enum WootingAnalog_DeviceType {
+  /**
+   * Device is of type Keyboard
+   */
+  WootingAnalog_DeviceType_Keyboard = 1,
+  /**
+   * Device is of type Keypad
+   */
+  WootingAnalog_DeviceType_Keypad = 2,
+  /**
+   * Device
+   */
+  WootingAnalog_DeviceType_Other = 3,
+} WootingAnalog_DeviceType;
+
+typedef enum WootingAnalog_FfiKeyMetadataTag {
+  WootingAnalog_FfiKeyMetadataTag_None = 0,
+  WootingAnalog_FfiKeyMetadataTag_Basic = 1,
+} WootingAnalog_FfiKeyMetadataTag;
+
+typedef enum WootingAnalog_FfiValueMetadataTag {
+  WootingAnalog_FfiValueMetadataTag_None = 0,
+  WootingAnalog_FfiValueMetadataTag_Basic = 1,
+} WootingAnalog_FfiValueMetadataTag;
 
 typedef uint64_t WootingAnalog_DeviceID;
 
@@ -134,3 +148,29 @@ typedef struct WootingAnalog_DeviceInfo_FFI {
    */
   WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo_FFI;
+
+typedef struct WootingAnalog_FfiKeyMetadata {
+  enum WootingAnalog_FfiKeyMetadataTag tag;
+  uint8_t namespace_;
+} WootingAnalog_FfiKeyMetadata;
+
+typedef struct WootingAnalog_FfiKeyCode {
+  uint16_t inner;
+  struct WootingAnalog_FfiKeyMetadata metadata;
+} WootingAnalog_FfiKeyCode;
+
+typedef struct WootingAnalog_FfiPosition {
+  uint8_t x;
+  uint8_t y;
+} WootingAnalog_FfiPosition;
+
+typedef struct WootingAnalog_FfiValueMetadata {
+  enum WootingAnalog_FfiValueMetadataTag tag;
+  struct WootingAnalog_FfiPosition pos;
+  uint8_t actuated;
+} WootingAnalog_FfiValueMetadata;
+
+typedef struct WootingAnalog_FfiAnalogValue {
+  float inner;
+  struct WootingAnalog_FfiValueMetadata metadata;
+} WootingAnalog_FfiAnalogValue;
