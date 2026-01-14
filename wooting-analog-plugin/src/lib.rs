@@ -299,10 +299,6 @@ impl Device {
             0xFF53 => ProtocolBuffer::V2(HashMap::new()),
             _ => panic!("TODO:"),
         };
-        println!(
-            "setup device with usage page: {}",
-            device_impl.device_hardware_id().usage_page
-        );
         let buffer = Arc::new(Mutex::new(buffer));
         let connected = Arc::new(AtomicBool::new(true));
 
@@ -323,7 +319,9 @@ impl Device {
                         {
                             Ok(data) => {
                                 if let Some(data) = data {
-                                    let ProtocolBuffer::V1(ref mut map) = &mut *t_buffer.lock().unwrap() else {
+                                    let ProtocolBuffer::V1(ref mut map) =
+                                        &mut *t_buffer.lock().unwrap()
+                                    else {
                                         panic!();
                                     };
                                     map.clear();
@@ -346,7 +344,9 @@ impl Device {
                         {
                             Ok(data) => {
                                 if let Some(data) = data {
-                                    let ProtocolBuffer::V2(ref mut map) = &mut *t_buffer.lock().unwrap() else {
+                                    let ProtocolBuffer::V2(ref mut map) =
+                                        &mut *t_buffer.lock().unwrap()
+                                    else {
                                         panic!();
                                     };
 
@@ -410,18 +410,18 @@ impl Device {
         let mut buffer = self.buffer.lock().unwrap().clone();
         //Collect the new pressed keys
         let new_pressed_keys = match &buffer {
-            ProtocolBuffer::V1(hash_map) => hash_map.keys().cloned().collect(),
-            ProtocolBuffer::V2(hash_map) => hash_map.keys().cloned().map(|k| k.inner).collect(),
+            ProtocolBuffer::V1(map) => map.keys().cloned().collect(),
+            ProtocolBuffer::V2(map) => map.keys().cloned().map(|k| k.inner).collect(),
         };
 
         //Put the old pressed keys into the buffer
         for key in self.pressed_keys.drain(..) {
             match &mut buffer {
-                ProtocolBuffer::V1(hash_map) => {
-                    hash_map.entry(key).or_default();
+                ProtocolBuffer::V1(map) => {
+                    map.entry(key).or_default();
                 }
-                ProtocolBuffer::V2(hash_map) => {
-                    hash_map.entry(KeyCode::from(key)).or_default();
+                ProtocolBuffer::V2(map) => {
+                    map.entry(KeyCode::from(key)).or_default();
                 }
             }
         }
@@ -430,45 +430,33 @@ impl Device {
         self.pressed_keys = new_pressed_keys;
 
         Ok(match buffer {
-            ProtocolBuffer::V1(hash_map) => hash_map,
-            ProtocolBuffer::V2(hash_map) => {
-                hash_map.iter().map(|(k, v)| (k.inner, v.inner)).collect()
+            ProtocolBuffer::V1(map) => map,
+            ProtocolBuffer::V2(map) => {
+                map.iter().map(|(k, v)| (k.inner, v.inner)).collect()
             }
         })
         .into()
     }
 
     fn read_full_with_ctx(&mut self) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
-        let mut buffer = self.buffer.lock().unwrap().clone();
-        //Collect the new pressed keys
-        let new_pressed_keys = match &buffer {
-            ProtocolBuffer::V1(hash_map) => hash_map.keys().cloned().collect(),
-            ProtocolBuffer::V2(hash_map) => hash_map.keys().cloned().map(|k| k.inner).collect(),
+        let buffer = self.buffer.lock().unwrap().clone();
+
+        let ProtocolBuffer::V2(mut map) = buffer else {
+            return Err(WootingAnalogResult::IncompatibleFirmware).into();
         };
+
+        //Collect the new pressed keys
+        let new_pressed_keys = map.keys().cloned().map(|k| k.inner).collect();
 
         //Put the old pressed keys into the buffer
         for key in self.pressed_keys.drain(..) {
-            match &mut buffer {
-                ProtocolBuffer::V1(hash_map) => {
-                    hash_map.entry(key).or_default();
-                }
-                ProtocolBuffer::V2(hash_map) => {
-                    hash_map.entry(KeyCode::from(key)).or_default();
-                }
-            }
+            map.entry(KeyCode::from(key)).or_default();
         }
 
         //Store the newPressedKeys for the next call
         self.pressed_keys = new_pressed_keys;
 
-        Ok(match buffer {
-            ProtocolBuffer::V1(hash_map) => hash_map
-                .iter()
-                .map(|(k, v)| (KeyCode::from(*k), AnalogValue::from(*v)))
-                .collect(),
-            ProtocolBuffer::V2(hash_map) => hash_map,
-        })
-        .into()
+        Ok(map).into()
     }
 }
 
