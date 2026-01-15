@@ -48,6 +48,17 @@ ANALOGSDK_API int read_full_buffer(uint16_t code_buffer[],
                                     float analog_buffer[], int len,
                                     WootingAnalog_DeviceID device);
 
+/// Function called to get the full analog read buffer for a particular device
+/// with ID `device` with additional context, such as the physical position of 
+/// the key and if it is currently actuated. `len` is the maximum amount of 
+/// keys that can be accepted, any more beyond this will be ignored by the SDK. 
+/// If `device` is 0 then no specific device is specified and the data should 
+/// be read from all devices and combined
+ANALOGSDK_API int read_full_with_ctx(WootingAnalog_FfiKeyCode code_buffer[],
+                                    WootingAnalog_FfiAnalogValue analog_buffer[], 
+                                    int len,
+                                    WootingAnalog_DeviceID device);
+
 /// This function is fired by the SDK to collect up all Device Info structs. The
 /// memory for the struct should be retained and only dropped when the device is
 /// disconnected or the plugin is unloaded. This ensures that the Device Info is
@@ -64,3 +75,10 @@ ANALOGSDK_API int device_info(const WootingAnalog_DeviceInfo_FFI *buffer[],
 /// the device with ID `device`. If `device` is 0 then no specific device is
 /// specified and the value should be read from all devices and combined
 ANALOGSDK_API float read_analog(uint16_t code, WootingAnalog_DeviceID device);
+
+/// Function called to get the analog value for a particular HID key `code` from
+/// the device with ID `device` with additional context, such as the physical position 
+/// of the key and if it is currently actuated. If `device` is 0 then no specific device 
+/// is specified and the value should be read from all devices and combined
+ANALOGSDK_API WootingAnalog_FfiAnalogValue read_analog_with_ctx(WootingAnalog_FfiKeyCode code, 
+                                                                WootingAnalog_DeviceID device);

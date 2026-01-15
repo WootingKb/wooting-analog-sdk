@@ -18,9 +18,9 @@ struct WootingAnalogTestPlugin {
     device_connected: Arc<Mutex<bool>>,
     device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>>,
     device: Arc<Mutex<Option<DeviceInfo>>>,
-    buffer: Arc<Mutex<HashMap<u16, f32>>>,
+    buffer: Arc<Mutex<HashMap<KeyCode, AnalogValue>>>,
     device_id: Arc<Mutex<DeviceID>>,
-    pressed_keys: Vec<u16>,
+    pressed_keys: Vec<KeyCode>,
     thread_running: Arc<AtomicBool>,
     worker_thread: Option<JoinHandle<()>>,
 }
@@ -53,7 +53,8 @@ impl WootingAnalogTestPlugin {
         }
 
         let device: Arc<Mutex<Option<DeviceInfo>>> = Arc::new(Mutex::new(None));
-        let buffer: Arc<Mutex<HashMap<u16, f32>>> = Arc::new(Mutex::new(HashMap::new()));
+        let buffer: Arc<Mutex<HashMap<KeyCode, AnalogValue>>> =
+            Arc::new(Mutex::new(HashMap::new()));
         let device_id: Arc<Mutex<DeviceID>> = Arc::new(Mutex::new(1));
         let device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>>> =
             Arc::new(Mutex::new(None));
@@ -175,7 +176,7 @@ impl WootingAnalogTestPlugin {
                     vals.copy_from_slice(&state.analog_values[..]);
                 }
 
-                let analog: HashMap<u16, f32> = vals
+                let analog: HashMap<KeyCode, AnalogValue> = vals
                     .iter()
                     .enumerate()
                     .filter_map(|(i, &val)| {
@@ -185,6 +186,7 @@ impl WootingAnalogTestPlugin {
                             None
                         }
                     })
+                    .map(|(k, v)| (KeyCode::from(k), AnalogValue::from(v)))
                     .collect();
                 {
                     let mut m = t_buffer.lock().unwrap();
@@ -268,6 +270,14 @@ impl Plugin for WootingAnalogTestPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: u64) -> SDKResult<f32> {
+        SDKResult(
+            self.read_analog_with_ctx(code.into(), device)
+                .0
+                .map(|v| v.inner),
+        )
+    }
+
+    fn read_analog_with_ctx(&mut self, code: KeyCode, device: DeviceID) -> SDKResult<AnalogValue> {
         if !*self.device_connected.lock().unwrap() {
             return Err(WootingAnalogResult::NoDevices).into();
         }
@@ -279,19 +289,26 @@ impl Plugin for WootingAnalogTestPlugin {
                 .unwrap()
                 .get(&code)
                 .cloned()
-                .or(Some(0.0))
-                .unwrap())
+                .unwrap_or(AnalogValue::from(0.0)))
             .into()
         } else {
             Err(WootingAnalogResult::NoDevices).into()
         }
     }
 
-    fn read_full_buffer(
+    fn read_full_buffer(&mut self, max_length: usize, device: u64) -> SDKResult<HashMap<u16, f32>> {
+        SDKResult(
+            self.read_full_with_ctx(max_length, device)
+                .0
+                .map(|m| m.iter().map(|(k, v)| (k.inner, v.inner)).collect()),
+        )
+    }
+
+    fn read_full_with_ctx(
         &mut self,
         _max_length: usize,
-        device: u64,
-    ) -> SDKResult<HashMap<u16, f32>> {
+        device: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
         if !*self.device_connected.lock().unwrap() {
             return Err(WootingAnalogResult::NoDevices).into();
         }
@@ -299,13 +316,11 @@ impl Plugin for WootingAnalogTestPlugin {
         if device == 0 || device == *self.device_id.lock().unwrap() {
             let mut buffer = self.buffer.lock().unwrap().clone();
             //Collect the new pressed keys
-            let new_pressed_keys: Vec<u16> = buffer.keys().map(|x| *x).collect();
+            let new_pressed_keys: Vec<KeyCode> = buffer.keys().cloned().collect();
 
             //Put the old pressed keys into the buffer
             for key in self.pressed_keys.drain(..) {
-                if !buffer.contains_key(&key) {
-                    buffer.insert(key, 0.0);
-                }
+                buffer.entry(key).or_default();
             }
 
             //Store the newPressedKeys for the next call

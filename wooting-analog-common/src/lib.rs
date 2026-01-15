@@ -559,6 +559,12 @@ impl From<u32> for SDKResult<u32> {
     }
 }
 
+impl From<*const FfiAnalogValue> for SDKResult<*const FfiAnalogValue> {
+    fn from(value: *const FfiAnalogValue) -> Self {
+        SDKResult(Ok(value))
+    }
+}
+
 impl Into<i32> for SDKResult<u32> {
     fn into(self) -> i32 {
         match self.0 {

@@ -39,6 +39,12 @@ pub trait Plugin {
     /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
     fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32>;
 
+    /// Function called to get the analog value for a particular HID key `code` from the device with
+    /// ID `device` with additional context, such as the physical position of the key and if it is
+    /// currently actuated or not.
+    /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
+    fn read_analog_with_ctx(&mut self, code: KeyCode, device: DeviceID) -> SDKResult<AnalogValue>;
+
     /// Function called to get the full analog read buffer for a particular device with ID `device`. `max_length` is the maximum amount
     /// of keys that can be accepted, any more beyond this will be ignored by the SDK.
     /// If `device` is 0 then no specific device is specified and the data should be read from all devices and combined
@@ -48,13 +54,16 @@ pub trait Plugin {
         device: DeviceID,
     ) -> SDKResult<HashMap<c_ushort, c_float>>;
 
+    /// Function called to get the full analog read buffer  for a particular device with ID `device`
+    /// with additional context, such as the physical position of the key and if it is currently
+    /// actuated or not. `max_length` is the maximum amount of keys that can be accepted, any more
+    /// beyond this will be ignored by the SDK.
+    /// If `device` is 0 then no specific device is specified and the data should be read from all devices and combined
     fn read_full_with_ctx(
         &mut self,
-        _max_length: usize,
-        _device: DeviceID,
-    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
-        Err(WootingAnalogResult::IncompatibleFirmware).into()
-    }
+        max_length: usize,
+        device: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>>;
 }
 
 /// Declare a plugin type and its constructor.
