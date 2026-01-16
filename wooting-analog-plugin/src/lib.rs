@@ -26,12 +26,6 @@ const ANALOG_MAX_SIZE: usize = 40;
 const WOOTING_VID: u16 = 0x31e3;
 const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
 
-#[derive(Clone, PartialEq, Debug)]
-enum ProtocolBuffer {
-    V1(HashMap<c_ushort, c_float>),
-    V2(HashMap<KeyCode, AnalogValue>),
-}
-
 /// Struct holding the information we need to find the device and the analog interface
 struct DeviceHardwareID {
     vid: u16,
@@ -110,7 +104,7 @@ trait DeviceImplementation: objekt::Clone + Send {
         _device: &HidDevice,
         _max_length: usize,
     ) -> SDKResult<Option<HashMap<KeyCode, AnalogValue>>> {
-        Err(WootingAnalogResult::IncompatibleFirmware).into()
+        SDKResult(Ok(None))
     }
 
     /// Get the unique device ID from the given `device_info`
@@ -279,10 +273,9 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
 /// A fully contained device which uses `device_impl` to interface with the `device`
 struct Device {
     pub device_info: DeviceInfo,
-    // buffer: Arc<Mutex<HashMap<c_ushort, c_float>>>,
     buffer: Arc<Mutex<HashMap<KeyCode, AnalogValue>>>,
     connected: Arc<AtomicBool>,
-    pressed_keys: Vec<u16>,
+    pressed_keys: Vec<KeyCode>,
     worker: Option<JoinHandle<i32>>,
 }
 unsafe impl Send for Device {}
@@ -389,18 +382,18 @@ impl Device {
             .lock()
             .unwrap()
             .get(&code)
-            .unwrap_or(&AnalogValue::from(0.0))))
+            .unwrap_or(&AnalogValue::default())))
     }
 
     fn read_full_with_ctx(&mut self) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
         let mut buffer = self.buffer.lock().unwrap().clone();
 
         //Collect the new pressed keys
-        let new_pressed_keys = buffer.keys().cloned().map(|k| k.inner).collect();
+        let new_pressed_keys = buffer.keys().cloned().collect();
 
         //Put the old pressed keys into the buffer
         for key in self.pressed_keys.drain(..) {
-            buffer.entry(KeyCode::from(key)).or_default();
+            buffer.entry(key).or_default();
         }
 
         //Store the newPressedKeys for the next call
@@ -657,6 +650,7 @@ impl Plugin for WootingPlugin {
         }
     }
 
+    // TODO: these values are somehow being merged incorrectly
     fn read_full_buffer(
         &mut self,
         max_length: usize,
@@ -691,8 +685,24 @@ impl Plugin for WootingPlugin {
             for (_id, device) in self.devices.lock().unwrap().iter_mut() {
                 match device.read_full_with_ctx().into() {
                     Ok(val) => {
-                        any_read = true;
-                        analog.extend(val);
+                        for (k, v) in val {
+                            match analog.get(&k) {
+                                Some(value) => {
+                                    if &v > value {
+                                        // Replace original (also the key) with v if higher
+                                        // Important: can't use entry(k).and_modify because the key
+                                        // might also have metadata attached to it so it will also
+                                        // have to be replaced to keep them in sync
+                                        analog.insert(k, v);
+                                        any_read = true;
+                                    }
+                                }
+                                None => {
+                                    analog.insert(k, v);
+                                    any_read = true;
+                                }
+                            }
+                        }
                     }
                     Err(e) => {
                         error = e;
@@ -708,7 +718,6 @@ impl Plugin for WootingPlugin {
         } else
         //If the device id is not 0, we try and find a connected device with that ID and read from it
         {
-            println!("device not 0");
             match self.devices.lock().unwrap().get_mut(&device_id) {
                 Some(device) => match device.read_full_with_ctx().into() {
                     Ok(val) => Ok(val).into(),

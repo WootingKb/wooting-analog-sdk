@@ -14,7 +14,7 @@ pub(crate) const SDK_ABI_VERSION: u32 = 0;
 /// Provides the major version of the SDK, a difference in this value to what is expected (SDK_ABI_VERSION) indicates that
 /// there may be some breaking changes that have been made so the SDK should not be attempted to be used
 pub fn version() -> SDKResult<u32> {
-    return unsafe { wooting_analog_version().into() };
+    unsafe { wooting_analog_version().into() }
 }
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -26,19 +26,19 @@ pub fn version() -> SDKResult<u32> {
 /// * `Err(FunctionNotFound)`: The SDK is either not installed or could not be found
 /// * `Err(IncompatibleVersion)`: The installed SDK is incompatible with this wrapper as they are on different Major versions
 pub fn initialise() -> SDKResult<u32> {
-    return unsafe { wooting_analog_initialise().into() };
+    unsafe { wooting_analog_initialise().into() }
 }
 
 /// Returns a bool indicating if the Analog SDK has been initialised
 pub fn is_initialised() -> bool {
-    return unsafe { wooting_analog_is_initialised() };
+    unsafe { wooting_analog_is_initialised() }
 }
 
 /// Uninitialises the SDK, returning it to an empty state, similar to how it would be before first initialisation
 /// # Expected Returns
 /// * `Ok(())`: Indicates that the SDK was successfully uninitialised
 pub fn uninitialise() -> SDKResult<()> {
-    return unsafe { wooting_analog_uninitialise().into() };
+    unsafe { wooting_analog_uninitialise().into() }
 }
 
 /// Sets the type of Keycodes the Analog SDK will receive (in `read_analog`) and output (in `read_full_buffer`).
@@ -56,7 +56,7 @@ pub fn uninitialise() -> SDKResult<()> {
 /// * `Err(NotAvailable)`: The given `KeycodeType` is present, but not supported on the current platform
 /// * `Err(UnInitialized)`: The SDK is not initialised
 pub fn set_keycode_mode(mode: KeycodeType) -> SDKResult<()> {
-    return unsafe { wooting_analog_set_keycode_mode(mode).into() };
+    unsafe { wooting_analog_set_keycode_mode(mode).into() }
 }
 
 /// Reads the Analog value of the key with identifier `code` from any connected device. The set of key identifiers that is used
@@ -80,7 +80,7 @@ pub fn set_keycode_mode(mode: KeycodeType) -> SDKResult<()> {
 /// * `Err(UnInitialized)`: The SDK is not initialised
 /// * `Err(NoDevices)`: There are no connected devices
 pub fn read_analog(code: u16) -> SDKResult<f32> {
-    return unsafe { wooting_analog_read_analog(code).into() };
+    unsafe { wooting_analog_read_analog(code).into() }
 }
 
 /// Reads the Analog value of the key with identifier `code` from the device with id `device_id`. The set of key identifiers that is used
@@ -94,7 +94,7 @@ pub fn read_analog(code: u16) -> SDKResult<f32> {
 /// * `Err(UnInitialized)`: The SDK is not initialised
 /// * `Err(NoDevices)`: There are no connected devices with id `device_id`
 pub fn read_analog_device(code: u16, device_id: DeviceID) -> SDKResult<f32> {
-    return unsafe { wooting_analog_read_analog_device(code, device_id).into() };
+    unsafe { wooting_analog_read_analog_device(code, device_id).into() }
 }
 
 /// Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
@@ -110,7 +110,7 @@ pub fn read_analog_device(code: u16, device_id: DeviceID) -> SDKResult<f32> {
 pub fn set_device_event_cb(
     cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI), //TODO: Make this accept a closure
 ) -> SDKResult<()> {
-    return unsafe { wooting_analog_set_device_event_cb(cb).into() };
+    unsafe { wooting_analog_set_device_event_cb(cb).into() }
 }
 
 /// Clears the device event callback that has been set
@@ -119,7 +119,7 @@ pub fn set_device_event_cb(
 /// * `Ok(())`: The callback was cleared successfully
 /// * `Err(UnInitialized)`: The SDK is not initialised
 pub fn clear_device_event_cb() -> SDKResult<()> {
-    return unsafe { wooting_analog_clear_device_event_cb().into() };
+    unsafe { wooting_analog_clear_device_event_cb().into() }
 }
 
 /// Returns all connected devices with a max Vector return length of `max_devices` (as many that can fit in the buffer)
@@ -140,7 +140,6 @@ pub fn get_connected_devices_info(max_devices: usize) -> SDKResult<Vec<DeviceInf
                 .into();
         return ret
             .0
-            .clone()
             .map(|device_num| {
                 buffer.truncate(device_num as usize);
                 buffer
@@ -172,34 +171,11 @@ pub fn read_full_buffer_device(
     max_items: usize,
     device_id: DeviceID,
 ) -> SDKResult<HashMap<u16, f32>> {
-    unsafe {
-        let mut code_buffer: Vec<u16> = vec![0; max_items];
-        let mut analog_buffer: Vec<f32> = vec![0.0; max_items];
-
-        let ret: SDKResult<u32> = wooting_analog_read_full_buffer_device(
-            code_buffer.as_mut_ptr(),
-            analog_buffer.as_mut_ptr(),
-            max_items as u32,
-            device_id,
-        )
-        .into();
-
-        return ret
+    SDKResult(
+        read_full_with_ctx(max_items, device_id)
             .0
-            .clone()
-            .map(|read_num| {
-                let read_num: usize = read_num as usize;
-                code_buffer.truncate(read_num);
-                analog_buffer.truncate(read_num);
-                let mut data: HashMap<u16, f32> = HashMap::with_capacity(read_num);
-
-                for i in 0..read_num {
-                    data.insert(code_buffer[i], analog_buffer[i]);
-                }
-                data
-            })
-            .into();
-    }
+            .map(|m| m.iter().map(|(k, v)| (k.inner, v.inner)).collect()),
+    )
 }
 
 /// Reads all the analog values for pressed keys for all devices and combines their values, returning a HashMap of keycode -> analog value.
@@ -215,27 +191,41 @@ pub fn read_full_buffer_device(
 /// * `Err(UnInitialized)`: Indicates that the AnalogSDK hasn't been initialised
 /// * `Err(NoDevices)`: Indicates no devices are connected
 pub fn read_full_buffer(max_items: usize) -> SDKResult<HashMap<u16, f32>> {
-    return read_full_buffer_device(max_items, 0);
+    read_full_buffer_device(max_items, 0)
 }
 
+/// Reads all the analog values with any available context for pressed keys for all devices and
+/// combines their values, returning a HashMap of keycode -> analog value. The context includes what
+/// namespace the keycode belongs to and the value shows what physical position it has and if it is
+/// currently actuated.
+///
+/// # Notes
+/// * `max_items` is the maximum length of items that can be returned in the HashMap
+/// * The keycodes returned are of the KeycodeType set with `set_mode`
+/// * If two devices have the same key pressed, the greater value will be given
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
+///
+/// # Expected Returns
+/// * `Ok(HashMap)`
+/// * `Err(UnInitialized)`: Indicates that the AnalogSDK hasn't been initialised
+/// * `Err(NoDevices)`: Indicates no devices are connected
 pub fn read_full_with_ctx(
     max_items: usize,
+    device_id: DeviceID,
 ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
     unsafe {
-        let mut code_buffer: Vec<FfiKeyCode> = vec![KeyCode::from(0).into(); max_items];
-        let mut analog_buffer: Vec<FfiAnalogValue> = vec![AnalogValue::from(0.0).into(); max_items];
+        let mut code_buffer: Vec<FfiKeyCode> = vec![KeyCode::default().into(); max_items];
+        let mut analog_buffer: Vec<FfiAnalogValue> = vec![AnalogValue::default().into(); max_items];
 
         let ret: SDKResult<u32> = wooting_analog_read_full_with_ctx(
             code_buffer.as_mut_ptr(),
             analog_buffer.as_mut_ptr(),
             max_items as u32,
-            0,
+            device_id,
         )
         .into();
 
-        return ret
-            .0
-            .clone()
+        ret.0
             .map(|read_num| {
                 let read_num: usize = read_num as usize;
                 code_buffer.truncate(read_num);
@@ -243,10 +233,13 @@ pub fn read_full_with_ctx(
                 let mut data: HashMap<KeyCode, AnalogValue> = HashMap::with_capacity(read_num);
 
                 for i in 0..read_num {
-                    data.insert(KeyCode::from(code_buffer[i]), AnalogValue::from(analog_buffer[i]));
+                    data.insert(
+                        KeyCode::from(code_buffer[i]),
+                        AnalogValue::from(analog_buffer[i]),
+                    );
                 }
                 data
             })
-            .into();
+            .into()
     }
 }

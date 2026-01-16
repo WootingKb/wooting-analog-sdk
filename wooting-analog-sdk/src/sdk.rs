@@ -452,7 +452,7 @@ impl AnalogSDK {
 
                             //No point in checking if the value is already present if we are only looking for data from one device
                             if device_id == 0 {
-                                if let Some(val) = analog_data.get(&KeyCode::from(code)) {
+                                if let Some(val) = analog_data.get(&code.into()) {
                                     total_analog = total_analog.max(*val);
                                 }
                             }

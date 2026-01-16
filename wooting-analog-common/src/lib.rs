@@ -182,7 +182,7 @@ pub enum KeyMetadata {
     },
 }
 
-#[derive(Copy, Clone, Eq, Ord, PartialOrd, Debug, Default)]
+#[derive(Copy, Clone, Eq, Debug, Default)]
 pub struct KeyCode {
     pub inner: u16,
     pub metadata: KeyMetadata,
@@ -197,6 +197,18 @@ impl std::hash::Hash for KeyCode {
 impl PartialEq for KeyCode {
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
+    }
+}
+
+impl PartialOrd for KeyCode {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.inner.cmp(&other.inner))
+    }
+}
+
+impl Ord for KeyCode {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
     }
 }
 
@@ -225,7 +237,7 @@ pub struct Position {
     pub y: u8,
 }
 
-#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct AnalogValue {
     pub inner: f32,
     pub metadata: ValueMetadata,
@@ -233,11 +245,31 @@ pub struct AnalogValue {
 
 impl AnalogValue {
     pub fn max(self, other: AnalogValue) -> AnalogValue {
-        if self.inner >= other.inner {
+        if self.inner > other.inner {
             self
         } else {
             other
         }
+    }
+}
+
+impl PartialEq for AnalogValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl Eq for AnalogValue {}
+
+impl PartialOrd for AnalogValue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for AnalogValue {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.total_cmp(&other.inner)
     }
 }
 
@@ -336,7 +368,7 @@ pub struct FfiPosition {
 pub struct FfiValueMetadata {
     pub tag: FfiValueMetadataTag,
     pub pos: FfiPosition,
-    pub actuated: u8, // NOT bool
+    pub actuated: u8,
 }
 
 #[derive(Copy, Debug, Clone)]
@@ -363,7 +395,7 @@ impl From<ValueMetadata> for FfiValueMetadata {
             ValueMetadata::Basic { pos, actuated } => Self {
                 tag: FfiValueMetadataTag::Basic,
                 pos: pos.into(),
-                actuated: actuated as u8,
+                actuated: u8::from(actuated),
             },
         }
     }
@@ -470,9 +502,6 @@ pub enum WootingAnalogResult {
     /// Indicates that the Analog SDK could not be found on the system
     #[error("The Wooting Analog SDK could not be found on the system")]
     DLLNotFound = -1990isize,
-    /// Unavailable for this firmware version
-    #[error("Unvailable for this firmware version")]
-    IncompatibleFirmware = -1989isize,
 }
 
 impl WootingAnalogResult {

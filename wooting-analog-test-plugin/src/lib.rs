@@ -289,7 +289,7 @@ impl Plugin for WootingAnalogTestPlugin {
                 .unwrap()
                 .get(&code)
                 .cloned()
-                .unwrap_or(AnalogValue::from(0.0)))
+                .unwrap_or(AnalogValue::default()))
             .into()
         } else {
             Err(WootingAnalogResult::NoDevices).into()

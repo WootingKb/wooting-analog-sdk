@@ -211,8 +211,8 @@ impl Plugin for CPlugin {
     ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
         let mut code_buffer: Vec<FfiKeyCode> = Vec::with_capacity(max_length);
         let mut analog_buffer: Vec<FfiAnalogValue> = Vec::with_capacity(max_length);
-        code_buffer.resize(max_length, KeyCode::from(0).into());
-        analog_buffer.resize(max_length, AnalogValue::from(0.0).into());
+        code_buffer.resize(max_length, KeyCode::default().into());
+        analog_buffer.resize(max_length, AnalogValue::default().into());
         let count: usize = {
             let ret = self
                 .read_full_with_ctx(

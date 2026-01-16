@@ -205,6 +205,25 @@ dynamic_extern! {
         /// * `WootingAnalogResult::NoDevices`: Indicates no devices are connected
         fn wooting_analog_read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint) -> c_int;
 
+        /// Reads all the analog values, including all the available context, for pressed keys for all devices and combines their values, filling up `code_buffer` with the
+        /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
+        /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
+        ///
+        /// # Notes
+        /// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+        /// key & analog value pairs that can be filled in.
+        /// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+        /// * If two devices have the same key pressed, the greater value will be given
+        /// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
+        /// * When context is available it includes the namespace for the key and for the value the
+        ///   physical position and if it is currently actuated.
+        ///
+        /// # Expected Returns
+        /// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
+        /// Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
+        /// * `>=0` means the value indicates how many keys & analog values have been read into the buffers
+        /// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+        /// * `WootingAnalogResult::NoDevices`: Indicates no devices are connected
         fn wooting_analog_read_full_with_ctx(code_buffer: *mut FfiKeyCode, analog_buffer: *mut FfiAnalogValue, len: c_uint, device_id: DeviceID) -> c_int;
 
         /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
