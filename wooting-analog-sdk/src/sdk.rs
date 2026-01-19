@@ -409,9 +409,13 @@ impl AnalogSDK {
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            let plugin_data = p
-                .read_full_buffer(max_length - analog_data.len(), device_id)
-                .into();
+            // Check if we've already collected enough data
+            if analog_data.len() >= max_length {
+                break;
+            }
+
+            let remaining = max_length.saturating_sub(analog_data.len());
+            let plugin_data = p.read_full_buffer(remaining, device_id).into();
             match plugin_data {
                 Ok(mut data) => {
                     for (hid_code, analog) in data.drain() {
