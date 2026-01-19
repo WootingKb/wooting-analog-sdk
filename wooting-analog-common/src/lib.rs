@@ -588,8 +588,8 @@ impl From<u32> for SDKResult<u32> {
     }
 }
 
-impl From<*const FfiAnalogValue> for SDKResult<*const FfiAnalogValue> {
-    fn from(value: *const FfiAnalogValue) -> Self {
+impl From<FfiAnalogValue> for SDKResult<FfiAnalogValue> {
+    fn from(value: FfiAnalogValue) -> Self {
         SDKResult(Ok(value))
     }
 }

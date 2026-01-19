@@ -48,7 +48,7 @@ void unload() {
 /// and combined
 int read_full_buffer(uint16_t code_buffer[], float analog_buffer[], int len,
                       WootingAnalog_DeviceID device) {
-  code_buffer[0] = 44;
+  code_buffer[0] = 5;
   analog_buffer[0] = 0.4f;
   return 1;
 }
@@ -124,7 +124,7 @@ WootingAnalog_FfiAnalogValue read_analog_with_ctx(WootingAnalog_FfiKeyCode code,
     printf("Attempted to execute a NULL callback\n");
   }
 
-  (struct WootingAnalog_FfiAnalogValue){
+  return (struct WootingAnalog_FfiAnalogValue){
     .inner = 0.56f,
     .metadata = {
         .tag = WootingAnalog_FfiValueMetadataTag_Basic,

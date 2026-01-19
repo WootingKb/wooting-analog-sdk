@@ -843,7 +843,7 @@ mod tests {
         assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
         //We told it to execute the callback when read_analog is called so let's just call it a second time to ensure it can be called multiple times without dying
         assert_eq!(sdk.read_analog(30, 0).0, Ok(0.56));
-        assert_eq!(sdk.read_full_buffer(30, 0).0.unwrap().get(&5), Some(&0.4));
+        assert_eq!(sdk.read_full_buffer(30, 0).0.unwrap().get(&44), Some(&0.4));
         let device = sdk.get_device_info().0.unwrap().first().unwrap().clone();
         println!("Got device: {:?}", device);
         assert_eq!(device.device_id, 7);

@@ -104,7 +104,7 @@ impl CPlugin {
         fn name() -> FfiStr<'static>;
 
         fn read_analog(code: u16, device: DeviceID) -> f32;
-        fn read_analog_with_ctx(code: *const FfiKeyCode, device: DeviceID) -> *const FfiAnalogValue;
+        fn read_analog_with_ctx(code: FfiKeyCode, device: DeviceID) -> FfiAnalogValue;
         fn read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
         fn read_full_with_ctx(code_buffer: *const FfiKeyCode, analog_buffer: *const FfiAnalogValue, len: c_uint, device: DeviceID) -> c_int;
         fn device_info(buffer: *mut *const DeviceInfo_FFI, len: c_uint) -> c_int;
@@ -163,9 +163,9 @@ impl Plugin for CPlugin {
 
     fn read_analog_with_ctx(&mut self, code: KeyCode, device: DeviceID) -> SDKResult<AnalogValue> {
         SDKResult(
-            self.read_analog_with_ctx(&FfiKeyCode::from(code) as *const FfiKeyCode, device)
+            self.read_analog_with_ctx(FfiKeyCode::from(code), device)
                 .0
-                .map(|v| unsafe { AnalogValue::from(*v) }),
+                .map(AnalogValue::from),
         )
     }
 
