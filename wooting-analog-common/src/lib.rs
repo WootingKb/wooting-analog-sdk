@@ -184,8 +184,19 @@ pub enum KeyMetadata {
 
 #[derive(Copy, Clone, Eq, Debug, Default)]
 pub struct KeyCode {
-    pub inner: u16,
-    pub metadata: KeyMetadata,
+    inner: u16,
+    metadata: KeyMetadata,
+}
+
+impl KeyCode {
+    pub fn as_u16(&self) -> u16 {
+        self.inner
+    }
+
+    pub fn with_metadata(mut self, meta: KeyMetadata) -> Self {
+        self.metadata = meta;
+        self
+    }
 }
 
 impl std::hash::Hash for KeyCode {
@@ -212,6 +223,15 @@ impl Ord for KeyCode {
     }
 }
 
+impl From<u8> for KeyCode {
+    fn from(value: u8) -> Self {
+        KeyCode {
+            inner: u16::from(value),
+            metadata: KeyMetadata::None,
+        }
+    }
+}
+
 impl From<u16> for KeyCode {
     fn from(value: u16) -> Self {
         KeyCode {
@@ -233,14 +253,20 @@ pub enum ValueMetadata {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct Position {
-    pub x: u8,
-    pub y: u8,
+    x: u8,
+    y: u8,
+}
+
+impl Position {
+    pub fn new(x: u8, y: u8) -> Self {
+        Self { x, y }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct AnalogValue {
-    pub inner: f32,
-    pub metadata: ValueMetadata,
+    inner: f32,
+    metadata: ValueMetadata,
 }
 
 impl AnalogValue {
@@ -250,6 +276,15 @@ impl AnalogValue {
         } else {
             other
         }
+    }
+
+    pub fn as_f32(&self) -> f32 {
+        self.inner
+    }
+
+    pub fn with_metadata(mut self, meta: ValueMetadata) -> Self {
+        self.metadata = meta;
+        self
     }
 }
 
@@ -278,163 +313,6 @@ impl From<f32> for AnalogValue {
         AnalogValue {
             inner: value,
             metadata: ValueMetadata::None,
-        }
-    }
-}
-
-#[derive(Copy, Debug, Clone, Primitive)]
-#[repr(C)]
-pub enum FfiKeyMetadataTag {
-    None = 0,
-    Basic = 1,
-}
-
-#[derive(Copy, Debug, Clone)]
-#[repr(C)]
-pub struct FfiKeyMetadata {
-    pub tag: FfiKeyMetadataTag,
-    pub namespace_: u8,
-}
-
-#[derive(Copy, Debug, Clone)]
-#[repr(C)]
-pub struct FfiKeyCode {
-    pub inner: u16,
-    pub metadata: FfiKeyMetadata,
-}
-
-impl From<KeyMetadata> for FfiKeyMetadata {
-    fn from(meta: KeyMetadata) -> Self {
-        match meta {
-            KeyMetadata::None => Self {
-                tag: FfiKeyMetadataTag::None,
-                namespace_: 0,
-            },
-            KeyMetadata::Basic { namespace } => Self {
-                tag: FfiKeyMetadataTag::Basic,
-                namespace_: namespace,
-            },
-        }
-    }
-}
-
-impl From<KeyCode> for FfiKeyCode {
-    fn from(k: KeyCode) -> Self {
-        Self {
-            inner: k.inner,
-            metadata: k.metadata.into(),
-        }
-    }
-}
-
-impl From<FfiKeyMetadata> for KeyMetadata {
-    fn from(meta: FfiKeyMetadata) -> Self {
-        match meta.tag {
-            FfiKeyMetadataTag::None => KeyMetadata::None,
-            FfiKeyMetadataTag::Basic => {
-                KeyMetadata::Basic {
-                    namespace: meta.namespace_,
-                }
-            }
-        }
-    }
-}
-
-impl From<FfiKeyCode> for KeyCode {
-    fn from(k: FfiKeyCode) -> Self {
-        Self {
-            inner: k.inner,
-            metadata: k.metadata.into(),
-        }
-    }
-}
-
-#[derive(Copy, Debug, Clone, Primitive)]
-#[repr(C)]
-pub enum FfiValueMetadataTag {
-    None = 0,
-    Basic = 1,
-}
-
-#[derive(Copy, Debug, Clone)]
-#[repr(C)]
-pub struct FfiPosition {
-    pub x: u8,
-    pub y: u8,
-}
-
-#[derive(Copy, Debug, Clone)]
-#[repr(C)]
-pub struct FfiValueMetadata {
-    pub tag: FfiValueMetadataTag,
-    pub pos: FfiPosition,
-    pub actuated: u8,
-}
-
-#[derive(Copy, Debug, Clone)]
-#[repr(C)]
-pub struct FfiAnalogValue {
-    pub inner: f32,
-    pub metadata: FfiValueMetadata,
-}
-
-impl From<Position> for FfiPosition {
-    fn from(p: Position) -> Self {
-        Self { x: p.x, y: p.y }
-    }
-}
-
-impl From<ValueMetadata> for FfiValueMetadata {
-    fn from(meta: ValueMetadata) -> Self {
-        match meta {
-            ValueMetadata::None => Self {
-                tag: FfiValueMetadataTag::None,
-                pos: FfiPosition { x: 0, y: 0 },
-                actuated: 0,
-            },
-            ValueMetadata::Basic { pos, actuated } => Self {
-                tag: FfiValueMetadataTag::Basic,
-                pos: pos.into(),
-                actuated: u8::from(actuated),
-            },
-        }
-    }
-}
-
-impl From<AnalogValue> for FfiAnalogValue {
-    fn from(v: AnalogValue) -> Self {
-        Self {
-            inner: v.inner,
-            metadata: v.metadata.into(),
-        }
-    }
-}
-
-impl From<FfiPosition> for Position {
-    fn from(p: FfiPosition) -> Self {
-        Self { x: p.x, y: p.y }
-    }
-}
-
-impl From<FfiValueMetadata> for ValueMetadata {
-    fn from(meta: FfiValueMetadata) -> Self {
-        match meta.tag {
-            FfiValueMetadataTag::None => ValueMetadata::None,
-            FfiValueMetadataTag::Basic => {
-                ValueMetadata::Basic {
-                    pos: meta.pos.into(),
-                    actuated: meta.actuated != 0,
-                }
-            }
-        }
-    }
-}
-
-impl From<FfiAnalogValue> for AnalogValue {
-    fn from(v: FfiAnalogValue) -> Self {
-        Self {
-            inner: v.inner,
-            metadata: v.metadata.into(),
         }
     }
 }
@@ -585,12 +463,6 @@ impl Into<c_int> for WootingAnalogResult {
 impl From<u32> for SDKResult<u32> {
     fn from(res: u32) -> Self {
         Ok(res).into()
-    }
-}
-
-impl From<FfiAnalogValue> for SDKResult<FfiAnalogValue> {
-    fn from(value: FfiAnalogValue) -> Self {
-        SDKResult(Ok(value))
     }
 }
 

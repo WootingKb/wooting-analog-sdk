@@ -270,14 +270,6 @@ impl Plugin for WootingAnalogTestPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: u64) -> SDKResult<f32> {
-        SDKResult(
-            self.read_analog_with_ctx(code.into(), device)
-                .0
-                .map(|v| v.inner),
-        )
-    }
-
-    fn read_analog_with_ctx(&mut self, code: KeyCode, device: DeviceID) -> SDKResult<AnalogValue> {
         if !*self.device_connected.lock().unwrap() {
             return Err(WootingAnalogResult::NoDevices).into();
         }
@@ -287,9 +279,10 @@ impl Plugin for WootingAnalogTestPlugin {
                 .buffer
                 .lock()
                 .unwrap()
-                .get(&code)
+                .get(&code.into())
                 .cloned()
-                .unwrap_or(AnalogValue::default()))
+                .unwrap_or(AnalogValue::default())
+                .as_f32())
             .into()
         } else {
             Err(WootingAnalogResult::NoDevices).into()
@@ -297,18 +290,6 @@ impl Plugin for WootingAnalogTestPlugin {
     }
 
     fn read_full_buffer(&mut self, max_length: usize, device: u64) -> SDKResult<HashMap<u16, f32>> {
-        SDKResult(
-            self.read_full_with_ctx(max_length, device)
-                .0
-                .map(|m| m.iter().map(|(k, v)| (k.inner, v.inner)).collect()),
-        )
-    }
-
-    fn read_full_with_ctx(
-        &mut self,
-        _max_length: usize,
-        device: DeviceID,
-    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
         if !*self.device_connected.lock().unwrap() {
             return Err(WootingAnalogResult::NoDevices).into();
         }
@@ -316,7 +297,7 @@ impl Plugin for WootingAnalogTestPlugin {
         if device == 0 || device == *self.device_id.lock().unwrap() {
             let mut buffer = self.buffer.lock().unwrap().clone();
             //Collect the new pressed keys
-            let new_pressed_keys: Vec<KeyCode> = buffer.keys().cloned().collect();
+            let new_pressed_keys = buffer.keys().cloned().collect();
 
             //Put the old pressed keys into the buffer
             for key in self.pressed_keys.drain(..) {
@@ -326,7 +307,11 @@ impl Plugin for WootingAnalogTestPlugin {
             //Store the newPressedKeys for the next call
             self.pressed_keys = new_pressed_keys;
 
-            Ok(buffer).into()
+            Ok(buffer
+                .into_iter()
+                .map(|(k, v)| (k.as_u16(), v.as_f32()))
+                .collect())
+            .into()
         } else {
             Err(WootingAnalogResult::NoDevices).into()
         }

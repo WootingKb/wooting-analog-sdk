@@ -53,34 +53,6 @@ int read_full_buffer(uint16_t code_buffer[], float analog_buffer[], int len,
   return 1;
 }
 
-/// Function called to get the full analog read buffer for a particular device
-/// with ID `device` with additional context, such as the physical position of 
-/// the key and if it is currently actuated. `len` is the maximum amount of 
-/// keys that can be accepted, any more beyond this will be ignored by the SDK. 
-/// If `device` is 0 then no specific device is specified and the data should 
-/// be read from all devices and combined
-int read_full_with_ctx(WootingAnalog_FfiKeyCode code_buffer[],
-                      WootingAnalog_FfiAnalogValue analog_buffer[], 
-                      int len,
-                      WootingAnalog_DeviceID device) {
-  code_buffer[0] = (struct WootingAnalog_FfiKeyCode){
-    .inner = 44,
-    .metadata = {
-      .tag = WootingAnalog_FfiKeyMetadataTag_Basic,
-      .namespace_ = 0,
-    },
-  };
-  analog_buffer[0] = (struct WootingAnalog_FfiAnalogValue){
-    .inner = 0.4f,
-    .metadata = {
-        .tag = WootingAnalog_FfiValueMetadataTag_Basic,
-        .pos = { .x = 6, .y = 5 },
-        .actuated = true,
-    },
-  };
-  return 1;
-}
-
 /// This function is fired by the SDK to collect up all Device Info structs. The
 /// memory for the struct should be retained and only dropped when the device is
 /// disconnected or the plugin is unloaded. This ensures that the Device Info is
@@ -108,28 +80,4 @@ float read_analog(uint16_t code, WootingAnalog_DeviceID device) {
   }
 
   return 0.56f;
-}
-
-/// Function called to get the analog value for a particular HID key `code` from
-/// the device with ID `device` with additional context, such as the physical position 
-/// of the key and if it is currently actuated. If `device` is 0 then no specific device 
-/// is specified and the value should be read from all devices and combined
-WootingAnalog_FfiAnalogValue read_analog_with_ctx(WootingAnalog_FfiKeyCode code, 
-                                                  WootingAnalog_DeviceID device) {
-  printf("Calling cb, cb: %p, cb_data: %p, devInfo: %p\n", cb, cb_data,
-         &deviceInfo);
-  if (cb != NULL && cb_data != NULL) {
-    cb(cb_data, WootingAnalog_DeviceEventType_Connected, &deviceInfo);
-  } else {
-    printf("Attempted to execute a NULL callback\n");
-  }
-
-  return (struct WootingAnalog_FfiAnalogValue){
-    .inner = 0.56f,
-    .metadata = {
-        .tag = WootingAnalog_FfiValueMetadataTag_Basic,
-        .pos = { .x = 7, .y = 3 },
-        .actuated = true,
-    },
-  };
 }

@@ -192,7 +192,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                 Ok(data) => match data {
                     Some(data) => Ok(Some(
                         data.iter()
-                            .map(|(k, v)| (k.inner, v.inner))
+                            .map(|(k, v)| (k.as_u16(), v.as_f32()))
                             .collect::<HashMap<c_ushort, c_float>>(),
                     )),
                     None => Ok(None),
@@ -245,19 +245,15 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                     let value = ((value as u16) << 2) | value_part as u16;
 
                     (
-                        KeyCode {
-                            inner: u16::from(key),
-                            metadata: KeyMetadata::Basic {
-                                namespace: key_namespace,
-                            },
-                        },
-                        AnalogValue {
-                            inner: self.analog_value_to_float(value),
-                            metadata: ValueMetadata::Basic {
-                                pos: Position { x: col, y: row },
+                        KeyCode::from(key).with_metadata(KeyMetadata::Basic {
+                            namespace: key_namespace,
+                        }),
+                        AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
+                            ValueMetadata::Basic {
+                                pos: Position::new(col, row),
                                 actuated,
                             },
-                        },
+                        ),
                     )
                 })
                 .collect(),
@@ -596,18 +592,6 @@ impl Plugin for WootingPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
-        SDKResult(
-            self.read_analog_with_ctx(code.into(), device_id)
-                .0
-                .map(|v| v.inner),
-        )
-    }
-
-    fn read_analog_with_ctx(
-        &mut self,
-        code: KeyCode,
-        device_id: DeviceID,
-    ) -> SDKResult<AnalogValue> {
         if !self.initialised.load(Ordering::Relaxed) {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
@@ -619,12 +603,12 @@ impl Plugin for WootingPlugin {
         //If the Device ID is 0 we want to go through all the connected devices
         //and combine the analog values
         if device_id == 0 {
-            let mut analog = AnalogValue::from(-1.0);
+            let mut analog: f32 = -1.0;
             let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
             for (_id, device) in self.devices.lock().unwrap().iter_mut() {
-                match device.read_analog_with_ctx(code).into() {
+                match device.read_analog_with_ctx(code.into()).into() {
                     Ok(val) => {
-                        analog = analog.max(val);
+                        analog = analog.max(val.as_f32());
                     }
                     Err(e) => {
                         error = e;
@@ -632,17 +616,17 @@ impl Plugin for WootingPlugin {
                 }
             }
 
-            if analog.inner < 0.0 {
+            if analog < 0.0 {
                 Err(error).into()
             } else {
-                SDKResult(Ok(analog))
+                analog.into()
             }
         } else
         //If the device id is not 0, we try and find a connected device with that ID and read from it
         {
             match self.devices.lock().unwrap().get_mut(&device_id) {
-                Some(device) => match device.read_analog_with_ctx(code).into() {
-                    Ok(val) => SDKResult(Ok(val)),
+                Some(device) => match device.read_analog_with_ctx(code.into()).into() {
+                    Ok(val) => val.as_f32().into(),
                     Err(e) => Err(e).into(),
                 },
                 None => Err(WootingAnalogResult::NoDevices).into(),
@@ -650,24 +634,11 @@ impl Plugin for WootingPlugin {
         }
     }
 
-    // TODO: these values are somehow being merged incorrectly
     fn read_full_buffer(
         &mut self,
         max_length: usize,
         device_id: DeviceID,
     ) -> SDKResult<HashMap<c_ushort, c_float>> {
-        SDKResult(
-            self.read_full_with_ctx(max_length, device_id)
-                .0
-                .map(|m| m.iter().map(|(k, v)| (k.inner, v.inner)).collect()),
-        )
-    }
-
-    fn read_full_with_ctx(
-        &mut self,
-        _max_length: usize,
-        device_id: DeviceID,
-    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
         if !self.initialised.load(Ordering::Relaxed) {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
@@ -679,29 +650,22 @@ impl Plugin for WootingPlugin {
         //If the Device ID is 0 we want to go through all the connected devices
         //and combine the analog values
         if device_id == 0 {
-            let mut analog: HashMap<KeyCode, AnalogValue> = HashMap::new();
+            let mut analog: HashMap<c_ushort, c_float> = HashMap::new();
             let mut any_read = false;
             let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
             for (_id, device) in self.devices.lock().unwrap().iter_mut() {
                 match device.read_full_with_ctx().into() {
                     Ok(val) => {
-                        for (k, v) in val {
-                            match analog.get(&k) {
-                                Some(value) => {
+                        for (k, v) in val.iter().map(|(k, v)| (k.as_u16(), v.as_f32())) {
+                            analog
+                                .entry(k)
+                                .and_modify(|value| {
                                     if &v > value {
-                                        // Replace original (also the key) with v if higher
-                                        // Important: can't use entry(k).and_modify because the key
-                                        // might also have metadata attached to it so it will also
-                                        // have to be replaced to keep them in sync
-                                        analog.insert(k, v);
-                                        any_read = true;
+                                        *value = v;
                                     }
-                                }
-                                None => {
-                                    analog.insert(k, v);
-                                    any_read = true;
-                                }
-                            }
+                                })
+                                .or_insert(v);
+                            any_read = true;
                         }
                     }
                     Err(e) => {
@@ -720,7 +684,9 @@ impl Plugin for WootingPlugin {
         {
             match self.devices.lock().unwrap().get_mut(&device_id) {
                 Some(device) => match device.read_full_with_ctx().into() {
-                    Ok(val) => Ok(val).into(),
+                    Ok(val) => {
+                        Ok(val.iter().map(|(k, v)| (k.as_u16(), v.as_f32())).collect()).into()
+                    }
                     Err(e) => Err(e).into(),
                 },
                 None => Err(WootingAnalogResult::NoDevices).into(),

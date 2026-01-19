@@ -358,33 +358,18 @@ impl AnalogSDK {
     }
 
     pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
-        SDKResult(
-            self.read_analog_with_ctx(code.into(), device_id)
-                .0
-                .map(|v| v.inner),
-        )
-    }
-
-    pub fn read_analog_with_ctx(
-        &mut self,
-        code: KeyCode,
-        device_id: DeviceID,
-    ) -> SDKResult<AnalogValue> {
         if !self.initialised {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
         //Try and map the given keycode to HID
-        let hid_code = code_to_hid(code.inner, &self.keycode_mode);
+        let hid_code = code_to_hid(code, &self.keycode_mode);
         if let Some(hid_code) = hid_code {
-            let mut value = AnalogValue::from(-1.0);
+            let mut value: f32 = -1.0;
             let mut err = WootingAnalogResult::Ok;
 
             for p in self.plugins.iter_mut() {
-                match p
-                    .read_analog_with_ctx(KeyCode::from(hid_code), device_id)
-                    .into()
-                {
+                match p.read_analog(hid_code, device_id).into() {
                     Ok(x) => {
                         value = value.max(x);
                         //If we were looking to read from a specific device, we've found that read, so no need to continue
@@ -399,11 +384,11 @@ impl AnalogSDK {
                 }
             }
 
-            if value.inner < 0.0 {
+            if value < 0.0 {
                 return Err(err).into();
             }
 
-            SDKResult(Ok(value))
+            value.into()
         } else {
             Err(WootingAnalogResult::NoMapping).into()
         }
@@ -414,54 +399,35 @@ impl AnalogSDK {
         max_length: usize,
         device_id: DeviceID,
     ) -> SDKResult<HashMap<u16, f32>> {
-        SDKResult(
-            self.read_full_with_ctx(max_length, device_id)
-                .0
-                .map(|m| m.iter().map(|(k, v)| (k.inner, v.inner)).collect()),
-        )
-    }
-
-    pub fn read_full_with_ctx(
-        &mut self,
-        max_length: usize,
-        device_id: DeviceID,
-    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
         if !self.initialised {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
-        let mut analog_data: HashMap<KeyCode, AnalogValue> = HashMap::with_capacity(max_length);
+        let mut analog_data: HashMap<u16, f32> = HashMap::with_capacity(max_length);
 
         let mut err = WootingAnalogResult::Ok;
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
-            // Check if we've already collected enough data
-            if analog_data.len() >= max_length {
-                break;
-            }
-
-            let remaining = max_length.saturating_sub(analog_data.len());
-            let plugin_data = p.read_full_with_ctx(remaining, device_id).into();
+            let plugin_data = p
+                .read_full_buffer(max_length - analog_data.len(), device_id)
+                .into();
             match plugin_data {
                 Ok(mut data) => {
                     for (hid_code, analog) in data.drain() {
-                        let code = hid_to_code(hid_code.inner, &self.keycode_mode);
+                        let code = hid_to_code(hid_code, &self.keycode_mode);
                         if let Some(code) = code {
                             let mut total_analog = analog;
 
                             //No point in checking if the value is already present if we are only looking for data from one device
                             if device_id == 0 {
-                                if let Some(val) = analog_data.get(&code.into()) {
+                                if let Some(val) = analog_data.get(&code) {
                                     total_analog = total_analog.max(*val);
                                 }
                             }
-                            analog_data.insert(hid_code, total_analog);
+                            analog_data.insert(code, total_analog);
                         } else {
-                            warn!(
-                                "Couldn't map HID:{} to {:?}",
-                                hid_code.inner, self.keycode_mode
-                            );
+                            warn!("Couldn't map HID:{} to {:?}", hid_code, self.keycode_mode);
                         }
                     }
 

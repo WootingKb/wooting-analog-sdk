@@ -104,9 +104,7 @@ impl CPlugin {
         fn name() -> FfiStr<'static>;
 
         fn read_analog(code: u16, device: DeviceID) -> f32;
-        fn read_analog_with_ctx(code: FfiKeyCode, device: DeviceID) -> FfiAnalogValue;
         fn read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
-        fn read_full_with_ctx(code_buffer: *const FfiKeyCode, analog_buffer: *const FfiAnalogValue, len: c_uint, device: DeviceID) -> c_int;
         fn device_info(buffer: *mut *const DeviceInfo_FFI, len: c_uint) -> c_int;
     }
 
@@ -161,14 +159,6 @@ impl Plugin for CPlugin {
         self.read_analog(code, device)
     }
 
-    fn read_analog_with_ctx(&mut self, code: KeyCode, device: DeviceID) -> SDKResult<AnalogValue> {
-        SDKResult(
-            self.read_analog_with_ctx(FfiKeyCode::from(code), device)
-                .0
-                .map(AnalogValue::from),
-        )
-    }
-
     fn read_full_buffer(
         &mut self,
         max_length: usize,
@@ -199,44 +189,6 @@ impl Plugin for CPlugin {
         // println!("Count was {}", count);
         for i in 0..count {
             analog_data.insert(code_buffer[i], analog_buffer[i]);
-        }
-
-        Ok(analog_data).into()
-    }
-
-    fn read_full_with_ctx(
-        &mut self,
-        max_length: usize,
-        device: DeviceID,
-    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
-        let mut code_buffer: Vec<FfiKeyCode> = Vec::with_capacity(max_length);
-        let mut analog_buffer: Vec<FfiAnalogValue> = Vec::with_capacity(max_length);
-        code_buffer.resize(max_length, KeyCode::default().into());
-        analog_buffer.resize(max_length, AnalogValue::default().into());
-        let count: usize = {
-            let ret = self
-                .read_full_with_ctx(
-                    code_buffer.as_ptr(),
-                    analog_buffer.as_ptr(),
-                    max_length as c_uint,
-                    device,
-                )
-                .0;
-            if let Err(e) = ret {
-                // debug!("Error got: {:?}",e);
-                return Err(e).into();
-            }
-            let ret = ret.unwrap();
-            max_length.min(ret as usize)
-        };
-
-        let mut analog_data: HashMap<KeyCode, AnalogValue> = HashMap::with_capacity(count);
-        // println!("Count was {}", count);
-        for i in 0..count {
-            analog_data.insert(
-                KeyCode::from(code_buffer[i]),
-                AnalogValue::from(analog_buffer[i]),
-            );
         }
 
         Ok(analog_data).into()

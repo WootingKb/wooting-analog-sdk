@@ -171,11 +171,32 @@ pub fn read_full_buffer_device(
     max_items: usize,
     device_id: DeviceID,
 ) -> SDKResult<HashMap<u16, f32>> {
-    SDKResult(
-        read_full_with_ctx(max_items, device_id)
-            .0
-            .map(|m| m.iter().map(|(k, v)| (k.inner, v.inner)).collect()),
-    )
+    unsafe {
+        let mut code_buffer: Vec<u16> = vec![0; max_items];
+        let mut analog_buffer: Vec<f32> = vec![0.0; max_items];
+
+        let ret: SDKResult<u32> = wooting_analog_read_full_buffer_device(
+            code_buffer.as_mut_ptr(),
+            analog_buffer.as_mut_ptr(),
+            max_items as u32,
+            device_id,
+        )
+        .into();
+
+        ret.0
+            .map(|read_num| {
+                let read_num: usize = read_num as usize;
+                code_buffer.truncate(read_num);
+                analog_buffer.truncate(read_num);
+                let mut data: HashMap<u16, f32> = HashMap::with_capacity(read_num);
+
+                for i in 0..read_num {
+                    data.insert(code_buffer[i], analog_buffer[i]);
+                }
+                data
+            })
+            .into()
+    }
 }
 
 /// Reads all the analog values for pressed keys for all devices and combines their values, returning a HashMap of keycode -> analog value.
@@ -192,54 +213,4 @@ pub fn read_full_buffer_device(
 /// * `Err(NoDevices)`: Indicates no devices are connected
 pub fn read_full_buffer(max_items: usize) -> SDKResult<HashMap<u16, f32>> {
     read_full_buffer_device(max_items, 0)
-}
-
-/// Reads all the analog values with any available context for pressed keys for all devices and
-/// combines their values, returning a HashMap of keycode -> analog value. The context includes what
-/// namespace the keycode belongs to and the value shows what physical position it has and if it is
-/// currently actuated.
-///
-/// # Notes
-/// * `max_items` is the maximum length of items that can be returned in the HashMap
-/// * The keycodes returned are of the KeycodeType set with `set_mode`
-/// * If two devices have the same key pressed, the greater value will be given
-/// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
-///
-/// # Expected Returns
-/// * `Ok(HashMap)`
-/// * `Err(UnInitialized)`: Indicates that the AnalogSDK hasn't been initialised
-/// * `Err(NoDevices)`: Indicates no devices are connected
-pub fn read_full_with_ctx(
-    max_items: usize,
-    device_id: DeviceID,
-) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
-    unsafe {
-        let mut code_buffer: Vec<FfiKeyCode> = vec![KeyCode::default().into(); max_items];
-        let mut analog_buffer: Vec<FfiAnalogValue> = vec![AnalogValue::default().into(); max_items];
-
-        let ret: SDKResult<u32> = wooting_analog_read_full_with_ctx(
-            code_buffer.as_mut_ptr(),
-            analog_buffer.as_mut_ptr(),
-            max_items as u32,
-            device_id,
-        )
-        .into();
-
-        ret.0
-            .map(|read_num| {
-                let read_num: usize = read_num as usize;
-                code_buffer.truncate(read_num);
-                analog_buffer.truncate(read_num);
-                let mut data: HashMap<KeyCode, AnalogValue> = HashMap::with_capacity(read_num);
-
-                for i in 0..read_num {
-                    data.insert(
-                        KeyCode::from(code_buffer[i]),
-                        AnalogValue::from(analog_buffer[i]),
-                    );
-                }
-                data
-            })
-            .into()
-    }
 }
