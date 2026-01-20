@@ -14,11 +14,12 @@ rust-version.workspace = true
 [features]
 ffi = []
 dist = []
+virtual-input = ["dep:shared_memory"]
 
 [dependencies]
 log = { workspace = true }
 env_logger = { workspace = true }
-shared_memory = { workspace = true }
+shared_memory = { workspace = true, optional = true}
 enum-primitive-derive = "0.3"
 libloading = "0.8"
 thiserror = "2"
