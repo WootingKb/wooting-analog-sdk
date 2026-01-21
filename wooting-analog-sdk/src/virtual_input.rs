@@ -34,6 +34,7 @@ pub struct SharedState {
     pub analog_values: [u8; 0xFF],
 }
 
+// TODO: when implementing Rust API refactor this to use mpsc::channel()
 #[derive(Default)]
 pub struct VirtualKeyboard {
     device_event_cb: Arc<Mutex<Option<Callback>>>,
@@ -167,23 +168,18 @@ impl VirtualKeyboard {
                     vals.copy_from_slice(&state.analog_values[..]);
                 }
 
-                let analog: HashMap<u16, f32> = vals
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, &val)| {
+                {
+                    let mut m = t_buffer.lock().unwrap();
+                    m.clear();
+                    m.extend(vals.iter().enumerate().filter_map(|(i, &val)| {
                         if val > 0 {
                             Some((i as u16, f32::from(val) / 255_f32))
                         } else {
                             None
                         }
-                    })
-                    .collect();
-                {
-                    let mut m = t_buffer.lock().unwrap();
-                    m.clear();
-                    m.extend(analog);
+                    }));
                 }
-                //t_buffer.lock().unwrap().
+
                 thread::sleep(Duration::from_millis(10));
             }
         });
