@@ -1,83 +1,184 @@
 name: Publish Analog SDK
 
+# All actions need to have their version pinned to minimize action updates introducing security
+# vulnerabilities under our nose
+# Most of them were done by running https://github.com/suzuki-shunsuke/pinact
+
 on:
   push:
     tags:
       - v[0-9]+.[0-9]+.[0-9]+
 
+env:
+  SIGNTOOL: C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/signtool.exe
+  KMSCNG_ZIP_URL: https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/cng-v1.1/kmscng-1.1-windows-amd64.zip
+  KMSCNG_ZIP_SHA512: 967764299d7964488cb6a7b57f97b298c53b2740f88d0ddea1358e41b0055bb9f0652380f8eeed13cc0d318b3fe20e1fecbb526fccea17615d1496925881add6
+
 jobs:
   release:
+    permissions:
+      id-token: "write"
+      contents: "write"
     strategy:
       matrix:
         include:
           - os: macos-latest
             target: x86_64-apple-darwin
+            platform: "mac"
           - os: macos-latest
             target: aarch64-apple-darwin
+            platform: "mac"
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          - os: win-signing
+            platform: "linux"
+          - os: windows-latest
             target: x86_64-pc-windows-msvc
+            platform: "win"
 
     runs-on: ${{ matrix.os }}
 
-    env:
-      TARGET: ${{ matrix.target }}
-
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@11f258db84cec40fc56c7b10bfc37c31dd9a3c98 # v1.17.3
+
       - name: Setup Build Environment
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
           sudo apt install libudev-dev libhidapi-dev
+
       - name: Setup rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.91.1
         with:
-          toolchain: nightly-2023-11-10
           targets: ${{ matrix.target }}
-      - uses: davidB/rust-cargo-make@v1
-        # This doesn't work on custom win runner, so we just skip it as it's installed already anyway
-        if: ${{ ! startsWith(matrix.os, 'win-sign') }}
-        with:
-          version: 0.37.23
-      - uses: Swatinem/rust-cache@v2
-        # Caching not needed on custom runner
-        if: ${{ ! startsWith(matrix.os, 'win-sign') }}
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
           shared-key: ${{ matrix.target }}
-      - name: Run deploy script
-        shell: bash
-        # Signing key env is required for signing dll's on windows
-        env:
-          TIMESTAMP: ${{secrets.WIN_EV_CSC_TIMESTAMP}}
-          CERT_FILE: ${{secrets.WIN_EV_CSC_CERT_FILE}}
-          CRYPT_PROVIDER: ${{secrets.WIN_EV_CSC_CRYPT_PROVIDER}}
-          READER: ${{secrets.WIN_EV_CSC_READER}}
-          PASS: ${{secrets.WIN_EV_CSC_PASS}}
-          CONTAINER: ${{secrets.WIN_EV_CSC_CONTAINER}}
-        run: sh ci/before_deploy.sh
+
+      - name: Build artifacts
+        run: |
+          cargo build -p wooting-analog-sdk --release --features ffi
+          cargo build -p wooting-analog-sdk --features ffi,virtual-input
+          cargo dist-${{ matrix.platform }}
+          cargo dist-${{ matrix.platform }}-dev
+          cargo build -p wooting-analog-virtual-control --release
+          cargo build -p wooting-analog-sdk-updater --release
+
       - name: Build Windows Installer
         shell: bash
         if: runner.os == 'Windows'
-        env:
-          TIMESTAMP: ${{secrets.WIN_EV_CSC_TIMESTAMP}}
-          CERT_FILE: ${{secrets.WIN_EV_CSC_CERT_FILE}}
-          CRYPT_PROVIDER: ${{secrets.WIN_EV_CSC_CRYPT_PROVIDER}}
-          READER: ${{secrets.WIN_EV_CSC_READER}}
-          PASS: ${{secrets.WIN_EV_CSC_PASS}}
-          CONTAINER: ${{secrets.WIN_EV_CSC_CONTAINER}}
-        run: cargo make --cwd wooting-analog-sdk sign-win-installer -- --target $TARGET
+        run: |
+          cargo binstall cargo-wix@0.3.9 --force
+          cargo wix -p wooting-analog-sdk --no-build --nocapture
+
       - name: Build debian package
         if: startsWith(matrix.os, 'ubuntu')
-        run: cargo make --cwd wooting-analog-sdk build-deb  -- --target $TARGET
+        run: |
+          cargo binstall cargo-deb@3.6.2 --force
+          cargo deb --no-build -- --target ${{ matrix.target }} --no-confirm
+
+      - name: "set up KMS CNG provider"
+        if: runner.os == 'Windows'
+        run: |
+          # Download the zip file
+          $zipUrl = "${{ env.KMSCNG_ZIP_URL }}"
+          $zipFile = "kmscng-1.1-windows-amd64.zip"
+          Invoke-WebRequest -Uri $zipUrl -OutFile $zipFile
+
+          # Known SHA-512 checksum
+          $expectedHash = "${{ env.KMSCNG_ZIP_SHA512 }}"
+
+          # Compute the file's SHA-512 checksum
+          $actualHash = (Get-FileHash -Path $zipFile -Algorithm SHA512).Hash
+
+          # Compare the hashes
+          if (-not ($actualHash -eq $expectedHash)) {
+              Write-Host "File integrity check failed."
+              Exit 1
+          }
+
+          # Unzip the file
+          Expand-Archive -Path $zipFile -DestinationPath .
+
+          # Find the MSI file inside the extracted folder
+          $msiFile = Get-ChildItem -Path .\kmscng-1.1-windows-amd64\ -Filter "*.msi" -Recurse | Select-Object -First 1
+          $msiPath = $msiFile.FullName
+
+          # Install the MSI package
+          echo "Running installer at $msiPath"
+          & $msiPath
+
+          # Verify we got the DLL we wanted from the installer
+          $path = "C:\Windows\System32\kmscng.dll"
+          while (-not (Test-Path -Path $path)) {
+              Write-Host "Waiting for dll to be created at $path..."
+              Start-Sleep -Seconds 5
+          }
+          echo "KMS CNG DLL found at $path. Proceeding with next steps."
+
+      - uses: "google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f" # v2.1.7
+        if: runner.os == 'Windows'
+        name: auth
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: "Set up Cloud SDK"
+        if: runner.os == 'Windows'
+        uses: "google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a" # v2.1.2
+        with:
+          version: ">= 363.0.0"
+
+      - name: whoami
+        if: runner.os == 'Windows'
+        run: |
+          gcloud auth list
+
+      - name: save ca file
+        if: runner.os == 'Windows'
+        run: |
+          Out-File -FilePath "ca.cert" -InputObject $env:CA_CERT
+          $certificateBytes = [System.IO.File]::ReadAllBytes("ca.cert")
+          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certificateBytes)
+          Write-Output $certificate
+        env:
+          CA_CERT: ${{ vars.CA_CERT }}
+
+      - name: sign artifacts
+        if: runner.os == 'Windows'
+        run: |
+          set KMS_CNG_VERBOSE=1
+          & "${{ env.SIGNTOOL }}" sign `
+            /v /debug /fd sha256 /t http://timestamp.digicert.com `
+            /f .\ca.cert `
+            /csp "Google Cloud KMS Provider" `
+            /kc ${{ vars.WIN_EV_HSM_KEY_PATH }} `
+            .\target\release\wooting_analog_sdk.dll `
+            .\target\release\wooting_analog_sdk_dist.dll `
+            .\target\release\wooting-analog-virtual-control.exe `
+            .\target\release\wooting-analog-sdk-updater.exe `
+            .\target\wix\*.msi
+
+      - name: Collect artifacts
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ github.ref_name }}
+        run: ./ci/package.sh
+
       - name: Upload artifacts to release
-        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           draft: true
           files: |
             target/wix/*.msi
             target/debian/*.deb
-            *.tar.gz
+            wooting-analog-sdk*.tar.gz
+            wooting-analog-sdk*.zip
