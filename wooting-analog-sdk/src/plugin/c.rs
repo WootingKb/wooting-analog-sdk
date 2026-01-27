@@ -159,7 +159,7 @@ impl Plugin for CPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
-        self.read_analog(code, device).0.into()
+       self.read_analog(code, device)
     }
 
     fn read_full_buffer(
