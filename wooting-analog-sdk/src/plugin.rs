@@ -780,8 +780,10 @@ impl Plugin for WootingPlugin {
         //If the device id is not 0, we try and find a connected device with that ID and read from it
         {
             match self.devices.lock().unwrap().get_mut(&device_id) {
-                Some(device) => match device.read_full_buffer(max_length).into() {
-                    Ok(val) => Ok(val).into(),
+                Some(device) => match device.read_full_with_ctx().into() {
+                    Ok(val) => {
+                        Ok(val.iter().map(|(k, v)| (k.as_u16(), v.as_f32())).collect()).into()
+                    }
                     Err(e) => Err(e).into(),
                 },
                 None => Err(WootingAnalogResult::NoDevices).into(),

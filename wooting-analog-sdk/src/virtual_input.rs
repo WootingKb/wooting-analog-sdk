@@ -35,6 +35,7 @@ pub struct SharedState {
 }
 
 // TODO: when implementing Rust API refactor this to use mpsc::channel()
+// TODO: when v2 protocol is implemented transition to KeyCode and AnalogValue
 #[derive(Default)]
 pub struct VirtualKeyboard {
     device_event_cb: Arc<Mutex<Option<Callback>>>,
