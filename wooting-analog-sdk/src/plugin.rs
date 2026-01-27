@@ -277,21 +277,21 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
             buffer
                 .chunks_exact(4)
                 .take(max_length)
-                .filter(|&b| b[2] != 0)
+                .filter(|&b| b[3] != 0)
                 .map(|b| {
                     let matrix_pos = b[0];
-                    let packed = b[1];
-                    let key = b[2];
+                    let key = b[1];
+                    let packed = b[2];
                     let value = b[3];
 
                     let row = (matrix_pos >> 5) & 0x07;
                     let col = matrix_pos & 0x1F;
                     let actuated = (packed & 0x01) != 0;
-                    let value_part = packed & 0x03;
-                    let _reserved = packed >> 3;
-                    let key_namespace = (packed >> 4) & 0x04;
+                    let _reserved = packed >> 1;
+                    let key_namespace = (packed >> 2) & 0x0F;
+                    let value_part = (packed >> 6) & 0x03;
 
-                    let value = ((value as u16) << 2) | value_part as u16;
+                    let value = (u16::from(value) << 2) | u16::from(value_part);
 
                     (
                         KeyCode::from(key).with_metadata(KeyMetadata::Basic {
