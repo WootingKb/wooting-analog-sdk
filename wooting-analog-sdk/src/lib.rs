@@ -2,6 +2,8 @@
 pub mod ffi;
 pub mod keycode;
 mod plugin;
+#[cfg(feature = "virtual-input")]
+mod virtual_input;
 pub mod sdk;
 
 pub use crate::plugin::Plugin;
