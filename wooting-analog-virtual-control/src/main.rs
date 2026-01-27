@@ -2,10 +2,10 @@ use std::{borrow::Borrow, string::ToString, sync::LazyLock};
 
 use env_logger::Env;
 use iced::{
-    alignment,
+    Alignment, Border, Color, Element, Length, Settings, Shadow, alignment,
     border::Radius,
-    widget::{container, Checkbox, Column, Container, Row, Slider, Text},
-    window, Alignment, Border, Color, Element, Length, Settings, Shadow,
+    widget::{Checkbox, Column, Container, Row, Slider, Text, container},
+    window,
 };
 use log::{error, info};
 use shared_memory::*;
@@ -28,20 +28,15 @@ struct AppState {
 
 impl AppState {
     fn new() -> Self {
-        let shmem = match ShmemConf::new()
+        let shmem = ShmemConf::new()
             .flink(
                 std::env::temp_dir()
                     .join("wooting-test-plugin.link")
                     .as_os_str(),
             )
             .open()
-        {
-            Ok(v) => v,
-            Err(e) => {
-                info!("Error : {}", e);
-                panic!("Failed to open SharedMem...");
-            }
-        };
+            .inspect_err(|e| info!("Error: {e}"))
+            .expect("unable to attach virtual keyboard: running process should use dev build of the SDK with feature `virtual-input` enabled");
 
         //Tell the plugin that we've connected
         {
