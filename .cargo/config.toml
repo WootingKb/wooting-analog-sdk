@@ -10,7 +10,7 @@ dist-win = [
     "-C",
     "link-arg=/OUT:target/release/wooting_analog_sdk_dist.dll",
     "-C",
-    "link-arg=/IMPLIB:target/release/wooting_analog_sdk_dist.lib",
+    "link-arg=/IMPLIB:target/release/wooting_analog_sdk_dist.dll.lib",
 ]
 
 dist-linux = [
@@ -51,7 +51,7 @@ dist-win-dev = [
     "-C",
     "link-arg=/OUT:target/debug/wooting_analog_sdk_dist.dll",
     "-C",
-    "link-arg=/IMPLIB:target/debug/wooting_analog_sdk_dist.lib",
+    "link-arg=/IMPLIB:target/debug/wooting_analog_sdk_dist.dll.lib",
 ]
 
 dist-linux-dev = [
