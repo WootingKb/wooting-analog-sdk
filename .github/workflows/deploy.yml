@@ -161,7 +161,6 @@ jobs:
             /kc ${{ vars.WIN_EV_HSM_KEY_PATH }} `
             .\target\release\wooting_analog_sdk.dll `
             .\target\release\wooting_analog_sdk_dist.dll `
-            .\target\release\wooting-analog-virtual-control.exe `
             .\target\release\wooting-analog-sdk-updater.exe `
             .\target\wix\*.msi
 
