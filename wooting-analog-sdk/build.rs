@@ -1,5 +1,5 @@
 fn main() -> std::io::Result<()> {
-    #[test]
+    #[cfg(test)]
     build_test_plugin()?;
 
     Ok(())
@@ -7,7 +7,7 @@ fn main() -> std::io::Result<()> {
 
 // TODO: rework this when we get to unit/integration testing
 // this fails to compile if you `cargo test` without cmake being installed on the system
-#[test]
+#[cfg(test)]
 mod test {
     use std::{env, fs, io, path::PathBuf};
 

@@ -42,12 +42,12 @@ workspace = true
 winapi = { workspace = true }
 
 [lib]
-crate-type = ["lib", "cdylib", "staticlib"]
+crate-type = ["lib", "cdylib"]
 
 [package.metadata.deb]
 assets = [
-    ["../target/release-artifacts/libwooting_analog_sdk.so", "usr/lib/", "755"],
-    ["../target/release-artifacts/wooting-analog-virtual-control", "usr/bin/", "755"],
+    ["../target/release/libwooting_analog_sdk.so", "usr/lib/", "755"],
+    ["../target/release/wooting-analog-virtual-control", "usr/bin/", "755"],
 ]
 depends = "libhidapi-hidraw0, libudev1, $auto"
 priority = "optional"

@@ -60,32 +60,6 @@
 
         <Directory Id='TARGETDIR' Name='SourceDir'>
             <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
-                <Directory Id="PluginDir" Name='WootingAnalogPlugins'>
-                    <Directory Id='PLUGININSTALLDIR' Name='wooting-test-plugin'>
-                        <Component Id='wooting_analog_test_pluginLib' Guid='*' Win64='$(var.Win64)'>
-                          <RemoveFolder Id="RemoveTestPluginDir" Directory="PLUGININSTALLDIR" On="uninstall"/>
-                          <File
-                              Id='wooting_analog_test_pluginDLL'
-                              Name='wooting_analog_test_plugin.dll'
-                              DiskId='1'
-                              Source='..\target\release-artifacts\wooting_analog_test_plugin.dll'
-                              KeyPath='yes'/>
-                      </Component>
-
-                    </Directory>
-                    <Directory Id='WOOTINGPLUGINDIR' Name='wooting-analog-plugin'>
-                        <Component Id='wooting_analog_pluginLib' Guid='*' Win64='$(var.Win64)'>
-                          <RemoveFolder Id="RemoveWootingPluginDir" Directory="WOOTINGPLUGINDIR" On="uninstall"/>
-                          <File
-                              Id='wooting_analog_pluginDLL'
-                              Name='wooting_analog_plugin.dll'
-                              DiskId='1'
-                              Source='..\target\release-artifacts\wooting_analog_plugin.dll'
-                              KeyPath='yes'/>
-                      </Component>
-                    </Directory>
-                </Directory>
-
                 <Directory Id='APPLICATIONFOLDER' Name='wooting-analog-sdk'>
                     
                     <!--
@@ -124,7 +98,7 @@
                             Id='wooting_analog_sdkDLL'
                             Name='wooting_analog_sdk.dll'
                             DiskId='1'
-                            Source='..\target\release-artifacts\wooting_analog_sdk.dll'
+                            Source='..\..\target\release\wooting_analog_sdk.dll'
                             KeyPath='yes'/>
                     </Component>
                     <Component Id='wooting_analog_sdkUpdater' Guid='*' Win64='$(var.Win64)'>
@@ -132,7 +106,7 @@
                             Id='wooting_analog_sdkUpdater'
                             Name='wooting-analog-sdk-updater.exe'
                             DiskId='1'
-                            Source='..\target\release-artifacts\wooting-analog-sdk-updater.exe'
+                            Source='..\..\target\release\wooting-analog-sdk-updater.exe'
                             KeyPath='yes'/>
                     </Component>
                 </Directory>
@@ -156,7 +130,6 @@
             -->
             <!--<ComponentRef Id='License'/>-->
 
-            <ComponentRef Id='wooting_analog_pluginLib'/>
             <ComponentRef Id='wooting_analog_sdkLibrary'/>
             <ComponentRef Id='wooting_analog_sdkUpdater'/>
             <ComponentRef Id='Path'/>
@@ -169,22 +142,6 @@
                 <ComponentRef Id='Path'/>
             </Feature>-->
         </Feature>
-        <Feature
-            Id='WootingPlugin'
-            Title='Wooting Plugin'
-            Description='Installs the Wooting Plugin which allows you to use the Analog SDK on the Wooting keyboards'
-            Level='1'
-            Absent='allow'>
-            <ComponentRef Id='wooting_analog_pluginLib'/>
-        </Feature>
-        <Feature
-            Id='TestPlugin'
-            Title='Test Plugin'
-            Description='Installs the Test Plugin which allows you to use the Virtual Keyboard utility to emulate analog input'
-            Level='1'
-            Absent='allow'>
-            <ComponentRef Id='wooting_analog_test_pluginLib'/>
-        </Feature>
 
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
@@ -196,7 +153,7 @@
           The product icon is the graphic that appears in the Add/Remove
           Programs control panel for the application.
         -->
-        <Icon Id='ProductICO' SourceFile='wix\iconv2.ico'/>
+        <Icon Id='ProductICO' SourceFile='wooting-analog-sdk\wix\iconv2.ico'/>
         <Property Id='ARPPRODUCTICON' Value='ProductICO' />
 
         <Property Id='ARPHELPLINK' Value='https://github.com/WootingKb/wooting-analog-sdk'/>
