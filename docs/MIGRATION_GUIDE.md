@@ -20,7 +20,7 @@ process. On release of your game/app replace it with `release/wooting_analog_sdk
 - If the import library is used on windows change it from `wooting_analog_wrapper.dll.lib` to 
   `wooting_analog_sdk_dist.dll.lib`.
 - When calling from C/C++: change the `#include "wooting_analog_wrapper.h"` to 
-  `#include"wooting_analog_sdk.h"`.
+  `#include "wooting_analog_sdk.h"`.
 - [Reinstall](./INSTALL.md) the release version of the SDK:
     - Windows: `C:\Program Files\wooting-analog-sdk`
     - Linux: `/usr/lib`
