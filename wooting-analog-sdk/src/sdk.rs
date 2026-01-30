@@ -1,9 +1,3 @@
-
-use crate::keycode::*;
-use crate::plugin::c::CPlugin;
-use crate::plugin::WootingPlugin;
-use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
-use crate::plugin::DEFAULT_PLUGIN_DIR;
 use crate::DeviceEventType;
 use crate::DeviceID;
 use crate::DeviceInfo;
@@ -11,6 +5,11 @@ use crate::KeycodeType;
 use crate::Plugin;
 use crate::SDKResult;
 use crate::WootingAnalogResult;
+use crate::keycode::*;
+use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
+use crate::plugin::DEFAULT_PLUGIN_DIR;
+use crate::plugin::WootingPlugin;
+use crate::plugin::c::CPlugin;
 use anyhow::bail;
 use anyhow::{Context, Error, Result};
 use libloading::{Library, Symbol};
@@ -77,61 +76,56 @@ impl AnalogSDK {
         }
 
         let plugin_dir = PathBuf::from(plugin_dir);
-        if !plugin_dir.is_dir() {
-            error!(
-                "The plugin directory '{:?}' does not exist! Make sure you have it created and have plugins in there",
-                plugin_dir
-            );
-            return Err(WootingAnalogResult::NoPlugins).into();
-        }
-        /*let mut plugin_dir = match plugin_dir {
-            Ok(v) => {
-                info!(
-                    "Found ${}, loading plugins from {:?}",
-                    ENV_PLUGIN_DIR_KEY, v
-                );
-                v
-            }
-            Err(e) => {
-                warn!(
-                    "{} is not set, defaulting to {}.\nError: {}",
-                    ENV_PLUGIN_DIR_KEY, DEFAULT_PLUGIN_DIR, e
-                );
-                vec![PathBuf::from(String::from(DEFAULT_PLUGIN_DIR))]
-            }
-        };*/
-        let mut load_plugins = |dir: &Path| {
-            match self.load_plugins(dir) {
-                Ok(0) => {
-                    info!("No plugins found in {:?}", dir);
-                    //self.initialised = false;
-                    //WootingAnalogResult::NoPlugins
-                }
-                Ok(i) => {
-                    debug!("Loaded {} plugins from {:?}", i, dir);
-                    //WootingAnalogResult::Ok
+        if plugin_dir.is_dir() {
+            /*let mut plugin_dir = match plugin_dir {
+                Ok(v) => {
+                    info!(
+                        "Found ${}, loading plugins from {:?}",
+                        ENV_PLUGIN_DIR_KEY, v
+                    );
+                    v
                 }
                 Err(e) => {
-                    error!("Error: {:?}", e);
-                    //self.initialised = false;
+                    warn!(
+                        "{} is not set, defaulting to {}.\nError: {}",
+                        ENV_PLUGIN_DIR_KEY, DEFAULT_PLUGIN_DIR, e
+                    );
+                    vec![PathBuf::from(String::from(DEFAULT_PLUGIN_DIR))]
                 }
-            }
-        };
-
-        load_plugins(plugin_dir.as_path());
-
-        if nested {
-            for dir in plugin_dir.read_dir().expect("Could not read dir") {
-                match dir {
-                    Ok(dir) => {
-                        if dir.path().is_file() {
-                            continue;
-                        }
-
-                        load_plugins(&dir.path());
+            };*/
+            let mut load_plugins = |dir: &Path| {
+                match self.load_plugins(dir) {
+                    Ok(0) => {
+                        info!("No plugins found in {:?}", dir);
+                        //self.initialised = false;
+                        //WootingAnalogResult::NoPlugins
+                    }
+                    Ok(i) => {
+                        debug!("Loaded {} plugins from {:?}", i, dir);
+                        //WootingAnalogResult::Ok
                     }
                     Err(e) => {
-                        error!("Error reading directory: {}", e);
+                        error!("Error: {:?}", e);
+                        //self.initialised = false;
+                    }
+                }
+            };
+
+            load_plugins(plugin_dir.as_path());
+
+            if nested {
+                for dir in plugin_dir.read_dir().expect("Could not read dir") {
+                    match dir {
+                        Ok(dir) => {
+                            if dir.path().is_file() {
+                                continue;
+                            }
+
+                            load_plugins(&dir.path());
+                        }
+                        Err(e) => {
+                            error!("Error reading directory: {}", e);
+                        }
                     }
                 }
             }
