@@ -60,6 +60,24 @@ some general cases, which are:
 
 These apply to every function unless otherwise specified
 
+## Components
+
+- `wooting-analog-sdk`: The core Analog SDK which handles loading of plugins. This is installed
+  systemwide and is updated separately
+- `wooting-analog-dist`: This is the SDK distributable which is what Applications should use. The
+  linked dll should be shipped with the application using it.
+- `wooting-analog-virtual-kb`: Virtual Keyboard using GTK which allows to set the analog value of
+  all the keys through the `debug/wooting_analog_sdk_dist`. This allows you to test an Analog SDK
+  implementation without an analog device
+- `wooting-analog-sdk-updater`: Updater tool to update the Analog SDK from Github releases
+
+### Headers
+
+- `wooting-analog-sdk.h`: This is the header which includes everything that you need to use the
+  SDK.
+- `plugin.h`: This is the header which plugins should use to define all functions that need to be
+  exported for a plugin to work
+
 ## Initialisation
 
 ### Initialise
