@@ -159,7 +159,7 @@ impl Plugin for CPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
-        self.read_analog(code, device).0.into()
+       self.read_analog(code, device)
     }
 
     fn read_full_buffer(
@@ -189,7 +189,6 @@ impl Plugin for CPlugin {
         };
 
         let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
-        //println!("Count was {}", count);
         for i in 0..count {
             analog_data.insert(code_buffer[i], analog_buffer[i]);
         }

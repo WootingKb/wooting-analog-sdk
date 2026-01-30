@@ -166,6 +166,150 @@ pub enum KeycodeType {
     VirtualKeyTranslate = 3,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub enum KeyMetadata {
+    #[default]
+    None,
+    Basic {
+        namespace: u8,
+    },
+}
+
+#[derive(Copy, Clone, Eq, Debug, Default)]
+pub struct KeyCode {
+    inner: u16,
+    metadata: KeyMetadata,
+}
+
+impl KeyCode {
+    pub fn as_u16(&self) -> u16 {
+        self.inner
+    }
+
+    pub fn with_metadata(mut self, meta: KeyMetadata) -> Self {
+        self.metadata = meta;
+        self
+    }
+}
+
+impl std::hash::Hash for KeyCode {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl PartialEq for KeyCode {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl PartialOrd for KeyCode {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.inner.cmp(&other.inner))
+    }
+}
+
+impl Ord for KeyCode {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+impl From<u8> for KeyCode {
+    fn from(value: u8) -> Self {
+        KeyCode {
+            inner: u16::from(value),
+            metadata: KeyMetadata::None,
+        }
+    }
+}
+
+impl From<u16> for KeyCode {
+    fn from(value: u16) -> Self {
+        KeyCode {
+            inner: value,
+            metadata: KeyMetadata::None,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub enum ValueMetadata {
+    #[default]
+    None,
+    Basic {
+        pos: Position,
+        actuated: bool,
+    },
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub struct Position {
+    x: u8,
+    y: u8,
+}
+
+impl Position {
+    pub fn new(x: u8, y: u8) -> Self {
+        Self { x, y }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct AnalogValue {
+    inner: f32,
+    metadata: ValueMetadata,
+}
+
+impl AnalogValue {
+    pub fn max(self, other: AnalogValue) -> AnalogValue {
+        if self.inner > other.inner {
+            self
+        } else {
+            other
+        }
+    }
+
+    pub fn as_f32(&self) -> f32 {
+        self.inner
+    }
+
+    pub fn with_metadata(mut self, meta: ValueMetadata) -> Self {
+        self.metadata = meta;
+        self
+    }
+}
+
+impl PartialEq for AnalogValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl Eq for AnalogValue {}
+
+impl PartialOrd for AnalogValue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for AnalogValue {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.total_cmp(&other.inner)
+    }
+}
+
+impl From<f32> for AnalogValue {
+    fn from(value: f32) -> Self {
+        AnalogValue {
+            inner: value,
+            metadata: ValueMetadata::None,
+        }
+    }
+}
+
 pub type DeviceID = u64;
 
 // We do this little alias so that we can force cbindgen to rename it to point to the DeviceType enum.
