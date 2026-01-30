@@ -44,8 +44,12 @@ main() {
     mkdir $stage/includes
 
     ## Copy docs
-    cp PLUGINS.md $stage/
-    cp SDK_USAGE.md $stage/
+    cp docs/PLUGINS.md $stage/
+    cp docs/SDK_USAGE.md $stage/
+    cp docs/VIRTUAL_KEYBOARD.md $stage/
+    cp docs/INSTALL.md $stage/
+    cp docs/BUILD.md $stage/
+    cp docs/MIGRATION_GUIDE.md $stage/
 
     # sdk build artifacts
     cp target/debug/${lib_prefix}wooting_analog_sdk.$shared_lib_ext $stage/debug/
