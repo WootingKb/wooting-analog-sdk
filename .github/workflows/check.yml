@@ -24,7 +24,9 @@ jobs:
             build-essential libudev-dev pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: cargo check
         uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
@@ -45,9 +47,10 @@ jobs:
             build-essential libudev-dev pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
         with:
@@ -68,7 +71,9 @@ jobs:
           sudo apt install libudev-dev libhidapi-dev
 
       - name: Setup rust toolchain
-        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
@@ -90,7 +95,9 @@ jobs:
           sudo apt install libudev-dev libhidapi-dev
 
       - name: Setup rust toolchain
-        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
@@ -122,7 +129,9 @@ jobs:
             build-essential libudev-dev pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@11f258db84cec40fc56c7b10bfc37c31dd9a3c98 # v1.17.3
