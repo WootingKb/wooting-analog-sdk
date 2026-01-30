@@ -71,6 +71,8 @@ pub trait Plugin {
 
 const ANALOG_BUFFER_SIZE_V1: usize = 48;
 const ANALOG_BUFFER_SIZE_V2: usize = 64;
+const ANALOG_INTERFACE_V1: u16 = 0xFF54;
+const ANALOG_INTERFACE_V2: u16 = 0xFF53;
 const ANALOG_MAX_SIZE: usize = 40;
 const WOOTING_VID: u16 = 0x31e3;
 const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
@@ -131,7 +133,6 @@ trait DeviceImplementation: DynClone + Send {
                 return Err(WootingAnalogResult::DeviceDisconnected).into();
             }
         }
-        //println!("{:?}", buffer);
         Ok(Some(
             buffer
                 .chunks_exact(3) //Split it into groups of 3 as the analog report is in the format of 2 byte code + 1 byte analog value
@@ -272,7 +273,6 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                 return Err(WootingAnalogResult::DeviceDisconnected).into();
             }
         }
-        //println!("{:?}", buffer);
         Ok(Some(
             buffer
                 .chunks_exact(4)
@@ -347,7 +347,7 @@ impl Device {
                     }
 
                     match device_impl.device_hardware_id().usage_page {
-                        0xFF54 => {
+                        ANALOG_INTERFACE_V1 => {
                             match device_impl
                                 .get_analog_buffer(&device, ANALOG_MAX_SIZE)
                                 .into()
@@ -373,7 +373,7 @@ impl Device {
                                 }
                             }
                         }
-                        0xFF53 => {
+                        ANALOG_INTERFACE_V2 => {
                             match device_impl
                                 .get_analog_buffer_with_ctx(&device, ANALOG_MAX_SIZE)
                                 .into()
