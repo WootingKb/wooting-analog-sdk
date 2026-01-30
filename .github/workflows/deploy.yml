@@ -1,4 +1,4 @@
-name: Publish Analog SDK
+name: Publish
 
 # All actions need to have their version pinned to minimize action updates introducing security
 # vulnerabilities under our nose
@@ -7,7 +7,10 @@ name: Publish Analog SDK
 on:
   push:
     tags:
-      - 'v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z]+(\.[0-9]+)?)?'
+      # Matches standard versions: v1.2.3, v10.11.12
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+      # Matches pre-release versions: v1.2.3-rc.1, v0.9.0-alpha
+      - 'v[0-9]*.[0-9]*.[0-9]*-*'
 
 env:
   SIGNTOOL: C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64/signtool.exe
