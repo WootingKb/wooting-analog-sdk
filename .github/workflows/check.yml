@@ -6,6 +6,9 @@ name: Check
 
 on: [push]
 
+env:
+  RUST_TOOLCHAIN: 1.91.1
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -21,7 +24,7 @@ jobs:
             build-essential libudev-dev pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
 
       - name: cargo check
         uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
@@ -42,7 +45,7 @@ jobs:
             build-essential libudev-dev pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
         with:
           components: clippy
 
@@ -65,7 +68,7 @@ jobs:
           sudo apt install libudev-dev libhidapi-dev
 
       - name: Setup rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
@@ -87,16 +90,16 @@ jobs:
           sudo apt install libudev-dev libhidapi-dev
 
       - name: Setup rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
 
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@11f258db84cec40fc56c7b10bfc37c31dd9a3c98 # v1.17.3
 
       - name: Install cbindgen
-        run: cargo binstall cbindgen --force --no-confirm
+        run: cargo binstall cbindgen@0.29.2 --force --no-confirm
         
       - name: Verify generated headers
         run: |
@@ -119,12 +122,12 @@ jobs:
             build-essential libudev-dev pkg-config
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@${{ env.RUST_TOOLCHAIN }}
 
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
+        uses: cargo-bins/cargo-binstall@11f258db84cec40fc56c7b10bfc37c31dd9a3c98 # v1.17.3
 
-      - name: Install cargo hack
-        run: cargo binstall cargo-hack --force --no-confirm
+      - name: Install cargo msrv
+        run: cargo binstall cargo-msrv@0.18.4 --force --no-confirm
 
-      - run: cargo hack check --rust-version --feature-powerset --all-targets
+      - run: cargo msrv verify
