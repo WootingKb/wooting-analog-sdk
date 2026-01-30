@@ -32,7 +32,7 @@ jobs:
         uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
         with:
           command: check
-          args: --all-features
+          args: --all-features --workspace
 
   clippy:
     runs-on: ubuntu-latest
@@ -139,4 +139,7 @@ jobs:
       - name: Install cargo msrv
         run: cargo binstall cargo-msrv@0.18.4 --force --no-confirm
 
-      - run: cargo msrv verify
+      - run: |
+          cargo msrv verify --manifest-path ./wooting-analog-sdk/Cargo.toml
+          cargo msrv verify --manifest-path ./wooting-analog-sdk-updater/Cargo.toml
+          cargo msrv verify --manifest-path ./wooting-analog-virtual-control/Cargo.toml
