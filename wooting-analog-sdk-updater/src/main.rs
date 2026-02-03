@@ -140,21 +140,28 @@ fn find_installer_asset(release: &Release) -> Option<&ReleaseAsset> {
 }
 
 fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {
-    let releases = self_update::backends::github::ReleaseList::configure()
-        .repo_owner("WootingKb")
-        .repo_name("wooting-analog-sdk")
-        .build()?
-        .fetch()?;
-    //Remove all releases that are not newer than the current
-    debug!("We found {:?}", releases);
+    if is_stable(PKG_VER) {
+        self_update::backends::github::Update::configure()
+            .repo_owner("WootingKb")
+            .repo_name("wooting-analog-sdk")
+            .build()?
+            .get_latest_release()
+            .map_err(|_| {
+                warn!("Unable to grab latest stable release from github");
+                Box::from("Couldn't grab the latest stable releases from github")
+            })
+    } else {
+        let releases = self_update::backends::github::Update::configure()
+            .repo_owner("WootingKb")
+            .repo_name("wooting-analog-sdk")
+            .build()?
+            .get_latest_releases(PKG_VER)?;
 
-    releases
-        .into_iter()
-        .find(|r| is_stable(&r.version))
-        .ok_or_else(|| {
-            warn!("No stable release found on github");
-            Box::from("Couldn't find any stable releases on github")
+        releases.first().cloned().ok_or_else(|| {
+            warn!("No releases found on github");
+            Box::from("Couldn't find any releases on github")
         })
+    }
 }
 
 fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>> {
