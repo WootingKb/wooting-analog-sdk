@@ -14,6 +14,7 @@ use winapi::um::winuser;
 
 const INSTALLER_PATH: &str = "wooting_analog_sdk_installer.msi";
 const PKG_VER: &str = env!("CARGO_PKG_VERSION");
+const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(Parser, Debug)]
 #[command(name = "Wooting Analog SDK Updater", version, about)]
@@ -75,60 +76,61 @@ fn main() {
 
     debug!("Called with parameters {:?}", cli);
 
-    let r = check_for_update().expect("Failed to check for updates");
-    let release_ver = r.version.trim_start_matches('v');
-    let update_available = bump_is_greater(PKG_VER, release_ver).unwrap_or(false);
-    debug!(
-        "Github release: {} ours: {}, update available: {}",
-        release_ver, PKG_VER, update_available
-    );
+    match check_for_update() {
+        Ok(release) => {
+            debug!(
+                "Github release: {} ours: {}, update available",
+                release.version, PKG_VER
+            );
 
-    let data = object! {
-        "name" => "Wooting Analog SDK",
-        "update_available" => update_available,
-        "new_version"    => r.version.clone(),
-        "version"     => PKG_VER,
-        "release_title" => r.name.clone(),
-        "release_notes" => r.body.clone()
-    };
-    println!("{}", data.dump());
+            let data = object! {
+                "name" => "Wooting Analog SDK",
+                "update_available" => true,
+                "new_version"    => release.version.clone(),
+                "version"     => PKG_VER,
+                "release_title" => release.name.clone(),
+                "release_notes" => release.body.clone()
+            };
+            println!("{}", data.dump());
 
-    if update_available {
-        info!("Update available!");
-        if !cli.no_install {
-            #[cfg(windows)]
-            {
-                if !cli.quiet {
-                    let title = "Wooting Analog SDK Update\0";
-                    let message = format!(
-                        "A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0",
-                        r.version, PKG_VER
-                    );
-                    let l_msg: Vec<u16> = message.encode_utf16().collect();
-                    let l_title: Vec<u16> = title.encode_utf16().collect();
-                    unsafe {
-                        use std::ptr::null_mut;
+            info!("Update available!");
+            if !cli.no_install {
+                #[cfg(windows)]
+                {
+                    if !cli.quiet {
+                        let title = "Wooting Analog SDK Update\0";
+                        let message = format!(
+                            "A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0",
+                            release.version, PKG_VER
+                        );
+                        let l_msg: Vec<u16> = message.encode_utf16().collect();
+                        let l_title: Vec<u16> = title.encode_utf16().collect();
+                        unsafe {
+                            use std::ptr::null_mut;
 
-                        if winuser::MessageBoxW(
-                            null_mut(),
-                            l_msg.as_ptr(),
-                            l_title.as_ptr(),
-                            winuser::MB_YESNO | winuser::MB_ICONQUESTION,
-                        ) != winuser::IDYES
-                        {
-                            debug!("User did not want update, closing");
-                            return;
+                            if winuser::MessageBoxW(
+                                null_mut(),
+                                l_msg.as_ptr(),
+                                l_title.as_ptr(),
+                                winuser::MB_YESNO | winuser::MB_ICONQUESTION,
+                            ) != winuser::IDYES
+                            {
+                                debug!("User did not want update, closing");
+                                return;
+                            }
                         }
                     }
                 }
+                info!("Attempting to update");
+                install_update(&release).expect("Failed to install updates");
+            } else {
+                info!("--no-install given, Exiting without updating...");
             }
-            info!("Attempting to update");
-            install_update(&r).expect("Failed to install updates");
-        } else {
-            info!("--no-install given, Exiting without updating...");
         }
-    } else {
-        info!("No update available, Exiting...");
+        Err(e) => {
+            info!("No update available, Exiting...");
+            warn!("context: {e}");
+        }
     }
 }
 
@@ -141,32 +143,38 @@ fn find_installer_asset(release: &Release) -> Option<&ReleaseAsset> {
 
 fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {
     if is_stable(PKG_VER) {
-        self_update::backends::github::Update::configure()
+        let latest_release = self_update::backends::github::Update::configure()
             .repo_owner("WootingKb")
             .repo_name("wooting-analog-sdk")
+            .bin_name(PKG_NAME)
+            .current_version(PKG_VER)
             .build()?
-            .get_latest_release()
-            .map_err(|_| {
-                warn!("Unable to grab latest stable release from github");
-                Box::from("Couldn't grab the latest stable releases from github")
-            })
+            .get_latest_release()?;
+
+        if bump_is_greater(PKG_VER, &latest_release.version).unwrap_or(false) {
+            Ok(latest_release)
+        } else {
+            Err(Box::from("Already on latest stable release..."))
+        }
     } else {
         let releases = self_update::backends::github::Update::configure()
             .repo_owner("WootingKb")
             .repo_name("wooting-analog-sdk")
+            .bin_name(PKG_NAME)
+            .current_version(PKG_VER)
             .build()?
             .get_latest_releases(PKG_VER)?;
 
-        releases.first().cloned().ok_or_else(|| {
-            warn!("No releases found on github");
-            Box::from("Couldn't find any releases on github")
-        })
+        releases
+            .first()
+            .cloned()
+            .ok_or_else(|| Box::from("Already on latest release..."))
     }
 }
 
 fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>> {
     info!("installing");
-    match find_installer_asset(&release) {
+    match find_installer_asset(release) {
         Some(asset) => {
             let tmp_dir = self_update::TempDir::new()?;
             let tmp_msi_path = tmp_dir.path().join(INSTALLER_PATH);
