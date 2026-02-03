@@ -20,6 +20,7 @@ json = "0.12"
 simplelog = "0.12"
 chrono = "0.4"
 reqwest = "0.12"
+semver = "1.0.27"
 
 [lints]
 workspace = true

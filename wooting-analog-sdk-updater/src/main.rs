@@ -1,9 +1,9 @@
 use chrono::Utc;
-use clap::{arg, Parser};
+use clap::{Parser, arg};
 use json::object;
 use log::{debug, error, info, warn};
-use self_update::version::bump_is_greater;
 use self_update::update::{Release, ReleaseAsset};
+use self_update::version::bump_is_greater;
 use simplelog::*;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -100,7 +100,10 @@ fn main() {
             {
                 if !cli.quiet {
                     let title = "Wooting Analog SDK Update\0";
-                    let message = format!("A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0", r.version, PKG_VER);
+                    let message = format!(
+                        "A new Wooting Analog SDK update is available ({}, you've got v{}), would you like to install?\0",
+                        r.version, PKG_VER
+                    );
                     let l_msg: Vec<u16> = message.encode_utf16().collect();
                     let l_title: Vec<u16> = title.encode_utf16().collect();
                     unsafe {
@@ -144,13 +147,14 @@ fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {
         .fetch()?;
     //Remove all releases that are not newer than the current
     debug!("We found {:?}", releases);
-    if !releases.is_empty() {
-        let latest = releases.first().unwrap();
-        Ok(latest.clone())
-    } else {
-        warn!("No releases found on github");
-        Err(From::from("Couldn't find any releases on github"))
-    }
+
+    releases
+        .into_iter()
+        .find(|r| is_stable(&r.version))
+        .ok_or_else(|| {
+            warn!("No stable release found on github");
+            Box::from("Couldn't find any stable releases on github")
+        })
 }
 
 fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>> {
@@ -192,4 +196,11 @@ fn install_update(release: &Release) -> Result<(), Box<dyn ::std::error::Error>>
         }
         None => Err(From::from("Couldn't find installer asset")),
     }
+}
+
+fn is_stable(version: &str) -> bool {
+    semver::Version::parse(version)
+        .inspect_err(|e| warn!("invalid semver tag '{version}': {e}"))
+        .map(|v| v.pre.is_empty())
+        .unwrap_or(false)
 }
