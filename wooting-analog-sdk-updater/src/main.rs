@@ -128,6 +128,16 @@ fn main() {
             }
         }
         Err(e) => {
+            let data = object! {
+                "name" => "Wooting Analog SDK",
+                "update_available" => false,
+                "new_version"    => "",
+                "version"     => PKG_VER,
+                "release_title" => "",
+                "release_notes" => ""
+            };
+            println!("{}", data.dump());
+
             info!("No update available, Exiting...");
             warn!("context: {e}");
         }
