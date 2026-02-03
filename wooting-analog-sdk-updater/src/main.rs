@@ -143,6 +143,8 @@ fn find_installer_asset(release: &Release) -> Option<&ReleaseAsset> {
 
 fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {
     if is_stable(PKG_VER) {
+        // always grabs the latest release, ignoring pre-releases and drafts, without filtering or
+        // version checks
         let latest_release = self_update::backends::github::Update::configure()
             .repo_owner("WootingKb")
             .repo_name("wooting-analog-sdk")
@@ -157,6 +159,7 @@ fn check_for_update() -> Result<Release, Box<dyn ::std::error::Error>> {
             Err(Box::from("Already on latest stable release..."))
         }
     } else {
+        // grabs the latest releases and filters based on our current version, includes pre-releases
         let releases = self_update::backends::github::Update::configure()
             .repo_owner("WootingKb")
             .repo_name("wooting-analog-sdk")
