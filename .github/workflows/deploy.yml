@@ -164,7 +164,10 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cargo binstall cargo-wix@0.3.9 --force
-          cargo wix -p wooting-analog-sdk --no-build --nocapture
+          cargo wix -p wooting-analog-sdk \
+            --no-build \
+            --nocapture \
+            --output "target/wix/wooting-analog-sdk-${{ github.ref_name }}.msi"
 
       - name: Sign Windows installer
         if: runner.os == 'Windows'

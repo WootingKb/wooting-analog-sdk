@@ -40,8 +40,6 @@
         Codepage='1252'
         Version='$(var.Version)'>
 
-        <Property Id="DisplayVersion" Value="$(var.Version)" />
-
         <Package Id='*'
             Keywords='Installer'
             Description='Wooting Analog SDK'
