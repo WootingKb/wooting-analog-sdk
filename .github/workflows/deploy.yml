@@ -71,20 +71,13 @@ jobs:
           cargo build -p wooting-analog-virtual-control --release
           cargo build -p wooting-analog-sdk-updater --release
 
-      - name: Build Windows Installer
-        shell: bash
-        if: runner.os == 'Windows'
-        run: |
-          cargo binstall cargo-wix@0.3.9 --force
-          cargo wix -p wooting-analog-sdk --no-build --nocapture
-
       - name: Build debian package
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           cargo binstall cargo-deb@3.6.2 --force
           cargo deb --no-build -- --target ${{ matrix.target }} --no-confirm
 
-      - name: "set up KMS CNG provider"
+      - name: Set up KMS CNG provider
         if: runner.os == 'Windows'
         run: |
           # Download the zip file
@@ -132,7 +125,7 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
 
-      - name: "Set up Cloud SDK"
+      - name: Set up Cloud SDK
         if: runner.os == 'Windows'
         uses: "google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a" # v2.1.2
         with:
@@ -143,7 +136,7 @@ jobs:
         run: |
           gcloud auth list
 
-      - name: save ca file
+      - name: Save CA file
         if: runner.os == 'Windows'
         run: |
           Out-File -FilePath "ca.cert" -InputObject $env:CA_CERT
@@ -153,7 +146,7 @@ jobs:
         env:
           CA_CERT: ${{ vars.CA_CERT }}
 
-      - name: sign artifacts
+      - name: Sign artifacts
         if: runner.os == 'Windows'
         run: |
           set KMS_CNG_VERBOSE=1
@@ -164,7 +157,24 @@ jobs:
             /kc ${{ vars.WIN_EV_HSM_KEY_PATH }} `
             .\target\release\wooting_analog_sdk.dll `
             .\target\release\wooting_analog_sdk_dist.dll `
-            .\target\release\wooting-analog-sdk-updater.exe `
+            .\target\release\wooting-analog-sdk-updater.exe
+
+      - name: Build Windows installer
+        shell: bash
+        if: runner.os == 'Windows'
+        run: |
+          cargo binstall cargo-wix@0.3.9 --force
+          cargo wix -p wooting-analog-sdk --no-build --nocapture
+
+      - name: Sign Windows installer
+        if: runner.os == 'Windows'
+        run: |
+          set KMS_CNG_VERBOSE=1
+          & "${{ env.SIGNTOOL }}" sign `
+            /v /debug /fd sha256 /t http://timestamp.digicert.com `
+            /f .\ca.cert `
+            /csp "Google Cloud KMS Provider" `
+            /kc ${{ vars.WIN_EV_HSM_KEY_PATH }} `
             .\target\wix\*.msi
 
       - name: Collect artifacts
