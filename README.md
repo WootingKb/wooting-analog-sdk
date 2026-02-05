@@ -20,7 +20,7 @@ same steps for each platform unless otherwise specified.
 
 - [Contributing Guide](docs/CONTRIBUTING.md) to help you with your first contribution.
 - [Build Instructions](docs/BUILD.md) on how to build the SDK using Rust.
-- [Migration Guide](MIGRATION_GUIDE.md) on how to upgrade to the latest version of the SDK.
+- [Migration Guide](docs/MIGRATION_GUIDE.md) on how to upgrade to the latest version of the SDK.
 - [Virtual Keyboard](docs/VIRTUAL_KEYBOARD.md) on how to setup and use the virtual keyboard for
   development without any hardware required.
 - [Plugin Introduction](docs/PLUGINS.md) for information on creating plugins.
