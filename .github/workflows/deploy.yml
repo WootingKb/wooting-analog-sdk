@@ -167,7 +167,7 @@ jobs:
           cargo wix -p wooting-analog-sdk \
             --no-build \
             --nocapture \
-            --output "target/wix/wooting-analog-sdk-${{ github.ref_name }}.msi"
+            --output "target/wix/wooting_analog_sdk_${{ github.ref_name }}.msi"
 
       - name: Sign Windows installer
         if: runner.os == 'Windows'
