@@ -241,6 +241,7 @@ pub enum ValueMetadata {
     Basic {
         pos: Position,
         actuated: bool,
+        akc_active: bool,
     },
 }
 

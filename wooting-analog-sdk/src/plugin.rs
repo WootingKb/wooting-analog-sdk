@@ -287,7 +287,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                     let row = (matrix_pos >> 5) & 0x07;
                     let col = matrix_pos & 0x1F;
                     let actuated = (packed & 0x01) != 0;
-                    let _reserved = packed >> 1;
+                    let akc_active = ((packed >> 1) & 0x07) != 0;
                     let key_namespace = (packed >> 2) & 0x0F;
                     let value_part = (packed >> 6) & 0x03;
 
@@ -301,6 +301,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                             ValueMetadata::Basic {
                                 pos: Position::new(col, row),
                                 actuated,
+                                akc_active,
                             },
                         ),
                     )
