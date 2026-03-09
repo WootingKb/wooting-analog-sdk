@@ -8,7 +8,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.9.0-rc.1"
+version = "0.9.0"
 authors = ["simon-wh <simon@wooting.io>", "jimvdl <jim.l@wooting.io>"]
 edition = "2024"
 license = "MPL-2.0"
