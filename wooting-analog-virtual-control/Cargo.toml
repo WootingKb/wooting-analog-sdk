@@ -1,15 +1,22 @@
 [package]
 name = "wooting-analog-virtual-control"
-version = "0.7.1"
-authors = ["simon-wh <simon.whyte.lb@gmail.com>"]
-edition = "2018"
-
+description = "A virtual analog keyboard used for testing when a real analog keyboard is unavailable"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+publish = false
+rust-version.workspace = true
 
 [dependencies]
-wooting-analog-common = { path = "../wooting-analog-common"}
-shared_memory = "^0.8"
-log = "^0.4"
-iced = "^0.4"
-env_logger = "0.8"
-lazy_static = "*"
-wooting-analog-test-plugin = { path="../wooting-analog-test-plugin" }
+wooting-analog-sdk = { path = "../wooting-analog-sdk"}
+shared_memory = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+iced = "0.13"
+
+[lints]
+workspace = true

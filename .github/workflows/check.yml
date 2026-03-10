@@ -1,0 +1,145 @@
+name: Check
+
+# All actions need to have their version pinned to minimize action updates introducing security
+# vulnerabilities under our nose
+# Most of them were done by running https://github.com/suzuki-shunsuke/pinact
+
+on: [push]
+
+env:
+  RUST_TOOLCHAIN: 1.91.1
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: cargo check
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+        with:
+          command: check
+          args: --all-features --workspace
+
+  clippy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+        with:
+          command: clippy
+          args: --all-features
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          submodules: true
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt update
+          sudo apt install libudev-dev libhidapi-dev
+
+      - name: Setup rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+
+      - name: cargo test
+        run: cargo test --all-features
+
+  verify-headers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          submodules: true
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt update
+          sudo apt install libudev-dev libhidapi-dev
+
+      - name: Setup rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@11f258db84cec40fc56c7b10bfc37c31dd9a3c98 # v1.17.3
+
+      - name: Install cbindgen
+        run: cargo binstall cbindgen@0.29.2 --force --no-confirm
+        
+      - name: Verify generated headers
+        run: |
+          cbindgen \
+            --crate wooting-analog-sdk \
+            --output ./includes/wooting-analog-sdk.h \
+            --verify
+  
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libudev-dev pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@11f258db84cec40fc56c7b10bfc37c31dd9a3c98 # v1.17.3
+
+      - name: Install cargo msrv
+        run: cargo binstall cargo-msrv@0.18.4 --force --no-confirm
+
+      - run: |
+          cargo msrv verify --manifest-path ./wooting-analog-sdk/Cargo.toml
+          cargo msrv verify --manifest-path ./wooting-analog-sdk-updater/Cargo.toml
+          cargo msrv verify --manifest-path ./wooting-analog-virtual-control/Cargo.toml

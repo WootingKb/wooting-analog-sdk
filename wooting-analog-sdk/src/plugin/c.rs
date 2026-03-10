@@ -1,10 +1,13 @@
 use ffi_support::FfiStr;
 use libloading::{Library, Symbol};
 use log::*;
+use log::{error, info};
 use std::collections::HashMap;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
-use wooting_analog_common::*;
-use wooting_analog_plugin_dev::*;
+
+use crate::{
+    DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin, SDKResult, WootingAnalogResult,
+};
 
 macro_rules! lib_wrap {
     //(@as_item $i:item) => {$i};
@@ -17,7 +20,7 @@ macro_rules! lib_wrap {
         $(
             //lib_wrap! {
             //    @as_item
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
@@ -48,7 +51,7 @@ macro_rules! lib_wrap_option {
         $(
             //lib_wrap! {
             //    @as_item
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> SDKResult<$fn_ret_tys>)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
@@ -156,7 +159,7 @@ impl Plugin for CPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
-        self.read_analog(code, device).0.into()
+       self.read_analog(code, device)
     }
 
     fn read_full_buffer(
@@ -186,7 +189,6 @@ impl Plugin for CPlugin {
         };
 
         let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
-        //println!("Count was {}", count);
         for i in 0..count {
             analog_data.insert(code_buffer[i], analog_buffer[i]);
         }

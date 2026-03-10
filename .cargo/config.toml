@@ -1,0 +1,81 @@
+[alias]
+dist-win = [
+    "rustc",
+    "-p",
+    "wooting-analog-sdk",
+    "--features",
+    "ffi,dist",
+    "--release",
+    "--",
+    "-C",
+    "link-arg=/OUT:target/release/wooting_analog_sdk_dist.dll",
+    "-C",
+    "link-arg=/IMPLIB:target/release/wooting_analog_sdk_dist.dll.lib",
+]
+
+dist-linux = [
+    "rustc",
+    "-p",
+    "wooting-analog-sdk",
+    "--features",
+    "ffi,dist",
+    "--release",
+    "--",
+    "-C",
+    "link-arg=-Wl,-soname,./target/release/libwooting_analog_sdk_dist.so",
+    "-C",
+    "link-arg=-Wl,-o,./target/release/libwooting_analog_sdk_dist.so",
+]
+
+dist-mac = [
+    "rustc",
+    "-p",
+    "wooting-analog-sdk",
+    "--features",
+    "ffi,dist",
+    "--release",
+    "--",
+    "-C",
+    "link-arg=-Wl,-install_name,./target/release/libwooting_analog_sdk_dist.dylib",
+    "-C",
+    "link-arg=-Wl,-o,./target/release/libwooting_analog_sdk_dist.dylib",
+]
+
+dist-win-dev = [
+    "rustc",
+    "-p",
+    "wooting-analog-sdk",
+    "--features",
+    "ffi,dist,virtual-input",
+    "--",
+    "-C",
+    "link-arg=/OUT:target/debug/wooting_analog_sdk_dist.dll",
+    "-C",
+    "link-arg=/IMPLIB:target/debug/wooting_analog_sdk_dist.dll.lib",
+]
+
+dist-linux-dev = [
+    "rustc",
+    "-p",
+    "wooting-analog-sdk",
+    "--features",
+    "ffi,dist,virtual-input",
+    "--",
+    "-C",
+    "link-arg=-Wl,-soname,./target/debug/libwooting_analog_sdk_dist.so",
+    "-C",
+    "link-arg=-Wl,-o,./target/debug/libwooting_analog_sdk_dist.so",
+]
+
+dist-mac-dev = [
+    "rustc",
+    "-p",
+    "wooting-analog-sdk",
+    "--features",
+    "ffi,dist,virtual-input",
+    "--",
+    "-C",
+    "link-arg=-Wl,-install_name,./target/debug/libwooting_analog_sdk_dist.dylib",
+    "-C",
+    "link-arg=-Wl,-o,./target/debug/libwooting_analog_sdk_dist.dylib",
+]

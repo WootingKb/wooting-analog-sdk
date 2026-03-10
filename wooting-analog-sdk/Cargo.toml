@@ -1,50 +1,53 @@
 [package]
 name = "wooting-analog-sdk"
-version = "0.7.5"
-authors = ["simon-wh <simon@wooting.io>"]
-edition = "2018"
-license = "MPL-2.0"
-description = "Wooting Analog SDK"
-repository = "https://github.com/WootingKb/wooting-analog-sdk"
-homepage = "https://github.com/WootingKb/wooting-analog-sdk"
-keywords = [ "wooting", "keyboard", "analog", "sdk" ]
-build = "build.rs"
-#categories = []
-#license-file = "../LICENSE"
+description = "An SDK for reading data from analog keyboards, with the main focus on Wooting keyboards"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+publish = true
+rust-version.workspace = true
+
+[features]
+ffi = []
+dist = []
+virtual-input = ["dep:shared_memory"]
 
 [dependencies]
-log = "0.4"
-env_logger = "^0.7"
-libloading = "^0.7"
-anyhow = "~1.0"
-lazy_static = "*"
+log = { workspace = true }
+env_logger = { workspace = true }
+shared_memory = { workspace = true, optional = true }
+enum-primitive-derive = "0.3"
+libloading = "0.8"
+thiserror = "2"
+anyhow = "1"
+num-traits = "0.2"
 ffi-support = "0.4"
-scancode = "0.1.2"
-bimap = "0.4"
-wooting-analog-common = { path = "../wooting-analog-common"}
-wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
-
-[dev-dependencies]
-shared_memory = "^0.8"
+scancode = "0.1"
+bimap = "0.6"
+hidapi = { version = "2.6", features = ["linux-static-hidraw"], default-features = false }
+dyn-clone = "1"
+serde = { version = "1", features = ["derive"], optional = true }
 
 [build-dependencies]
 cmake = "0.1"
-wooting-analog-common = { path = "../wooting-analog-common"}
-wooting-analog-plugin-dev = { path = "../wooting-analog-plugin-dev"}
 
+[lints]
+workspace = true
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser"] }
+winapi = { workspace = true }
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["lib", "cdylib"]
 
 [package.metadata.deb]
 assets = [
-    ["../target/release-artifacts/libwooting_analog_sdk.so", "usr/lib/", "755"],
-    ["../target/release-artifacts/libwooting_analog_plugin.so", "usr/local/share/WootingAnalogPlugins/wooting-analog-plugin/", "755"],
-    ["../target/release-artifacts/libwooting_analog_test_plugin.so", "usr/local/share/WootingAnalogPlugins/wooting-test-plugin/", "755"],
-    ["../target/release-artifacts/wooting-analog-virtual-control", "usr/bin/", "755"],
+    ["../target/release/libwooting_analog_sdk.so", "usr/lib/", "755"],
+    ["../target/release/wooting-analog-virtual-control", "usr/bin/", "755"],
 ]
 depends = "libhidapi-hidraw0, libudev1, $auto"
 priority = "optional"
