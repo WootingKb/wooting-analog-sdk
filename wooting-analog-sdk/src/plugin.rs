@@ -277,7 +277,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
             }
         }
 
-        let (mut entries, akc_entries): (HashMap<_, _>, HashMap<_, _>) = buffer
+        let (akc_entries, mut entries): (HashMap<_, _>, HashMap<_, _>) = buffer
             .chunks_exact(4)
             .take(max_length)
             .filter(|&b| b[1] != 0)
@@ -309,7 +309,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                     ),
                 )
             })
-            .partition(|(k, _v)| !k.is_advanced_key());
+            .partition(|(k, _v)| k.is_advanced_key());
 
         for (key, value) in entries.iter_mut() {
             if !key.is_advanced_key() {

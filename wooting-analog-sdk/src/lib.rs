@@ -166,12 +166,10 @@ pub enum KeycodeType {
     VirtualKeyTranslate = 3,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(C)]
 pub enum KeyNamespace {
-    #[default]
     HidNormal = 1,
-    HidModifier = 2,
     HidFunction = 3,
     CustomFunction = 4,
     GamepadBinding = 5,
@@ -181,13 +179,13 @@ pub enum KeyNamespace {
 impl From<u8> for KeyNamespace {
     fn from(value: u8) -> Self {
         match value {
-            0 | 1 => KeyNamespace::HidNormal,
-            2 => KeyNamespace::HidModifier,
+            0 => KeyNamespace::HidNormal,
             3 => KeyNamespace::HidFunction,
             4 => KeyNamespace::CustomFunction,
             5 => KeyNamespace::GamepadBinding,
             6 => KeyNamespace::AKCBinding,
-            _ => KeyNamespace::default(),
+            // TODO: will apply error handling when reworking the Rust API
+            _ => unreachable!("missing or invalid key namespace: {value}"),
         }
     }
 }
@@ -210,8 +208,8 @@ impl From<u16> for AkcType {
             3 => AkcType::Toggle,
             4 => AkcType::RappySnappy,
             5 => AkcType::SOCD,
-            // TODO: can't have this
-            _ => AkcType::ModTap,
+            // TODO: will apply error handling when reworking the Rust API
+            _ => unreachable!("missing or invalid AKC type: {value}"),
         }
     }
 }
