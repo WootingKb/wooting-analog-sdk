@@ -2,9 +2,9 @@
 pub mod ffi;
 pub mod keycode;
 mod plugin;
+pub mod sdk;
 #[cfg(feature = "virtual-input")]
 mod virtual_input;
-pub mod sdk;
 
 pub use crate::plugin::Plugin;
 use enum_primitive_derive::Primitive;
@@ -167,11 +167,67 @@ pub enum KeycodeType {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(C)]
+pub enum KeyNamespace {
+    #[default]
+    HidNormal = 1,
+    HidModifier = 2,
+    HidFunction = 3,
+    CustomFunction = 4,
+    GamepadBinding = 5,
+    AKCBinding = 6,
+}
+
+impl From<u8> for KeyNamespace {
+    fn from(value: u8) -> Self {
+        match value {
+            0 | 1 => KeyNamespace::HidNormal,
+            2 => KeyNamespace::HidModifier,
+            3 => KeyNamespace::HidFunction,
+            4 => KeyNamespace::CustomFunction,
+            5 => KeyNamespace::GamepadBinding,
+            6 => KeyNamespace::AKCBinding,
+            _ => KeyNamespace::default(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[repr(C)]
+pub enum AkcType {
+    DKS = 1,
+    ModTap = 2,
+    Toggle = 3,
+    RappySnappy = 4,
+    SOCD = 5,
+}
+
+impl From<u16> for AkcType {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => AkcType::DKS,
+            2 => AkcType::ModTap,
+            3 => AkcType::Toggle,
+            4 => AkcType::RappySnappy,
+            5 => AkcType::SOCD,
+            // TODO: can't have this
+            _ => AkcType::ModTap,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct AkcContext {
+    akc_type: AkcType,
+    actuated: bool,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub enum KeyMetadata {
     #[default]
     None,
     Basic {
-        namespace: u8,
+        namespace: KeyNamespace,
     },
 }
 
@@ -190,6 +246,13 @@ impl KeyCode {
         self.metadata = meta;
         self
     }
+
+    pub fn is_advanced_key(&self) -> bool {
+        match self.metadata {
+            KeyMetadata::None => false,
+            KeyMetadata::Basic { namespace, .. } => namespace == KeyNamespace::AKCBinding,
+        }
+    }
 }
 
 impl std::hash::Hash for KeyCode {
@@ -206,7 +269,7 @@ impl PartialEq for KeyCode {
 
 impl PartialOrd for KeyCode {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.inner.cmp(&other.inner))
+        Some(self.cmp(other))
     }
 }
 
@@ -241,6 +304,7 @@ pub enum ValueMetadata {
     Basic {
         pos: Position,
         actuated: bool,
+        akc_ctx: Option<AkcContext>,
     },
 }
 
@@ -278,6 +342,24 @@ impl AnalogValue {
     pub fn with_metadata(mut self, meta: ValueMetadata) -> Self {
         self.metadata = meta;
         self
+    }
+
+    pub fn is_position_eq(&self, other: &Self) -> bool {
+        if let ValueMetadata::Basic { pos: a, .. } = self.metadata
+            && let ValueMetadata::Basic { pos: b, .. } = other.metadata
+        {
+            a == b
+        } else {
+            false
+        }
+    }
+
+    pub fn is_actuated(&self) -> bool {
+        if let ValueMetadata::Basic { actuated, .. } = self.metadata {
+            actuated
+        } else {
+            false
+        }
     }
 }
 

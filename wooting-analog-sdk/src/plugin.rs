@@ -6,6 +6,7 @@ use hidapi::{HidApi, HidDevice};
 use log::*;
 use log::{error, info};
 use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::os::raw::{c_float, c_ushort};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,8 +17,8 @@ use std::{str, thread};
 #[cfg(feature = "virtual-input")]
 use crate::virtual_input::VirtualKeyboard;
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, KeyCode, KeyMetadata, Position,
-    SDKResult, ValueMetadata, WootingAnalogResult,
+    AkcContext, AkcType, AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, KeyCode,
+    KeyMetadata, KeyNamespace, Position, SDKResult, ValueMetadata, WootingAnalogResult,
 };
 
 #[cfg(target_os = "macos")]
@@ -220,7 +221,9 @@ impl DeviceImplementation for WootingNewFirmware {
 }
 
 #[derive(Debug, Clone)]
-struct WootingAnalogProtocolV2;
+struct WootingAnalogProtocolV2 {
+    drop_idx_scratchpad: RefCell<Vec<usize>>,
+}
 
 impl DeviceImplementation for WootingAnalogProtocolV2 {
     fn device_hardware_id(&self) -> DeviceHardwareID {
@@ -273,41 +276,73 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                 return Err(WootingAnalogResult::DeviceDisconnected).into();
             }
         }
-        Ok(Some(
-            buffer
-                .chunks_exact(4)
-                .take(max_length)
-                .filter(|&b| b[3] != 0)
-                .map(|b| {
-                    let matrix_pos = b[0];
-                    let key = b[1];
-                    let packed = b[2];
-                    let value = b[3];
 
-                    let row = (matrix_pos >> 5) & 0x07;
-                    let col = matrix_pos & 0x1F;
-                    let actuated = (packed & 0x01) != 0;
-                    let _reserved = packed >> 1;
-                    let key_namespace = (packed >> 2) & 0x0F;
-                    let value_part = (packed >> 6) & 0x03;
+        let (mut entries, akc_entries): (HashMap<_, _>, HashMap<_, _>) = buffer
+            .chunks_exact(4)
+            .take(max_length)
+            .filter(|&b| b[1] != 0)
+            .map(|b| {
+                let matrix_pos = b[0];
+                let key = b[1];
+                let packed = b[2];
+                let value = b[3];
 
-                    let value = (u16::from(value) << 2) | u16::from(value_part);
+                let row = (matrix_pos >> 5) & 0x07;
+                let col = matrix_pos & 0x1F;
+                let actuated = (packed & 0x01) != 0;
+                let _reserved = packed >> 1;
+                let key_namespace = (packed >> 2) & 0x0F;
+                let value_part = (packed >> 6) & 0x03;
 
-                    (
-                        KeyCode::from(key).with_metadata(KeyMetadata::Basic {
-                            namespace: key_namespace,
-                        }),
-                        AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
-                            ValueMetadata::Basic {
-                                pos: Position::new(col, row),
-                                actuated,
-                            },
-                        ),
-                    )
-                })
-                .collect(),
-        ))
-        .into()
+                let value = (u16::from(value) << 2) | u16::from(value_part);
+
+                (
+                    KeyCode::from(key).with_metadata(KeyMetadata::Basic {
+                        namespace: KeyNamespace::from(key_namespace),
+                    }),
+                    AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
+                        ValueMetadata::Basic {
+                            pos: Position::new(col, row),
+                            actuated,
+                            akc_ctx: None,
+                        },
+                    ),
+                )
+            })
+            .partition(|(k, _v)| !k.is_advanced_key());
+
+        for (key, value) in entries.iter_mut() {
+            if !key.is_advanced_key() {
+                let akc_entry = akc_entries
+                    .iter()
+                    .enumerate()
+                    .find(|(_idx, (k, v))| k.is_advanced_key() && v.is_position_eq(value));
+
+                if let Some((idx, (k, v))) = akc_entry {
+                    let ctx = AkcContext {
+                        akc_type: AkcType::from(k.inner),
+                        actuated: v.is_actuated(),
+                    };
+                    if let ValueMetadata::Basic { akc_ctx, .. } = &mut value.metadata {
+                        *akc_ctx = Some(ctx);
+                        self.drop_idx_scratchpad.borrow_mut().push(idx);
+                    }
+                }
+            }
+        }
+
+        for (k, v) in akc_entries
+            .into_iter()
+            .enumerate()
+            .filter(|(idx, _)| !self.drop_idx_scratchpad.borrow().contains(idx))
+            .map(|(_idx, (k, v))| (k, v))
+        {
+            entries.insert(k, v);
+        }
+
+        self.drop_idx_scratchpad.borrow_mut().clear();
+
+        Ok(Some(entries)).into()
     }
 
     fn analog_value_to_float(&self, value: u16) -> f32 {
@@ -557,7 +592,9 @@ impl WootingPlugin {
             Box::new(WootingOne),
             Box::new(WootingTwo),
             Box::new(WootingNewFirmware),
-            Box::new(WootingAnalogProtocolV2),
+            Box::new(WootingAnalogProtocolV2 {
+                drop_idx_scratchpad: RefCell::new(Vec::new()),
+            }),
         ];
         let mut hid = match HidApi::new_without_enumerate() {
             Ok(mut api) => {
