@@ -17,7 +17,7 @@ repository = "https://github.com/WootingKb/wooting-analog-sdk"
 homepage = "https://github.com/WootingKb/wooting-analog-sdk"
 keywords = ["wooting", "keyboard", "analog", "sdk"]
 publish = false
-rust-version = "1.85.1"
+rust-version = "1.88.0"
 
 [workspace.dependencies]
 log = "0.4"
