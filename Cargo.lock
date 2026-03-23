@@ -5609,7 +5609,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
 name = "wooting-analog-sdk"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "anyhow",
  "bimap",
@@ -5631,7 +5631,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-sdk-updater"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "chrono",
  "clap",
@@ -5646,7 +5646,7 @@ dependencies = [
 
 [[package]]
 name = "wooting-analog-virtual-control"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "env_logger",
  "iced",

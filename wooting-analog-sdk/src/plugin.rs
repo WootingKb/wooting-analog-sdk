@@ -306,8 +306,6 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                         ),
                     )
                 })
-                // temp to filter out AKC items
-                .filter(|(k, _v)| k.inner != 1540)
                 .collect(),
         ))
         .into()
