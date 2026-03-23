@@ -294,9 +294,10 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                     let value = (u16::from(value) << 2) | u16::from(value_part);
 
                     (
-                        KeyCode::from(key).with_metadata(KeyMetadata::Basic {
-                            namespace: key_namespace,
-                        }),
+                        KeyCode::from((u16::from(key_namespace) << 8) | u16::from(key))
+                            .with_metadata(KeyMetadata::Basic {
+                                namespace: key_namespace,
+                            }),
                         AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
                             ValueMetadata::Basic {
                                 pos: Position::new(col, row),
@@ -305,6 +306,8 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                         ),
                     )
                 })
+                // temp to filter out AKC items
+                .filter(|(k, _v)| k.inner != 1540)
                 .collect(),
         ))
         .into()
