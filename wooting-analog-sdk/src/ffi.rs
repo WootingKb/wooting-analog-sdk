@@ -2,8 +2,8 @@
 mod delegate_sys;
 
 use crate::{
-    DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeycodeType, SDKResult,
-    WootingAnalogResult, sdk::*,
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeySource, KeycodeType,
+    Position, SDKResult, ValueMetadata, WootingAnalogResult, sdk::*,
 };
 #[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
@@ -195,6 +195,39 @@ pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
     }
 
     wooting_analog_read_analog_device(code, 0)
+}
+
+// TODO: wooting_analog_read_analog_with_ctx_device ?
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_analog_with_ctx(
+    key_source: *const KeySource,
+    value: *mut AnalogValue,
+) -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_analog_with_ctx(key_source, value);
+    }
+
+    let Some(key_source) = (unsafe { key_source.as_ref() }) else {
+        return WootingAnalogResult::InvalidArgument;
+    };
+
+    match ANALOG_SDK
+        .lock()
+        .unwrap()
+        .read_analog_with_ctx(*key_source, 0)
+        .0
+    {
+        Ok(v) => {
+            if let Some(out) = unsafe { value.as_mut() } {
+                *out = v;
+                return WootingAnalogResult::Ok;
+            }
+
+            WootingAnalogResult::InvalidArgument
+        }
+        Err(e) => e,
+    }
 }
 
 /// Reads the Analog value of the key with identifier `code` from the device with id `device_id`. The set of key identifiers that is used
@@ -442,8 +475,12 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_using_sys() -> bool {
     #[cfg(feature = "dist")]
-    { *USE_SYS_DLL }
+    {
+        *USE_SYS_DLL
+    }
 
     #[cfg(not(feature = "dist"))]
-    { true }
+    {
+        true
+    }
 }

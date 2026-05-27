@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
 
 use crate::{
-    DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin, SDKResult, WootingAnalogResult,
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin, SDKResult, WootingAnalogResult
 };
 
 macro_rules! lib_wrap {
@@ -159,7 +159,17 @@ impl Plugin for CPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
-       self.read_analog(code, device)
+        self.read_analog(code, device)
+    }
+
+    fn read_analog_with_ctx(
+        &mut self,
+        _key_source: crate::KeySource,
+        _device_id: DeviceID,
+    ) -> SDKResult<AnalogValue> {
+        // TODO: for now let's assume c plugins can never supply this data
+        // can be possible if we include it as an optional function that they can implement
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
     }
 
     fn read_full_buffer(

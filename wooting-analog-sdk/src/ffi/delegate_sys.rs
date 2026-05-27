@@ -1,4 +1,6 @@
-use crate::{DeviceEventType, DeviceID, DeviceInfo_FFI, WootingAnalogResult};
+use crate::{
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeySource, WootingAnalogResult,
+};
 use libloading::Symbol;
 use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
 use std::path::{Path, PathBuf};
@@ -135,6 +137,7 @@ delegate_sys! {
     wooting_analog_uninitialise() -> WootingAnalogResult;
     wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult;
     wooting_analog_read_analog(code: c_ushort) -> c_float;
+    wooting_analog_read_analog_with_ctx(key_source: *const KeySource, value: *mut AnalogValue) -> WootingAnalogResult;
     wooting_analog_read_analog_device(code: c_ushort, device_id: DeviceID) -> c_float;
     wooting_analog_set_device_event_cb(
         cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI)

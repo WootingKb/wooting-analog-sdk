@@ -31,6 +31,8 @@ typedef enum WootingAnalogResult {
   WootingAnalogResult_IncompatibleVersion = -1991,
   /// Indicates that the Analog SDK could not be found on the system
   WootingAnalogResult_DLLNotFound = -1990,
+  /// Device does not have the required analog protocol
+  WootingAnalogResult_IncompatibleAnalogProtocol = -1989,
 } WootingAnalogResult;
 
 typedef enum WootingAnalog_DeviceEventType {
@@ -59,6 +61,64 @@ typedef enum WootingAnalog_DeviceType {
   /// Device
   WootingAnalog_DeviceType_Other = 3,
 } WootingAnalog_DeviceType;
+
+typedef struct WootingAnalog_Position {
+  uint8_t x;
+  uint8_t y;
+} WootingAnalog_Position;
+
+enum WootingAnalog_KeySource_Tag
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
+  WootingAnalog_KeySource_Code,
+  WootingAnalog_KeySource_Position,
+};
+#ifndef __cplusplus
+typedef uint8_t WootingAnalog_KeySource_Tag;
+#endif // __cplusplus
+
+typedef struct WootingAnalog_KeySource {
+  WootingAnalog_KeySource_Tag tag;
+  union {
+    struct {
+      uint16_t code;
+    };
+    struct {
+      struct WootingAnalog_Position position;
+    };
+  };
+} WootingAnalog_KeySource;
+
+enum WootingAnalog_ValueMetadata_Tag
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
+  WootingAnalog_ValueMetadata_None,
+  WootingAnalog_ValueMetadata_Basic,
+};
+#ifndef __cplusplus
+typedef uint8_t WootingAnalog_ValueMetadata_Tag;
+#endif // __cplusplus
+
+typedef struct WootingAnalog_ValueMetadata_WootingAnalog_Basic_Body {
+  struct WootingAnalog_Position pos;
+  bool actuated;
+} WootingAnalog_ValueMetadata_WootingAnalog_Basic_Body;
+
+typedef struct WootingAnalog_ValueMetadata {
+  WootingAnalog_ValueMetadata_Tag tag;
+  union {
+    WootingAnalog_ValueMetadata_WootingAnalog_Basic_Body basic;
+  };
+} WootingAnalog_ValueMetadata;
+
+typedef struct WootingAnalog_AnalogValue {
+  float inner;
+  struct WootingAnalog_ValueMetadata metadata;
+} WootingAnalog_AnalogValue;
 
 typedef uint64_t WootingAnalog_DeviceID;
 
@@ -147,6 +207,9 @@ enum WootingAnalogResult wooting_analog_set_keycode_mode(unsigned int mode);
 /// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
 /// * `WootingAnalogResult::NoDevices`: There are no connected devices
 float wooting_analog_read_analog(unsigned short code);
+
+enum WootingAnalogResult wooting_analog_read_analog_with_ctx(const struct WootingAnalog_KeySource *key_source,
+                                                             struct WootingAnalog_AnalogValue *value);
 
 /// Reads the Analog value of the key with identifier `code` from the device with id `device_id`. The set of key identifiers that is used
 /// depends on the Keycode mode set using `wooting_analog_set_mode`.

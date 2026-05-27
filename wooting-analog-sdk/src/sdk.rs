@@ -1,6 +1,9 @@
+use crate::AnalogValue;
 use crate::DeviceEventType;
 use crate::DeviceID;
 use crate::DeviceInfo;
+use crate::KeyCode;
+use crate::KeySource;
 use crate::KeycodeType;
 use crate::Plugin;
 use crate::SDKResult;
@@ -400,6 +403,46 @@ impl AnalogSDK {
         }
     }
 
+    pub fn read_analog_with_ctx(
+        &mut self,
+        mut key_source: KeySource,
+        device_id: DeviceID,
+    ) -> SDKResult<AnalogValue> {
+        if !self.initialised {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        //Try and map the given keycode to HID
+        if let KeySource::Code(ref mut code) = key_source {
+            match code_to_hid(*code, &self.keycode_mode) {
+                Some(hid_code) => *code = hid_code,
+                None => return SDKResult(Err(WootingAnalogResult::NoMapping)),
+            }
+        }
+
+        let mut value = AnalogValue::from(-1.0);
+        let mut err = WootingAnalogResult::Ok;
+
+        for p in self.plugins.iter_mut() {
+            match p.read_analog_with_ctx(key_source, device_id).into() {
+                Ok(x) => {
+                    value = value.max(x);
+                    //If we were looking to read from a specific device, we've found that read, so no need to continue
+                    if device_id != 0 {
+                        break;
+                    }
+                }
+                Err(e) => err = e,
+            }
+        }
+
+        if value < 0.0 {
+            return Err(err).into();
+        }
+
+        SDKResult(Ok(value))
+    }
+
     pub fn read_full_buffer(
         &mut self,
         max_length: usize,
@@ -458,6 +501,14 @@ impl AnalogSDK {
         }
 
         Ok(analog_data).into()
+    }
+
+    pub fn read_full_buffer_with_ctx(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        todo!()
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire

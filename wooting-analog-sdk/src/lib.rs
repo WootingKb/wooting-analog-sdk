@@ -2,9 +2,9 @@
 pub mod ffi;
 pub mod keycode;
 mod plugin;
+pub mod sdk;
 #[cfg(feature = "virtual-input")]
 mod virtual_input;
-pub mod sdk;
 
 pub use crate::plugin::Plugin;
 use enum_primitive_derive::Primitive;
@@ -152,6 +152,13 @@ impl DeviceInfo {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[repr(C, u8)]
+pub enum KeySource {
+    Code(u16),
+    Position(Position),
+}
+
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
@@ -167,6 +174,7 @@ pub enum KeycodeType {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(C, u8)]
 pub enum KeyMetadata {
     #[default]
     None,
@@ -176,6 +184,7 @@ pub enum KeyMetadata {
 }
 
 #[derive(Copy, Clone, Eq, Debug, Default)]
+#[repr(C)]
 pub struct KeyCode {
     inner: u16,
     metadata: KeyMetadata,
@@ -235,6 +244,7 @@ impl From<u16> for KeyCode {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(C, u8)]
 pub enum ValueMetadata {
     #[default]
     None,
@@ -245,6 +255,7 @@ pub enum ValueMetadata {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(C)]
 pub struct Position {
     x: u8,
     y: u8,
@@ -256,7 +267,9 @@ impl Position {
     }
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+// TODO: check all comparison impls
+#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
+#[repr(C)]
 pub struct AnalogValue {
     inner: f32,
     metadata: ValueMetadata,
@@ -281,23 +294,23 @@ impl AnalogValue {
     }
 }
 
-impl PartialEq for AnalogValue {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
 impl Eq for AnalogValue {}
-
-impl PartialOrd for AnalogValue {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
 
 impl Ord for AnalogValue {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.total_cmp(&other.inner)
+    }
+}
+
+impl PartialEq<f32> for AnalogValue {
+    fn eq(&self, other: &f32) -> bool {
+        &self.inner == other
+    }
+}
+
+impl PartialOrd<f32> for AnalogValue {
+    fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
+        self.inner.partial_cmp(other)
     }
 }
 
@@ -379,6 +392,9 @@ pub enum WootingAnalogResult {
     /// Indicates that the Analog SDK could not be found on the system
     #[error("The Wooting Analog SDK could not be found on the system")]
     DLLNotFound = -1990isize,
+    /// Device does not have the required analog protocol 
+    #[error("The device does not have the required analog protocol")]
+    IncompatibleAnalogProtocol = -1989isize,
 }
 
 impl WootingAnalogResult {
