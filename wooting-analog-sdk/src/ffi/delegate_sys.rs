@@ -1,4 +1,7 @@
-use crate::{DeviceEventType, DeviceID, DeviceInfo_FFI, WootingAnalogResult};
+use crate::{
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeyCode, KeyPosition, PhysicalKey,
+    WootingAnalogResult,
+};
 use libloading::Symbol;
 use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
 use std::path::{Path, PathBuf};
@@ -134,8 +137,17 @@ delegate_sys! {
     wooting_analog_is_initialised() -> bool;
     wooting_analog_uninitialise() -> WootingAnalogResult;
     wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult;
-    wooting_analog_read_analog(code: c_ushort) -> c_float;
     wooting_analog_read_analog_device(code: c_ushort, device_id: DeviceID) -> c_float;
+    wooting_analog_read_keycode_device(
+        keycode: c_ushort,
+        value: *mut AnalogValue,
+        device_id: DeviceID
+    ) -> WootingAnalogResult;
+    wooting_analog_read_position_device(
+        position: *mut KeyPosition,
+        physical_key: *mut PhysicalKey,
+        device_id: DeviceID
+    ) -> WootingAnalogResult;
     wooting_analog_set_device_event_cb(
         cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI)
     ) -> WootingAnalogResult;
@@ -147,6 +159,17 @@ delegate_sys! {
     wooting_analog_read_full_buffer_device(
         code_buffer: *mut c_ushort,
         analog_buffer: *mut c_float,
+        len: c_uint,
+        device_id: DeviceID
+    ) -> c_int;
+    wooting_analog_read_keycodes_device(
+        code_buffer: *mut KeyCode,
+        analog_buffer: *mut AnalogValue,
+        len: c_uint,
+        device_id: DeviceID
+    ) -> c_int;
+    wooting_analog_read_positions_device(
+        physical_keys: *mut PhysicalKey,
         len: c_uint,
         device_id: DeviceID
     ) -> c_int;

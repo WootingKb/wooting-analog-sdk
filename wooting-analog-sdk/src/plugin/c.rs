@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
 
 use crate::{
-    DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin, SDKResult, WootingAnalogResult,
+    AnalogData, AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin,
+    SDKResult, WootingAnalogResult,
 };
 
 macro_rules! lib_wrap {
@@ -159,7 +160,27 @@ impl Plugin for CPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
-       self.read_analog(code, device)
+        self.read_analog(code, device)
+    }
+
+    fn read_keycode(
+        &mut self,
+        _code: crate::KeyCode,
+        _device_id: DeviceID,
+    ) -> SDKResult<AnalogValue> {
+        // TODO: for now let's assume c plugins can not yet supply this data
+        // can easily be included via an optional fn in plugin.h 
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
+    }
+
+    fn read_position(
+        &mut self,
+        _position: crate::KeyPosition,
+        _device_id: DeviceID,
+    ) -> SDKResult<crate::PhysicalKey> {
+        // TODO: for now let's assume c plugins can not yet supply this data
+        // can easily be included via an optional fn in plugin.h 
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
     }
 
     fn read_full_buffer(
@@ -196,6 +217,12 @@ impl Plugin for CPlugin {
         Ok(analog_data).into()
     }
 
+    fn read_full_buffer_with_ctx(&mut self, _device: DeviceID) -> SDKResult<AnalogData> {
+        // TODO: for now let's assume c plugins can never supply this data
+        // can be possible if we include it as an optional function that they can implement
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
+    }
+
     fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
         let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
 
@@ -230,5 +257,21 @@ impl Plugin for CPlugin {
                 ));
             }
         }
+    }
+
+    fn read_keycodes(
+        &mut self,
+        _max_length: usize,
+        _device_id: DeviceID,
+    ) -> SDKResult<HashMap<crate::KeyCode, AnalogValue>> {
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
+    }
+
+    fn read_positions(
+        &mut self,
+        _max_length: usize,
+        _device_id: DeviceID,
+    ) -> SDKResult<HashMap<crate::KeyPosition, crate::PhysicalKey>> {
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
     }
 }

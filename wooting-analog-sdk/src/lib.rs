@@ -2,9 +2,9 @@
 pub mod ffi;
 pub mod keycode;
 mod plugin;
+pub mod sdk;
 #[cfg(feature = "virtual-input")]
 mod virtual_input;
-pub mod sdk;
 
 pub use crate::plugin::Plugin;
 use enum_primitive_derive::Primitive;
@@ -12,6 +12,7 @@ use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::hash::Hasher;
 use std::ops::Deref;
@@ -166,19 +167,45 @@ pub enum KeycodeType {
     VirtualKeyTranslate = 3,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[repr(C)]
+pub enum KeyNamespace {
+    HidNormal = 1,
+    HidFunction = 3,
+    CustomFunction = 4,
+    GamepadBinding = 5,
+    AdvancedKey = 6,
+}
+
+impl From<u8> for KeyNamespace {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => KeyNamespace::HidNormal,
+            3 => KeyNamespace::HidFunction,
+            4 => KeyNamespace::CustomFunction,
+            5 => KeyNamespace::GamepadBinding,
+            6 => KeyNamespace::AdvancedKey,
+            // TODO: will apply error handling when reworking the Rust API
+            _ => unreachable!("missing or invalid key namespace: {value}"),
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(C, u8)]
 pub enum KeyMetadata {
     #[default]
     None,
     Basic {
-        namespace: u8,
+        namespace: KeyNamespace,
     },
 }
 
 #[derive(Copy, Clone, Eq, Debug, Default)]
+#[repr(C)]
 pub struct KeyCode {
-    inner: u16,
-    metadata: KeyMetadata,
+    pub(crate) inner: u16,
+    pub(crate) metadata: KeyMetadata,
 }
 
 impl KeyCode {
@@ -189,6 +216,16 @@ impl KeyCode {
     pub fn with_metadata(mut self, meta: KeyMetadata) -> Self {
         self.metadata = meta;
         self
+    }
+
+    pub fn is_advanced_key(&self) -> bool {
+        matches!(
+            self.metadata,
+            KeyMetadata::Basic {
+                namespace: KeyNamespace::AdvancedKey,
+                ..
+            }
+        )
     }
 }
 
@@ -234,32 +271,42 @@ impl From<u16> for KeyCode {
     }
 }
 
+impl From<KeyCode> for u16 {
+    fn from(value: KeyCode) -> Self {
+        value.inner
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(C, u8)]
 pub enum ValueMetadata {
     #[default]
     None,
     Basic {
-        pos: Position,
+        pos: KeyPosition,
         actuated: bool,
     },
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct Position {
+#[repr(C)]
+pub struct KeyPosition {
     x: u8,
     y: u8,
 }
 
-impl Position {
+impl KeyPosition {
     pub fn new(x: u8, y: u8) -> Self {
         Self { x, y }
     }
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+// TODO: check all comparison impls
+#[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
+#[repr(C)]
 pub struct AnalogValue {
-    inner: f32,
-    metadata: ValueMetadata,
+    pub(crate) inner: f32,
+    pub(crate) metadata: ValueMetadata,
 }
 
 impl AnalogValue {
@@ -281,23 +328,23 @@ impl AnalogValue {
     }
 }
 
-impl PartialEq for AnalogValue {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
 impl Eq for AnalogValue {}
-
-impl PartialOrd for AnalogValue {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
 
 impl Ord for AnalogValue {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.total_cmp(&other.inner)
+    }
+}
+
+impl PartialEq<f32> for AnalogValue {
+    fn eq(&self, other: &f32) -> bool {
+        &self.inner == other
+    }
+}
+
+impl PartialOrd<f32> for AnalogValue {
+    fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
+        self.inner.partial_cmp(other)
     }
 }
 
@@ -308,6 +355,169 @@ impl From<f32> for AnalogValue {
             metadata: ValueMetadata::None,
         }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AnalogData {
+    keycode_based: HashMap<KeyCode, AnalogValue>,
+    position_based: HashMap<KeyPosition, PhysicalKey>,
+}
+
+// everything on this struct is pub but most likely this will be an internal type only
+// i'll leave it for now but in the next PR this will all be hidden away properly
+impl AnalogData {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            keycode_based: HashMap::with_capacity(capacity),
+            position_based: HashMap::with_capacity(capacity),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.keycode_based.is_empty() && self.position_based.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.keycode_based.len() + self.position_based.len()
+    }
+
+    pub fn insert_keycode_based(&mut self, code: KeyCode, value: AnalogValue) {
+        self.keycode_based
+            .entry(code)
+            .and_modify(|existing| {
+                if &value > existing {
+                    *existing = value;
+                }
+            })
+            .or_insert(value);
+    }
+
+    pub fn insert_position_based(&mut self, physical_key: PhysicalKey) {
+        self.position_based
+            .entry(physical_key.pos)
+            .and_modify(|existing| {
+                if physical_key.max_value() > existing.max_value() {
+                    *existing = physical_key;
+                }
+            })
+            .or_insert(physical_key);
+    }
+
+    pub fn push_v2_state(&mut self, position: KeyPosition, state: KeyState) {
+        self.position_based
+            .entry(position)
+            .and_modify(|existing| {
+                existing.push_state(state);
+            })
+            .or_insert_with(|| {
+                let mut pk = PhysicalKey::new(position);
+                pk.push_state(state);
+                pk
+            });
+    }
+
+    pub fn merge(&mut self, other: AnalogData) {
+        for (keycode, value) in other.keycode_based {
+            self.insert_keycode_based(keycode, value);
+        }
+        for (_, pk) in other.position_based {
+            self.insert_position_based(pk);
+        }
+    }
+}
+
+impl From<Vec<Key>> for AnalogData {
+    fn from(keys: Vec<Key>) -> Self {
+        let mut data = Self::new();
+
+        for key in keys {
+            if let ValueMetadata::Basic { pos, actuated } = key.value.metadata {
+                let key_state = KeyState {
+                    value: key.value.inner,
+                    keycode: key.code,
+                    actuated,
+                };
+                data.push_v2_state(pos, key_state);
+            }
+
+            data.insert_keycode_based(key.code, key.value);
+        }
+
+        data
+    }
+}
+
+// should not be publicly accessible
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
+#[repr(C)]
+pub(crate) struct Key {
+    pub(crate) code: KeyCode,
+    pub(crate) value: AnalogValue,
+}
+
+/// Maximum number of active binds per physical key (DKS has 4 underlying binds + advanced key entry)
+pub const MAX_KEY_STATES: u8 = 5;
+
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+#[repr(C)]
+pub struct PhysicalKey {
+    pub(crate) pos: KeyPosition,
+    pub(crate) state_count: u8,
+    pub(crate) states: [KeyState; MAX_KEY_STATES as usize],
+}
+
+impl Default for PhysicalKey {
+    fn default() -> Self {
+        Self {
+            pos: KeyPosition::default(),
+            state_count: 0,
+            states: [KeyState::default(); MAX_KEY_STATES as usize],
+        }
+    }
+}
+
+impl PhysicalKey {
+    pub(crate) fn new(pos: KeyPosition) -> Self {
+        Self {
+            pos,
+            state_count: 0,
+            states: [KeyState::default(); MAX_KEY_STATES as usize],
+        }
+    }
+
+    pub(crate) fn push_state(&mut self, state: KeyState) -> bool {
+        if self.state_count < MAX_KEY_STATES {
+            self.states[self.state_count as usize] = state;
+            self.state_count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn states(&self) -> &[KeyState] {
+        &self.states[..self.state_count as usize]
+    }
+
+    pub(crate) fn max_value(&self) -> f32 {
+        self.states().iter().map(|s| s.value).fold(0.0, f32::max)
+    }
+
+    pub(crate) fn is_advanced_key(&self) -> bool {
+        self.states.iter().any(|s| s.keycode.is_advanced_key())
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
+#[repr(C)]
+pub struct KeyState {
+    pub(crate) value: f32,
+    pub(crate) keycode: KeyCode,
+    pub(crate) actuated: bool,
 }
 
 pub type DeviceID = u64;

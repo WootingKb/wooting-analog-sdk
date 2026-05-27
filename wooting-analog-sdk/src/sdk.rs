@@ -1,7 +1,12 @@
+use crate::AnalogData;
+use crate::AnalogValue;
 use crate::DeviceEventType;
 use crate::DeviceID;
 use crate::DeviceInfo;
+use crate::KeyCode;
+use crate::KeyPosition;
 use crate::KeycodeType;
+use crate::PhysicalKey;
 use crate::Plugin;
 use crate::SDKResult;
 use crate::WootingAnalogResult;
@@ -458,6 +463,129 @@ impl AnalogSDK {
         }
 
         Ok(analog_data).into()
+    }
+
+    pub(crate) fn read_keycode(&mut self, code: u16, device_id: DeviceID) -> SDKResult<AnalogValue> {
+        if !self.initialised {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        let Some(hid_code) = crate::keycode::code_to_hid(code, &self.keycode_mode) else {
+            return Err(WootingAnalogResult::NoMapping).into();
+        };
+
+        let mut value = AnalogValue::from(-1.0);
+        let mut err = WootingAnalogResult::Ok;
+
+        for p in self.plugins.iter_mut() {
+            match p.read_keycode(KeyCode::from(hid_code), device_id).into() {
+                Ok(x) => {
+                    value = value.max(x);
+                    if device_id != 0 {
+                        break;
+                    }
+                }
+                Err(e) => err = e,
+            }
+        }
+
+        if value < 0.0 {
+            return Err(err).into();
+        }
+
+        SDKResult(Ok(value))
+    }
+
+    pub(crate) fn read_position(
+        &mut self,
+        position: KeyPosition,
+        device_id: DeviceID,
+    ) -> SDKResult<PhysicalKey> {
+        if !self.initialised {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        let mut result = PhysicalKey::new(position);
+        let mut err = WootingAnalogResult::Ok;
+
+        for p in self.plugins.iter_mut() {
+            match p.read_position(position, device_id).into() {
+                Ok(pk) => {
+                    for i in 0..pk.state_count {
+                        result.push_state(pk.states[i as usize]);
+                    }
+                    if device_id != 0 {
+                        break;
+                    }
+                }
+                Err(e) => err = e,
+            }
+        }
+
+        if result.state_count == 0 {
+            return Err(err).into();
+        }
+
+        SDKResult(Ok(result))
+    }
+
+    pub(crate) fn inputs(&mut self, device_id: DeviceID) -> SDKResult<AnalogData> {
+        if !self.initialised {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        let mut combined = AnalogData::new();
+        let mut err = WootingAnalogResult::Ok;
+        let mut any_success = false;
+
+        for p in self.plugins.iter_mut() {
+            match p.read_full_buffer_with_ctx(device_id).into() {
+                Ok(plugin_data) => {
+                    combined.merge(plugin_data);
+                    any_success = true;
+                }
+                Err(e) => {
+                    err = e;
+                }
+            }
+
+            // If looking for a specific device, break after first successful read
+            if device_id != 0 && any_success {
+                break;
+            }
+        }
+
+        if !any_success {
+            return Err(err).into();
+        }
+
+        Ok(combined).into()
+    }
+
+    // TODO: hide hashmap impl detail behind opaque struct
+    // will probably be -> InputsPosition { .. }
+    // could even try Inputs<Position> ?
+    pub(crate) fn read_positions(
+        &mut self,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyPosition, PhysicalKey>> {
+        self.inputs(device_id)
+            .0
+            .map(|data| data.position_based)
+            .into()
+    }
+
+    // TODO: hide hashmap impl detail behind opaque struct
+    // will probably be -> InputsKeyCode { .. }
+    // could even try Inputs<KeyCode> ?
+    pub(crate) fn read_keycodes(
+        &mut self,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        self.inputs(device_id)
+            .0
+            .map(|data| data.keycode_based)
+            .into()
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire

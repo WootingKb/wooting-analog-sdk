@@ -16,8 +16,9 @@ use std::{str, thread};
 #[cfg(feature = "virtual-input")]
 use crate::virtual_input::VirtualKeyboard;
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, KeyCode, KeyMetadata, Position,
-    SDKResult, ValueMetadata, WootingAnalogResult,
+    AnalogData, AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, Key, KeyCode,
+    KeyMetadata, KeyNamespace, KeyPosition, KeyState, PhysicalKey, SDKResult, ValueMetadata,
+    WootingAnalogResult,
 };
 
 #[cfg(target_os = "macos")]
@@ -57,7 +58,15 @@ pub trait Plugin {
 
     /// Function called to get the analog value for a particular HID key `code` from the device with ID `device`.
     /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
-    fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32>;
+    fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32>;
+
+    fn read_keycode(&mut self, code: KeyCode, device_id: DeviceID) -> SDKResult<AnalogValue>;
+
+    fn read_position(
+        &mut self,
+        position: KeyPosition,
+        device_id: DeviceID,
+    ) -> SDKResult<PhysicalKey>;
 
     /// Function called to get the full analog read buffer for a particular device with ID `device`. `max_length` is the maximum amount
     /// of keys that can be accepted, any more beyond this will be ignored by the SDK.
@@ -67,6 +76,20 @@ pub trait Plugin {
         max_length: usize,
         device: DeviceID,
     ) -> SDKResult<HashMap<c_ushort, c_float>>;
+
+    fn read_full_buffer_with_ctx(&mut self, device_id: DeviceID) -> SDKResult<AnalogData>;
+
+    fn read_keycodes(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>>;
+
+    fn read_positions(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyPosition, PhysicalKey>>;
 }
 
 const ANALOG_BUFFER_SIZE_V1: usize = 48;
@@ -153,7 +176,7 @@ trait DeviceImplementation: DynClone + Send {
         &self,
         _device: &HidDevice,
         _max_length: usize,
-    ) -> SDKResult<Option<HashMap<KeyCode, AnalogValue>>> {
+    ) -> SDKResult<Option<Vec<Key>>> {
         SDKResult(Ok(None))
     }
 
@@ -242,7 +265,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                 Ok(data) => match data {
                     Some(data) => Ok(Some(
                         data.iter()
-                            .map(|(k, v)| (k.as_u16(), v.as_f32()))
+                            .map(|k| (k.code.as_u16(), k.value.as_f32()))
                             .collect::<HashMap<c_ushort, c_float>>(),
                     )),
                     None => Ok(None),
@@ -256,7 +279,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
         &self,
         device: &HidDevice,
         max_length: usize,
-    ) -> SDKResult<Option<HashMap<KeyCode, AnalogValue>>> {
+    ) -> SDKResult<Option<Vec<Key>>> {
         let mut buffer: [u8; ANALOG_BUFFER_SIZE_V2] = [0; ANALOG_BUFFER_SIZE_V2];
         let res = device.read_timeout(&mut buffer, 50);
 
@@ -293,18 +316,18 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
 
                     let value = (u16::from(value) << 2) | u16::from(value_part);
 
-                    (
-                        KeyCode::from((u16::from(key_namespace) << 8) | u16::from(key))
+                    Key {
+                        code: KeyCode::from((u16::from(key_namespace) << 8) | u16::from(key))
                             .with_metadata(KeyMetadata::Basic {
-                                namespace: key_namespace,
+                                namespace: KeyNamespace::from(key_namespace),
                             }),
-                        AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
+                        value: AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
                             ValueMetadata::Basic {
-                                pos: Position::new(col, row),
+                                pos: KeyPosition::new(col, row),
                                 actuated,
                             },
                         ),
-                    )
+                    }
                 })
                 .collect(),
         ))
@@ -319,9 +342,9 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
 /// A fully contained device which uses `device_impl` to interface with the `device`
 struct Device {
     pub device_info: DeviceInfo,
-    buffer: Arc<Mutex<HashMap<KeyCode, AnalogValue>>>,
+    buffer: Arc<Mutex<Vec<Key>>>,
     connected: Arc<AtomicBool>,
-    pressed_keys: Vec<KeyCode>,
+    pressed_keys: Vec<Key>,
     worker: Option<JoinHandle<i32>>,
 }
 unsafe impl Send for Device {}
@@ -334,7 +357,7 @@ impl Device {
     ) -> (DeviceID, Self) {
         let id_hash = device_impl.get_device_id(device_info);
 
-        let buffer: Arc<Mutex<HashMap<KeyCode, AnalogValue>>> = Default::default();
+        let buffer: Arc<Mutex<Vec<Key>>> = Default::default();
         let connected = Arc::new(AtomicBool::new(true));
 
         let worker = {
@@ -357,8 +380,9 @@ impl Device {
                                     if let Some(data) = data {
                                         let mut map = t_buffer.lock().unwrap();
                                         map.clear();
-                                        map.extend(data.iter().map(|(k, v)| {
-                                            (KeyCode::from(*k), AnalogValue::from(*v))
+                                        map.extend(data.iter().map(|(k, v)| Key {
+                                            code: KeyCode::from(*k),
+                                            value: AnalogValue::from(*v),
                                         }));
                                     }
                                 }
@@ -429,26 +453,54 @@ impl Device {
         )
     }
 
-    fn read_analog_with_ctx(&mut self, code: KeyCode) -> SDKResult<AnalogValue> {
-        SDKResult(Ok(*self
-            .buffer
-            .lock()
-            .unwrap()
-            .get(&code)
-            .unwrap_or(&AnalogValue::default())))
+    fn read_keycode(&mut self, code: KeyCode) -> SDKResult<AnalogValue> {
+        let buffer_guard = self.buffer.lock().unwrap();
+
+        let value = buffer_guard
+            .iter()
+            .find(|k| k.code == code)
+            .map(|k| k.value)
+            .unwrap_or_default();
+
+        SDKResult(Ok(value))
     }
 
-    fn read_full_with_ctx(&mut self) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
-        let mut buffer = self.buffer.lock().unwrap().clone();
-        //Collect the new pressed keys
-        let new_pressed_keys: Vec<KeyCode> = buffer.keys().cloned().collect();
+    fn read_position(&mut self, position: KeyPosition) -> SDKResult<PhysicalKey> {
+        let buffer_guard = self.buffer.lock().unwrap();
 
-        //Put the old pressed keys into the buffer
-        for key in self.pressed_keys.drain(..) {
-            buffer.entry(key).or_default();
+        let mut physical_key = PhysicalKey::new(position);
+
+        for key in buffer_guard.iter() {
+            if let ValueMetadata::Basic { pos, actuated } = key.value.metadata {
+                if pos == position {
+                    physical_key.push_state(KeyState {
+                        value: key.value.inner,
+                        keycode: key.code,
+                        actuated,
+                    });
+                }
+            }
         }
 
-        //Store the newPressedKeys for the next call
+        SDKResult(Ok(physical_key))
+    }
+
+    fn read_full_with_ctx(&mut self) -> SDKResult<Vec<Key>> {
+        let mut buffer = self.buffer.lock().unwrap().clone();
+        let new_pressed_keys = buffer.clone();
+
+        // Build set of current keycodes for O(1) lookup
+        let current_codes: std::collections::HashSet<KeyCode> =
+            buffer.iter().map(|k| k.code).collect();
+
+        // Add old pressed keys that are no longer pressed (for key release detection)
+        for key in self.pressed_keys.drain(..) {
+            if !current_codes.contains(&key.code) {
+                buffer.push(key)
+            }
+        }
+
+        // Store only the currently pressed keys for the next call
         self.pressed_keys = new_pressed_keys;
 
         Ok(buffer).into()
@@ -680,6 +732,13 @@ impl Plugin for WootingPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
+        match self.read_keycode(KeyCode::from(code), device_id).0 {
+            Ok(v) => v.inner.into(),
+            Err(e) => Err(e).into(),
+        }
+    }
+
+    fn read_keycode(&mut self, code: KeyCode, device_id: DeviceID) -> SDKResult<AnalogValue> {
         if !self.initialised.load(Ordering::Relaxed) {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
@@ -688,35 +747,66 @@ impl Plugin for WootingPlugin {
             return Err(WootingAnalogResult::NoDevices).into();
         }
 
-        //If the Device ID is 0 we want to go through all the connected devices
-        //and combine the analog values
         if device_id == 0 {
-            let mut analog: f32 = -1.0;
-            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+            let mut analog = AnalogValue::from(-1.0);
+            let mut error = WootingAnalogResult::Ok;
+
             for (_id, device) in self.devices.lock().unwrap().iter_mut() {
-                match device.read_analog_with_ctx(code.into()).into() {
-                    Ok(val) => {
-                        analog = analog.max(val.as_f32());
-                    }
-                    Err(e) => {
-                        error = e;
-                    }
+                match device.read_keycode(code).into() {
+                    Ok(value) => analog = analog.max(value),
+                    Err(e) => error = e,
                 }
             }
 
             if analog < 0.0 {
                 Err(error).into()
             } else {
-                analog.into()
+                SDKResult(Ok(analog))
             }
-        } else
-        //If the device id is not 0, we try and find a connected device with that ID and read from it
-        {
+        } else {
             match self.devices.lock().unwrap().get_mut(&device_id) {
-                Some(device) => match device.read_analog_with_ctx(code.into()).into() {
-                    Ok(val) => val.as_f32().into(),
-                    Err(e) => Err(e).into(),
-                },
+                Some(device) => device.read_keycode(code),
+                None => Err(WootingAnalogResult::NoDevices).into(),
+            }
+        }
+    }
+
+    fn read_position(
+        &mut self,
+        position: KeyPosition,
+        device_id: DeviceID,
+    ) -> SDKResult<PhysicalKey> {
+        if !self.initialised.load(Ordering::Relaxed) {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        if self.devices.lock().unwrap().is_empty() {
+            return Err(WootingAnalogResult::NoDevices).into();
+        }
+
+        if device_id == 0 {
+            let mut result = PhysicalKey::new(position);
+            let mut error = WootingAnalogResult::Ok;
+
+            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+                match device.read_position(position).into() {
+                    Ok(pk) => {
+                        for i in 0..pk.state_count {
+                            result.push_state(pk.states[i as usize]);
+                        }
+                    }
+                    Err(e) => error = e,
+                }
+            }
+
+            if result.state_count == 0 {
+                Err(error).into()
+            } else {
+                SDKResult(Ok(result))
+            }
+        } else {
+            match self.devices.lock().unwrap().get_mut(&device_id) {
+                Some(device) => device.read_position(position),
                 None => Err(WootingAnalogResult::NoDevices).into(),
             }
         }
@@ -744,7 +834,7 @@ impl Plugin for WootingPlugin {
             for (_id, device) in self.devices.lock().unwrap().iter_mut() {
                 match device.read_full_with_ctx().into() {
                     Ok(val) => {
-                        for (k, v) in val.iter().map(|(k, v)| (k.as_u16(), v.as_f32())) {
+                        for (k, v) in val.iter().map(|k| (k.code.as_u16(), k.value.as_f32())) {
                             analog
                                 .entry(k)
                                 .and_modify(|value| {
@@ -753,8 +843,8 @@ impl Plugin for WootingPlugin {
                                     }
                                 })
                                 .or_insert(v);
-                            any_read = true;
                         }
+                        any_read = true;
                     }
                     Err(e) => {
                         error = e;
@@ -782,9 +872,190 @@ impl Plugin for WootingPlugin {
         {
             match self.devices.lock().unwrap().get_mut(&device_id) {
                 Some(device) => match device.read_full_with_ctx().into() {
-                    Ok(val) => {
-                        Ok(val.iter().map(|(k, v)| (k.as_u16(), v.as_f32())).collect()).into()
+                    Ok(val) => Ok(val
+                        .iter()
+                        .map(|k| (k.code.as_u16(), k.value.as_f32()))
+                        .collect())
+                    .into(),
+                    Err(e) => Err(e).into(),
+                },
+                None => Err(WootingAnalogResult::NoDevices).into(),
+            }
+        }
+    }
+
+    fn read_full_buffer_with_ctx(&mut self, device_id: DeviceID) -> SDKResult<AnalogData> {
+        if !self.initialised.load(Ordering::Relaxed) {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        if self.devices.lock().unwrap().is_empty() {
+            return Err(WootingAnalogResult::NoDevices).into();
+        }
+
+        // If the Device ID is 0 we want to go through all the connected devices
+        // and combine the analog values
+        if device_id == 0 {
+            let mut combined = AnalogData::new();
+            let mut any_read = false;
+            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+
+            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+                match device.read_full_with_ctx().into() {
+                    Ok(keys) => {
+                        let device_data = AnalogData::from(keys);
+                        combined.merge(device_data);
+                        any_read = true;
                     }
+                    Err(e) => {
+                        error = e;
+                    }
+                }
+            }
+
+            if !any_read {
+                Err(error).into()
+            } else {
+                // TODO: convert virtual keyboard to use KeyCode and AnalogValue
+                // #[cfg(feature = "virtual-input")]
+                // self.virtual_keyboard.iter_over(|iter| {
+                //     for (key, value) in iter {
+                //         analog
+                //             .entry(*key)
+                //             .and_modify(|v| *v = v.max(*value))
+                //             .or_insert(*value);
+                //     }
+                // });
+
+                Ok(combined).into()
+            }
+        } else {
+            // If the device id is not 0, we try and find a connected device with that ID and read from it
+            match self.devices.lock().unwrap().get_mut(&device_id) {
+                Some(device) => match device.read_full_with_ctx().into() {
+                    Ok(keys) => Ok(AnalogData::from(keys)).into(),
+                    Err(e) => Err(e).into(),
+                },
+                None => Err(WootingAnalogResult::NoDevices).into(),
+            }
+        }
+    }
+
+    fn read_keycodes(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        if !self.initialised.load(Ordering::Relaxed) {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        if self.devices.lock().unwrap().is_empty() {
+            return Err(WootingAnalogResult::NoDevices).into();
+        }
+
+        // If the Device ID is 0 we want to go through all the connected devices
+        // and combine the analog values
+        if device_id == 0 {
+            let mut combined = AnalogData::new();
+            let mut any_read = false;
+            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+
+            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+                match device.read_full_with_ctx().into() {
+                    Ok(keys) => {
+                        let device_data = AnalogData::from(keys);
+                        combined.merge(device_data);
+                        any_read = true;
+                    }
+                    Err(e) => {
+                        error = e;
+                    }
+                }
+            }
+
+            if !any_read {
+                Err(error).into()
+            } else {
+                // TODO: convert virtual keyboard to use KeyCode and AnalogValue
+                // #[cfg(feature = "virtual-input")]
+                // self.virtual_keyboard.iter_over(|iter| {
+                //     for (key, value) in iter {
+                //         analog
+                //             .entry(*key)
+                //             .and_modify(|v| *v = v.max(*value))
+                //             .or_insert(*value);
+                //     }
+                // });
+
+                Ok(combined.keycode_based).into()
+            }
+        } else {
+            // If the device id is not 0, we try and find a connected device with that ID and read from it
+            match self.devices.lock().unwrap().get_mut(&device_id) {
+                Some(device) => match device.read_full_with_ctx().into() {
+                    Ok(keys) => Ok(AnalogData::from(keys).keycode_based).into(),
+                    Err(e) => Err(e).into(),
+                },
+                None => Err(WootingAnalogResult::NoDevices).into(),
+            }
+        }
+    }
+
+    fn read_positions(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyPosition, PhysicalKey>> {
+        if !self.initialised.load(Ordering::Relaxed) {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        if self.devices.lock().unwrap().is_empty() {
+            return Err(WootingAnalogResult::NoDevices).into();
+        }
+
+        // If the Device ID is 0 we want to go through all the connected devices
+        // and combine the analog values
+        if device_id == 0 {
+            let mut combined = AnalogData::new();
+            let mut any_read = false;
+            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+
+            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+                match device.read_full_with_ctx().into() {
+                    Ok(keys) => {
+                        let device_data = AnalogData::from(keys);
+                        combined.merge(device_data);
+                        any_read = true;
+                    }
+                    Err(e) => {
+                        error = e;
+                    }
+                }
+            }
+
+            if !any_read {
+                Err(error).into()
+            } else {
+                // TODO: convert virtual keyboard to use KeyCode and AnalogValue
+                // #[cfg(feature = "virtual-input")]
+                // self.virtual_keyboard.iter_over(|iter| {
+                //     for (key, value) in iter {
+                //         analog
+                //             .entry(*key)
+                //             .and_modify(|v| *v = v.max(*value))
+                //             .or_insert(*value);
+                //     }
+                // });
+
+                Ok(combined.position_based).into()
+            }
+        } else {
+            // If the device id is not 0, we try and find a connected device with that ID and read from it
+            match self.devices.lock().unwrap().get_mut(&device_id) {
+                Some(device) => match device.read_full_with_ctx().into() {
+                    Ok(keys) => Ok(AnalogData::from(keys).position_based).into(),
                     Err(e) => Err(e).into(),
                 },
                 None => Err(WootingAnalogResult::NoDevices).into(),
