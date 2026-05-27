@@ -59,7 +59,6 @@ pub trait Plugin {
     /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32>;
 
-    // TODO: return type - might want a AnalogV2Value or something and convert AnalogValue to that.
     fn read_analog_with_ctx(
         &mut self,
         key_source: KeySource,
@@ -74,17 +73,13 @@ pub trait Plugin {
         max_length: usize,
         device: DeviceID,
     ) -> SDKResult<HashMap<c_ushort, c_float>>;
-}
 
-// // TODO: prototype
-// #[derive(Debug)]
-// #[repr(C)]
-// pub struct AnalogV2Value {
-//     pub actuated: bool,
-//     pub position: Position,
-//     pub value: f32,
-//     // TODO: akc_active: bool
-// }
+    fn read_full_buffer_with_ctx(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>>;
+}
 
 const ANALOG_BUFFER_SIZE_V1: usize = 48;
 const ANALOG_BUFFER_SIZE_V2: usize = 64;
@@ -448,7 +443,7 @@ impl Device {
 
     fn read_analog_with_ctx(&mut self, key_source: KeySource) -> SDKResult<AnalogValue> {
         let value = match key_source {
-            KeySource::Code(code) => *self
+            KeySource::Raw(code) => *self
                 .buffer
                 .lock()
                 .unwrap()
@@ -718,7 +713,7 @@ impl Plugin for WootingPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
-        let value = self.read_analog_with_ctx(KeySource::Code(code), device_id);
+        let value = self.read_analog_with_ctx(KeySource::Raw(code), device_id);
 
         match value.0 {
             Ok(v) => v.inner.into(),
@@ -834,6 +829,75 @@ impl Plugin for WootingPlugin {
                     Ok(val) => {
                         Ok(val.iter().map(|(k, v)| (k.as_u16(), v.as_f32())).collect()).into()
                     }
+                    Err(e) => Err(e).into(),
+                },
+                None => Err(WootingAnalogResult::NoDevices).into(),
+            }
+        }
+    }
+
+    fn read_full_buffer_with_ctx(
+        &mut self,
+        max_length: usize,
+        device_id: DeviceID,
+    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+        if !self.initialised.load(Ordering::Relaxed) {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        if self.devices.lock().unwrap().is_empty() {
+            return Err(WootingAnalogResult::NoDevices).into();
+        }
+
+        //If the Device ID is 0 we want to go through all the connected devices
+        //and combine the analog values
+        if device_id == 0 {
+            let mut analog = HashMap::new();
+            let mut any_read = false;
+            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+                match device.read_full_with_ctx().into() {
+                    Ok(val) => {
+                        for (k, v) in val {
+                            analog
+                                .entry(k)
+                                .and_modify(|value| {
+                                    if &v > value {
+                                        *value = v;
+                                    }
+                                })
+                                .or_insert(v);
+                            any_read = true;
+                        }
+                    }
+                    Err(e) => {
+                        error = e;
+                    }
+                }
+            }
+
+            if !any_read {
+                Err(error).into()
+            } else {
+                // TODO: convert virtual keyboard to use KeyCode and AnalogValue
+                // #[cfg(feature = "virtual-input")]
+                // self.virtual_keyboard.iter_over(|iter| {
+                //     for (key, value) in iter {
+                //         analog
+                //             .entry(*key)
+                //             .and_modify(|v| *v = v.max(*value))
+                //             .or_insert(*value);
+                //     }
+                // });
+
+                Ok(analog).into()
+            }
+        } else
+        //If the device id is not 0, we try and find a connected device with that ID and read from it
+        {
+            match self.devices.lock().unwrap().get_mut(&device_id) {
+                Some(device) => match device.read_full_with_ctx().into() {
+                    Ok(val) => Ok(val).into(),
                     Err(e) => Err(e).into(),
                 },
                 None => Err(WootingAnalogResult::NoDevices).into(),

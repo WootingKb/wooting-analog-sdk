@@ -72,7 +72,7 @@ enum WootingAnalog_KeySource_Tag
   : uint8_t
 #endif // __cplusplus
  {
-  WootingAnalog_KeySource_Code,
+  WootingAnalog_KeySource_Raw,
   WootingAnalog_KeySource_Position,
 };
 #ifndef __cplusplus
@@ -83,7 +83,7 @@ typedef struct WootingAnalog_KeySource {
   WootingAnalog_KeySource_Tag tag;
   union {
     struct {
-      uint16_t code;
+      uint16_t raw;
     };
     struct {
       struct WootingAnalog_Position position;
@@ -140,6 +140,34 @@ typedef struct WootingAnalog_DeviceInfo_FFI {
   /// Hardware type of the Device see `DeviceType` enum
   WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo_FFI;
+
+enum WootingAnalog_KeyMetadata_Tag
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
+  WootingAnalog_KeyMetadata_None,
+  WootingAnalog_KeyMetadata_Basic,
+};
+#ifndef __cplusplus
+typedef uint8_t WootingAnalog_KeyMetadata_Tag;
+#endif // __cplusplus
+
+typedef struct WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body {
+  uint8_t namespace_;
+} WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body;
+
+typedef struct WootingAnalog_KeyMetadata {
+  WootingAnalog_KeyMetadata_Tag tag;
+  union {
+    WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body basic;
+  };
+} WootingAnalog_KeyMetadata;
+
+typedef struct WootingAnalog_KeyCode {
+  uint16_t inner;
+  struct WootingAnalog_KeyMetadata metadata;
+} WootingAnalog_KeyCode;
 
 #ifdef __cplusplus
 extern "C" {
@@ -279,6 +307,10 @@ int wooting_analog_read_full_buffer(unsigned short *code_buffer,
                                     float *analog_buffer,
                                     unsigned int len);
 
+int wooting_analog_read_full_buffer_with_ctx(struct WootingAnalog_KeyCode *code_buffer,
+                                             struct WootingAnalog_AnalogValue *analog_buffer,
+                                             unsigned int len);
+
 /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
 /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
 /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
@@ -299,6 +331,11 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            float *analog_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
+
+int wooting_analog_read_full_buffer_with_ctx_device(struct WootingAnalog_KeyCode *code_buffer,
+                                                    struct WootingAnalog_AnalogValue *analog_buffer,
+                                                    unsigned int len,
+                                                    WootingAnalog_DeviceID device_id);
 
 bool wooting_analog_using_sys(void);
 

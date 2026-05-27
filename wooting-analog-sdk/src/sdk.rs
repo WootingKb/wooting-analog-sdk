@@ -413,7 +413,7 @@ impl AnalogSDK {
         }
 
         //Try and map the given keycode to HID
-        if let KeySource::Code(ref mut code) = key_source {
+        if let KeySource::Raw(ref mut code) = key_source {
             match code_to_hid(*code, &self.keycode_mode) {
                 Some(hid_code) => *code = hid_code,
                 None => return SDKResult(Err(WootingAnalogResult::NoMapping)),
@@ -443,6 +443,7 @@ impl AnalogSDK {
         SDKResult(Ok(value))
     }
 
+    // TODO: call read_full_buffer_with_ctx and map over result ?
     pub fn read_full_buffer(
         &mut self,
         max_length: usize,
@@ -508,7 +509,59 @@ impl AnalogSDK {
         max_length: usize,
         device_id: DeviceID,
     ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
-        todo!()
+        if !self.initialised {
+            return Err(WootingAnalogResult::UnInitialized).into();
+        }
+
+        let mut analog_data = HashMap::with_capacity(max_length);
+
+        let mut err = WootingAnalogResult::Ok;
+        let mut any_success = false;
+        //Read from all and add up
+        for p in self.plugins.iter_mut() {
+            // Check if we've already collected enough data
+            if analog_data.len() >= max_length {
+                break;
+            }
+
+            let remaining = max_length.saturating_sub(analog_data.len());
+            let plugin_data = p.read_full_buffer_with_ctx(remaining, device_id).into();
+            match plugin_data {
+                Ok(mut data) => {
+                    for (mut k, v) in data.drain() {
+                        match hid_to_code(k, &self.keycode_mode) {
+                            Some(code) => k.inner = code,
+                            None => warn!("Couldn't map HID:{:?} to {:?}", k, self.keycode_mode),
+                        }
+                        
+                        let mut total_analog = v;
+
+                        //No point in checking if the value is already present if we are only looking for data from one device
+                        if device_id == 0 {
+                            if let Some(val) = analog_data.get(&k) {
+                                total_analog = total_analog.max(*val);
+                            }
+                        }
+                        analog_data.insert(k, total_analog);
+                    }
+
+                    any_success = true;
+                }
+                Err(e) => {
+                    //TODO: Improve collating of multiple errors
+                    err = e
+                }
+            }
+            //If we are looking for a specific device, just break out when we find one that returns good
+            if device_id != 0 {
+                break;
+            }
+        }
+        if !any_success {
+            return Err(err).into();
+        }
+
+        Ok(analog_data).into()
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire

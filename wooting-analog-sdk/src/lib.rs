@@ -155,7 +155,7 @@ impl DeviceInfo {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(C, u8)]
 pub enum KeySource {
-    Code(u16),
+    Raw(u16),
     Position(Position),
 }
 
@@ -240,6 +240,12 @@ impl From<u16> for KeyCode {
             inner: value,
             metadata: KeyMetadata::None,
         }
+    }
+}
+
+impl From<KeyCode> for u16 {
+    fn from(value: KeyCode) -> Self {
+        value.inner
     }
 }
 
@@ -392,7 +398,7 @@ pub enum WootingAnalogResult {
     /// Indicates that the Analog SDK could not be found on the system
     #[error("The Wooting Analog SDK could not be found on the system")]
     DLLNotFound = -1990isize,
-    /// Device does not have the required analog protocol 
+    /// Device does not have the required analog protocol
     #[error("The device does not have the required analog protocol")]
     IncompatibleAnalogProtocol = -1989isize,
 }

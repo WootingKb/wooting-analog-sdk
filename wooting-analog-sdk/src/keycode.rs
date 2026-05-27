@@ -216,13 +216,13 @@ static HID_TO_VK_MAP_US: LazyLock<BiMap<u8, u8>> = LazyLock::new(|| {
     bimap.insert(0x26, 0x39); // DIGIT9
     bimap.insert(0x27, 0x30); // DIGIT0
 
-        bimap.insert(0x29, 0x1B); // ESCAPE
-        bimap.insert(0x2a, 0x08); // BACKSPACE
-        bimap.insert(0x2b, 0x09); // TAB
-        bimap.insert(0x2c, 0x20); // SPACE
-        bimap.insert(0x2d, 0xBD); // MINUS
-        bimap.insert(0x2e, 0xBB); // EQUAL
-        bimap.insert(0x2f, 0xDB); // BRACKET_LEFT
+    bimap.insert(0x29, 0x1B); // ESCAPE
+    bimap.insert(0x2a, 0x08); // BACKSPACE
+    bimap.insert(0x2b, 0x09); // TAB
+    bimap.insert(0x2c, 0x20); // SPACE
+    bimap.insert(0x2d, 0xBD); // MINUS
+    bimap.insert(0x2e, 0xBB); // EQUAL
+    bimap.insert(0x2f, 0xDB); // BRACKET_LEFT
 
     bimap.insert(0x30, 0xDD); // BRACKET_RIGHT
     bimap.insert(0x31, 0xDC); // BACKSLASH
@@ -266,24 +266,24 @@ static HID_TO_VK_MAP_US: LazyLock<BiMap<u8, u8>> = LazyLock::new(|| {
     bimap.insert(0x52, 0x26); // ARROW_UP
 
     bimap.insert(0x53, 0x90); // NUM_LOCK
-        bimap.insert(0x54, 0x6F); // NUMPAD_DIVIDE
-        bimap.insert(0x55, 0x6A); // NUMPAD_MULTIPLY
-        bimap.insert(0x56, 0x6D); // NUMPAD_SUBTRACT
-        bimap.insert(0x57, 0x6B); // NUMPAD_ADD
-        bimap.insert(0x58, 0x0D); // NUMPAD_ENTER
-        bimap.insert(0x59, 0x61); // NUMPAD1
-        bimap.insert(0x5a, 0x62); // NUMPAD2
-        bimap.insert(0x5b, 0x63); // NUMPAD3
-        bimap.insert(0x5c, 0x64); // NUMPAD4
-        bimap.insert(0x5d, 0x65); // NUMPAD5
-        bimap.insert(0x5e, 0x66); // NUMPAD6
-        bimap.insert(0x5f, 0x67); // NUMPAD7
-        bimap.insert(0x60, 0x68); // NUMPAD8
-        bimap.insert(0x61, 0x69); // NUMPAD9
-        bimap.insert(0x62, 0x60); // NUMPAD0
-        bimap.insert(0x63, 0x6E); // NUMPAD_DECIMAL
+    bimap.insert(0x54, 0x6F); // NUMPAD_DIVIDE
+    bimap.insert(0x55, 0x6A); // NUMPAD_MULTIPLY
+    bimap.insert(0x56, 0x6D); // NUMPAD_SUBTRACT
+    bimap.insert(0x57, 0x6B); // NUMPAD_ADD
+    bimap.insert(0x58, 0x0D); // NUMPAD_ENTER
+    bimap.insert(0x59, 0x61); // NUMPAD1
+    bimap.insert(0x5a, 0x62); // NUMPAD2
+    bimap.insert(0x5b, 0x63); // NUMPAD3
+    bimap.insert(0x5c, 0x64); // NUMPAD4
+    bimap.insert(0x5d, 0x65); // NUMPAD5
+    bimap.insert(0x5e, 0x66); // NUMPAD6
+    bimap.insert(0x5f, 0x67); // NUMPAD7
+    bimap.insert(0x60, 0x68); // NUMPAD8
+    bimap.insert(0x61, 0x69); // NUMPAD9
+    bimap.insert(0x62, 0x60); // NUMPAD0
+    bimap.insert(0x63, 0x6E); // NUMPAD_DECIMAL
 
-        bimap.insert(0x28, 0x0D); // ENTER (moved below NUMPAD_ENTER to ensure vk_to_hid(0x0D) responds with 0x28 instead of 0x58)
+    bimap.insert(0x28, 0x0D); // ENTER (moved below NUMPAD_ENTER to ensure vk_to_hid(0x0D) responds with 0x28 instead of 0x58)
 
     bimap.insert(0x64, 0xE2); // INTL_BACKSLASH
     bimap.insert(0x65, 0x5D); // CONTEXT_MENU
@@ -441,7 +441,12 @@ pub fn code_to_hid(code: u16, mode: &KeycodeType) -> Option<u16> {
     }
 }
 
-pub fn hid_to_code(code: u16, mode: &KeycodeType) -> Option<u16> {
+pub fn hid_to_code<T>(code: T, mode: &KeycodeType) -> Option<u16>
+where
+    T: Into<u16>,
+{
+    let code = code.into();
+
     let prefix = (code & 0xFF00) >> 8;
     //Check if the code is a custom key, if it is, just straight return it. Additionally checking it isn't prefixed with the ScanCode 1 escape code
     if code >= 0x200 && prefix != 0xE0 {

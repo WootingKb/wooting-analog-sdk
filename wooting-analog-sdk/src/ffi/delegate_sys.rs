@@ -1,5 +1,5 @@
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeySource, WootingAnalogResult,
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeyCode, KeySource, WootingAnalogResult,
 };
 use libloading::Symbol;
 use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
@@ -137,7 +137,10 @@ delegate_sys! {
     wooting_analog_uninitialise() -> WootingAnalogResult;
     wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult;
     wooting_analog_read_analog(code: c_ushort) -> c_float;
-    wooting_analog_read_analog_with_ctx(key_source: *const KeySource, value: *mut AnalogValue) -> WootingAnalogResult;
+    wooting_analog_read_analog_with_ctx(
+        key_source: *const KeySource,
+        value: *mut AnalogValue
+    ) -> WootingAnalogResult;
     wooting_analog_read_analog_device(code: c_ushort, device_id: DeviceID) -> c_float;
     wooting_analog_set_device_event_cb(
         cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI)
@@ -150,6 +153,12 @@ delegate_sys! {
     wooting_analog_read_full_buffer_device(
         code_buffer: *mut c_ushort,
         analog_buffer: *mut c_float,
+        len: c_uint,
+        device_id: DeviceID
+    ) -> c_int;
+    wooting_analog_read_full_buffer_with_ctx_device(
+        code_buffer: *mut KeyCode,
+        analog_buffer: *mut AnalogValue,
         len: c_uint,
         device_id: DeviceID
     ) -> c_int;

@@ -2,8 +2,8 @@
 mod delegate_sys;
 
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeySource, KeycodeType,
-    Position, SDKResult, ValueMetadata, WootingAnalogResult, sdk::*,
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeySource,
+    KeycodeType, Position, SDKResult, ValueMetadata, WootingAnalogResult, sdk::*,
 };
 #[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
@@ -403,6 +403,25 @@ pub extern "C" fn wooting_analog_read_full_buffer(
     wooting_analog_read_full_buffer_device(code_buffer, analog_buffer, len, 0)
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx(
+    code_buffer: *mut KeyCode,
+    analog_buffer: *mut AnalogValue,
+    len: c_uint,
+) -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_full_buffer_with_ctx_device(
+            code_buffer,
+            analog_buffer,
+            len,
+            0,
+        );
+    }
+
+    unsafe { wooting_analog_read_full_buffer_with_ctx_device(code_buffer, analog_buffer, len, 0) }
+}
+
 /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
 /// keycode identifying the pressed key and fills up `analog_buffer` with the corresponding float analog values. i.e. The analog
 /// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
@@ -452,6 +471,59 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         .lock()
         .unwrap()
         .read_full_buffer(len as usize, device_id)
+        .0
+    {
+        Ok(analog_data) => {
+            //Fill up given slices
+            let mut count: usize = 0;
+            for (code, val) in analog_data.iter() {
+                if count >= codes.len() {
+                    break;
+                }
+
+                codes[count] = *code;
+                analog[count] = *val;
+                count += 1;
+            }
+            count as c_int
+        }
+        Err(e) => e as c_int,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx_device(
+    code_buffer: *mut KeyCode,
+    analog_buffer: *mut AnalogValue,
+    len: c_uint,
+    device_id: DeviceID,
+) -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_full_buffer_with_ctx_device(
+            code_buffer,
+            analog_buffer,
+            len,
+            device_id,
+        );
+    }
+
+    let codes = unsafe {
+        assert!(!code_buffer.is_null());
+
+        slice::from_raw_parts_mut(code_buffer, len as usize)
+    };
+
+    let analog = unsafe {
+        assert!(!analog_buffer.is_null());
+
+        slice::from_raw_parts_mut(analog_buffer, len as usize)
+    };
+
+    match ANALOG_SDK
+        .lock()
+        .unwrap()
+        .read_full_buffer_with_ctx(len as usize, device_id)
         .0
     {
         Ok(analog_data) => {
