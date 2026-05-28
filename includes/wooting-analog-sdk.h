@@ -31,9 +31,15 @@ typedef enum WootingAnalogResult {
   WootingAnalogResult_IncompatibleVersion = -1991,
   /// Indicates that the Analog SDK could not be found on the system
   WootingAnalogResult_DLLNotFound = -1990,
-  /// Device does not have the required analog protocol
-  WootingAnalogResult_IncompatibleAnalogProtocol = -1989,
 } WootingAnalogResult;
+
+typedef enum WootingAnalog_KeyNamespace {
+  WootingAnalog_KeyNamespace_HidNormal = 1,
+  WootingAnalog_KeyNamespace_HidFunction = 3,
+  WootingAnalog_KeyNamespace_CustomFunction = 4,
+  WootingAnalog_KeyNamespace_GamepadBinding = 5,
+  WootingAnalog_KeyNamespace_AdvancedKey = 6,
+} WootingAnalog_KeyNamespace;
 
 typedef enum WootingAnalog_DeviceEventType {
   /// Device has been connected
@@ -62,10 +68,38 @@ typedef enum WootingAnalog_DeviceType {
   WootingAnalog_DeviceType_Other = 3,
 } WootingAnalog_DeviceType;
 
-typedef struct WootingAnalog_Position {
+enum WootingAnalog_KeyMetadata_Tag
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
+  WootingAnalog_KeyMetadata_None,
+  WootingAnalog_KeyMetadata_Basic,
+};
+#ifndef __cplusplus
+typedef uint8_t WootingAnalog_KeyMetadata_Tag;
+#endif // __cplusplus
+
+typedef struct WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body {
+  enum WootingAnalog_KeyNamespace namespace_;
+} WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body;
+
+typedef struct WootingAnalog_KeyMetadata {
+  WootingAnalog_KeyMetadata_Tag tag;
+  union {
+    WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body basic;
+  };
+} WootingAnalog_KeyMetadata;
+
+typedef struct WootingAnalog_KeyCode {
+  uint16_t inner;
+  struct WootingAnalog_KeyMetadata metadata;
+} WootingAnalog_KeyCode;
+
+typedef struct WootingAnalog_KeyPosition {
   uint8_t x;
   uint8_t y;
-} WootingAnalog_Position;
+} WootingAnalog_KeyPosition;
 
 enum WootingAnalog_KeySource_Tag
 #ifdef __cplusplus
@@ -73,6 +107,7 @@ enum WootingAnalog_KeySource_Tag
 #endif // __cplusplus
  {
   WootingAnalog_KeySource_Raw,
+  WootingAnalog_KeySource_Code,
   WootingAnalog_KeySource_Position,
 };
 #ifndef __cplusplus
@@ -86,7 +121,10 @@ typedef struct WootingAnalog_KeySource {
       uint16_t raw;
     };
     struct {
-      struct WootingAnalog_Position position;
+      struct WootingAnalog_KeyCode code;
+    };
+    struct {
+      struct WootingAnalog_KeyPosition position;
     };
   };
 } WootingAnalog_KeySource;
@@ -104,7 +142,7 @@ typedef uint8_t WootingAnalog_ValueMetadata_Tag;
 #endif // __cplusplus
 
 typedef struct WootingAnalog_ValueMetadata_WootingAnalog_Basic_Body {
-  struct WootingAnalog_Position pos;
+  struct WootingAnalog_KeyPosition pos;
   bool actuated;
 } WootingAnalog_ValueMetadata_WootingAnalog_Basic_Body;
 
@@ -140,34 +178,6 @@ typedef struct WootingAnalog_DeviceInfo_FFI {
   /// Hardware type of the Device see `DeviceType` enum
   WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo_FFI;
-
-enum WootingAnalog_KeyMetadata_Tag
-#ifdef __cplusplus
-  : uint8_t
-#endif // __cplusplus
- {
-  WootingAnalog_KeyMetadata_None,
-  WootingAnalog_KeyMetadata_Basic,
-};
-#ifndef __cplusplus
-typedef uint8_t WootingAnalog_KeyMetadata_Tag;
-#endif // __cplusplus
-
-typedef struct WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body {
-  uint8_t namespace_;
-} WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body;
-
-typedef struct WootingAnalog_KeyMetadata {
-  WootingAnalog_KeyMetadata_Tag tag;
-  union {
-    WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body basic;
-  };
-} WootingAnalog_KeyMetadata;
-
-typedef struct WootingAnalog_KeyCode {
-  uint16_t inner;
-  struct WootingAnalog_KeyMetadata metadata;
-} WootingAnalog_KeyCode;
 
 #ifdef __cplusplus
 extern "C" {
@@ -254,6 +264,10 @@ enum WootingAnalogResult wooting_analog_read_analog_with_ctx(const struct Wootin
 float wooting_analog_read_analog_device(unsigned short code,
                                         WootingAnalog_DeviceID device_id);
 
+enum WootingAnalogResult wooting_analog_read_analog_device_with_ctx(const struct WootingAnalog_KeySource *key_source,
+                                                                    struct WootingAnalog_AnalogValue *value,
+                                                                    WootingAnalog_DeviceID device_id);
+
 /// Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
 /// The callback gets given the type of event `DeviceEventType` and a pointer to the DeviceInfo struct that the event applies to
 ///
@@ -332,7 +346,7 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
 
-int wooting_analog_read_full_buffer_with_ctx_device(struct WootingAnalog_KeyCode *code_buffer,
+int wooting_analog_read_full_buffer_device_with_ctx(struct WootingAnalog_KeyCode *code_buffer,
                                                     struct WootingAnalog_AnalogValue *analog_buffer,
                                                     unsigned int len,
                                                     WootingAnalog_DeviceID device_id);

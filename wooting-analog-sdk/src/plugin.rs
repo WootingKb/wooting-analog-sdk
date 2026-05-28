@@ -16,8 +16,7 @@ use std::{str, thread};
 #[cfg(feature = "virtual-input")]
 use crate::virtual_input::VirtualKeyboard;
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, KeyCode, KeyMetadata,
-    KeySource, Position, SDKResult, ValueMetadata, WootingAnalogResult,
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, KeyCode, KeyMetadata, KeyNamespace, KeySource, KeyPosition, SDKResult, ValueMetadata, WootingAnalogResult
 };
 
 #[cfg(target_os = "macos")]
@@ -308,11 +307,11 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                     (
                         KeyCode::from((u16::from(key_namespace) << 8) | u16::from(key))
                             .with_metadata(KeyMetadata::Basic {
-                                namespace: key_namespace,
+                                namespace: KeyNamespace::from(key_namespace),
                             }),
                         AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
                             ValueMetadata::Basic {
-                                pos: Position::new(col, row),
+                                pos: KeyPosition::new(col, row),
                                 actuated,
                             },
                         ),
@@ -442,33 +441,18 @@ impl Device {
     }
 
     fn read_analog_with_ctx(&mut self, key_source: KeySource) -> SDKResult<AnalogValue> {
+        let buffer_guard = self.buffer.lock().unwrap();
+
         let value = match key_source {
-            KeySource::Raw(code) => *self
-                .buffer
-                .lock()
-                .unwrap()
-                // TODO: could add this directly to KeySource?
-                .get(&KeyCode::from(code))
-                .unwrap_or(&AnalogValue::default()),
-            KeySource::Position(position) => self
-                .buffer
-                .lock()
-                .unwrap()
-                .iter()
-                .find_map(|(_, v)| match v.metadata {
-                    ValueMetadata::None => None,
-                    ValueMetadata::Basic { pos, .. } => {
-                        if pos == position {
-                            Some(*v)
-                        } else {
-                            None
-                        }
-                    }
-                })
-                .unwrap_or(AnalogValue::default()),
+            KeySource::Raw(code) => buffer_guard.get(&KeyCode::from(code)).copied(),
+            KeySource::Code(code) => buffer_guard.get(&code).copied(),
+            KeySource::Position(position) => buffer_guard.values().find_map(|v| match v.metadata {
+                ValueMetadata::Basic { pos, .. } if pos == position => Some(*v),
+                _ => None,
+            }),
         };
 
-        SDKResult(Ok(value))
+        SDKResult(Ok(value.unwrap_or_default()))
     }
 
     fn read_full_with_ctx(&mut self) -> SDKResult<HashMap<KeyCode, AnalogValue>> {

@@ -2,8 +2,8 @@
 mod delegate_sys;
 
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeySource,
-    KeycodeType, Position, SDKResult, ValueMetadata, WootingAnalogResult, sdk::*,
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition,
+    KeySource, KeycodeType, SDKResult, ValueMetadata, WootingAnalogResult, sdk::*,
 };
 #[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
@@ -191,13 +191,12 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
 pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        return delegate_sys::wooting_analog_read_analog(code);
+        return delegate_sys::wooting_analog_read_analog_device(code, 0);
     }
 
     wooting_analog_read_analog_device(code, 0)
 }
 
-// TODO: wooting_analog_read_analog_with_ctx_device ?
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wooting_analog_read_analog_with_ctx(
     key_source: *const KeySource,
@@ -205,29 +204,10 @@ pub unsafe extern "C" fn wooting_analog_read_analog_with_ctx(
 ) -> WootingAnalogResult {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        return delegate_sys::wooting_analog_read_analog_with_ctx(key_source, value);
+        return delegate_sys::wooting_analog_read_analog_device_with_ctx(key_source, value, 0);
     }
 
-    let Some(key_source) = (unsafe { key_source.as_ref() }) else {
-        return WootingAnalogResult::InvalidArgument;
-    };
-
-    match ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_analog_with_ctx(*key_source, 0)
-        .0
-    {
-        Ok(v) => {
-            if let Some(out) = unsafe { value.as_mut() } {
-                *out = v;
-                return WootingAnalogResult::Ok;
-            }
-
-            WootingAnalogResult::InvalidArgument
-        }
-        Err(e) => e,
-    }
+    unsafe { wooting_analog_read_analog_device_with_ctx(key_source, value, 0) }
 }
 
 /// Reads the Analog value of the key with identifier `code` from the device with id `device_id`. The set of key identifiers that is used
@@ -257,6 +237,41 @@ pub extern "C" fn wooting_analog_read_analog_device(
         .unwrap()
         .read_analog(code, device_id)
         .into()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_analog_device_with_ctx(
+    key_source: *const KeySource,
+    value: *mut AnalogValue,
+    device_id: DeviceID,
+) -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_analog_device_with_ctx(
+            key_source, value, device_id,
+        );
+    }
+
+    let Some(key_source) = (unsafe { key_source.as_ref() }) else {
+        return WootingAnalogResult::InvalidArgument;
+    };
+
+    match ANALOG_SDK
+        .lock()
+        .unwrap()
+        .read_analog_with_ctx(*key_source, device_id)
+        .0
+    {
+        Ok(v) => {
+            if let Some(out) = unsafe { value.as_mut() } {
+                *out = v;
+                return WootingAnalogResult::Ok;
+            }
+
+            WootingAnalogResult::InvalidArgument
+        }
+        Err(e) => e,
+    }
 }
 
 /// Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
@@ -411,7 +426,7 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx(
 ) -> c_int {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        return delegate_sys::wooting_analog_read_full_buffer_with_ctx_device(
+        return delegate_sys::wooting_analog_read_full_buffer_device_with_ctx(
             code_buffer,
             analog_buffer,
             len,
@@ -419,7 +434,7 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx(
         );
     }
 
-    unsafe { wooting_analog_read_full_buffer_with_ctx_device(code_buffer, analog_buffer, len, 0) }
+    unsafe { wooting_analog_read_full_buffer_device_with_ctx(code_buffer, analog_buffer, len, 0) }
 }
 
 /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
@@ -492,7 +507,7 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx_device(
+pub unsafe extern "C" fn wooting_analog_read_full_buffer_device_with_ctx(
     code_buffer: *mut KeyCode,
     analog_buffer: *mut AnalogValue,
     len: c_uint,
@@ -500,7 +515,7 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx_device(
 ) -> c_int {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        return delegate_sys::wooting_analog_read_full_buffer_with_ctx_device(
+        return delegate_sys::wooting_analog_read_full_buffer_device_with_ctx(
             code_buffer,
             analog_buffer,
             len,

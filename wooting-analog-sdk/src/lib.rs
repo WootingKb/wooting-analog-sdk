@@ -156,7 +156,8 @@ impl DeviceInfo {
 #[repr(C, u8)]
 pub enum KeySource {
     Raw(u16),
-    Position(Position),
+    Code(KeyCode),
+    Position(KeyPosition),
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -173,13 +174,37 @@ pub enum KeycodeType {
     VirtualKeyTranslate = 3,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[repr(C)]
+pub enum KeyNamespace {
+    HidNormal = 1,
+    HidFunction = 3,
+    CustomFunction = 4,
+    GamepadBinding = 5,
+    AdvancedKey = 6,
+}
+
+impl From<u8> for KeyNamespace {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => KeyNamespace::HidNormal,
+            3 => KeyNamespace::HidFunction,
+            4 => KeyNamespace::CustomFunction,
+            5 => KeyNamespace::GamepadBinding,
+            6 => KeyNamespace::AdvancedKey,
+            // TODO: will apply error handling when reworking the Rust API
+            _ => unreachable!("missing or invalid key namespace: {value}"),
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C, u8)]
 pub enum KeyMetadata {
     #[default]
     None,
     Basic {
-        namespace: u8,
+        namespace: KeyNamespace,
     },
 }
 
@@ -198,6 +223,16 @@ impl KeyCode {
     pub fn with_metadata(mut self, meta: KeyMetadata) -> Self {
         self.metadata = meta;
         self
+    }
+
+    pub fn is_advanced_key(&self) -> bool {
+        matches!(
+            self.metadata,
+            KeyMetadata::Basic {
+                namespace: KeyNamespace::AdvancedKey,
+                ..
+            }
+        )
     }
 }
 
@@ -255,19 +290,19 @@ pub enum ValueMetadata {
     #[default]
     None,
     Basic {
-        pos: Position,
+        pos: KeyPosition,
         actuated: bool,
     },
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C)]
-pub struct Position {
+pub struct KeyPosition {
     x: u8,
     y: u8,
 }
 
-impl Position {
+impl KeyPosition {
     pub fn new(x: u8, y: u8) -> Self {
         Self { x, y }
     }
@@ -398,9 +433,6 @@ pub enum WootingAnalogResult {
     /// Indicates that the Analog SDK could not be found on the system
     #[error("The Wooting Analog SDK could not be found on the system")]
     DLLNotFound = -1990isize,
-    /// Device does not have the required analog protocol
-    #[error("The device does not have the required analog protocol")]
-    IncompatibleAnalogProtocol = -1989isize,
 }
 
 impl WootingAnalogResult {

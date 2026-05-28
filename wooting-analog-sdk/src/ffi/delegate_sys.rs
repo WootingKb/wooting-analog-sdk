@@ -136,12 +136,12 @@ delegate_sys! {
     wooting_analog_is_initialised() -> bool;
     wooting_analog_uninitialise() -> WootingAnalogResult;
     wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalogResult;
-    wooting_analog_read_analog(code: c_ushort) -> c_float;
-    wooting_analog_read_analog_with_ctx(
-        key_source: *const KeySource,
-        value: *mut AnalogValue
-    ) -> WootingAnalogResult;
     wooting_analog_read_analog_device(code: c_ushort, device_id: DeviceID) -> c_float;
+    wooting_analog_read_analog_device_with_ctx(
+        key_source: *const KeySource,
+        value: *mut AnalogValue,
+        device_id: DeviceID
+    ) -> WootingAnalogResult;
     wooting_analog_set_device_event_cb(
         cb: extern "C" fn(DeviceEventType, *mut DeviceInfo_FFI)
     ) -> WootingAnalogResult;
@@ -156,7 +156,7 @@ delegate_sys! {
         len: c_uint,
         device_id: DeviceID
     ) -> c_int;
-    wooting_analog_read_full_buffer_with_ctx_device(
+    wooting_analog_read_full_buffer_device_with_ctx(
         code_buffer: *mut KeyCode,
         analog_buffer: *mut AnalogValue,
         len: c_uint,
