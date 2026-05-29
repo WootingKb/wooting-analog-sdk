@@ -53,15 +53,15 @@ macro_rules! lib_wrap_option {
             //lib_wrap! {
             //    @as_item
                 #[unsafe(no_mangle)]
-                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> SDKResult<$fn_ret_tys>)* {
+                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> WootingResult<$fn_ret_tys>)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
                         let func :Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
                                     error!("{}", e);
                                 }).ok();
                         match func {
-                            Some(f) => f($($fn_arg_names),*).into(),
-                            _ => Err(WootingAnalogResult::FunctionNotFound).into()
+                            Some(f) => Ok(f($($fn_arg_names),*)),
+                            _ => Err(WootingAnalogResult::FunctionNotFound)
 
                         }
                     }
@@ -80,9 +80,9 @@ pub struct CPlugin {
 }
 
 impl CPlugin {
-    pub fn new(lib: Library) -> SDKResult<CPlugin> {
+    pub fn new(lib: Library) -> WootingResult<CPlugin> {
         unsafe {
-            if let Some(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION").ok() {
+            if let Ok(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION") {
                 let v = **ver;
                 info!("Got cplugin abi: {:?}", v);
                 if v != CPLUGIN_ABI_VERSION {
@@ -90,7 +90,7 @@ impl CPlugin {
                         "CPlugin ABI version does not match! Given: {}, Expected: {}",
                         v, CPLUGIN_ABI_VERSION
                     );
-                    return Err(WootingAnalogResult::IncompatibleVersion).into();
+                    return Err(WootingAnalogResult::IncompatibleVersion);
                 }
             }
         }
@@ -99,7 +99,6 @@ impl CPlugin {
             lib,
             cb_data_ptr: None, //funcs: HashMap::new()
         })
-        .into()
     }
 
     lib_wrap_option! {
@@ -143,23 +142,21 @@ extern "C" fn call_closure(
 }
 
 impl Plugin for CPlugin {
-    fn name(&mut self) -> SDKResult<&'static str> {
-        self.name().0.map(|s| s.as_str()).into()
+    fn name(&mut self) -> WootingResult<&'static str> {
+        self.name().map(|s| s.as_str())
     }
 
     fn initialise(
         &mut self,
         callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
-    ) -> SDKResult<u32> {
+    ) -> WootingResult<u32> {
         let data = Box::into_raw(Box::new(callback));
         self.cb_data_ptr = Some(data);
         self.initialise(data as *const _, call_closure)
-            .0
             .map(|res| res as u32)
-            .into()
     }
 
-    fn read_analog(&mut self, code: u16, device: DeviceID) -> SDKResult<f32> {
+    fn read_analog(&mut self, code: u16, device: DeviceID) -> WootingResult<f32> {
         self.read_analog(code, device)
     }
 
@@ -187,26 +184,19 @@ impl Plugin for CPlugin {
         &mut self,
         max_length: usize,
         device: DeviceID,
-    ) -> SDKResult<HashMap<c_ushort, c_float>> {
+    ) -> WootingResult<HashMap<c_ushort, c_float>> {
         let mut code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length);
         let mut analog_buffer: Vec<c_float> = Vec::with_capacity(max_length);
         code_buffer.resize(max_length, 0);
         analog_buffer.resize(max_length, 0.0);
         let count: usize = {
-            let ret = self
-                .read_full_buffer(
-                    code_buffer.as_ptr(),
-                    analog_buffer.as_ptr(),
-                    max_length as c_uint,
-                    device,
-                )
-                .0;
-            if let Err(e) = ret {
-                //debug!("Error got: {:?}",e);
-                return Err(e).into();
-            }
-            let ret = ret.unwrap();
-            max_length.min(ret as usize)
+            let write_count = self.read_full_buffer(
+                code_buffer.as_ptr(),
+                analog_buffer.as_ptr(),
+                max_length as c_uint,
+                device,
+            )?;
+            max_length.min(write_count as usize)
         };
 
         let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
@@ -214,21 +204,20 @@ impl Plugin for CPlugin {
             analog_data.insert(code_buffer[i], analog_buffer[i]);
         }
 
-        Ok(analog_data).into()
+        Ok(analog_data)
     }
 
     fn read_full_buffer_with_ctx(&mut self, _device: DeviceID) -> SDKResult<AnalogData> {
         // TODO: for now let's assume c plugins can never supply this data
         // can be possible if we include it as an optional function that they can implement
-        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
+        Err(WootingAnalogResult::FunctionNotFound)
     }
 
-    fn device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
+    fn device_info(&mut self) -> WootingResult<Vec<DeviceInfo>> {
         let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
 
         match self
             .device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
-            .0
             .map(|no| no as u32)
         {
             Ok(num) => unsafe {
@@ -237,9 +226,9 @@ impl Plugin for CPlugin {
                     .drain(..)
                     .map(|dev| dev.as_ref().unwrap().into_device_info())
                     .collect();
-                Ok(devices).into()
+                Ok(devices)
             },
-            Err(e) => Err(e).into(),
+            Err(e) => Err(e),
         }
     }
 

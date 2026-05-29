@@ -1,6 +1,8 @@
 #[cfg(feature = "dist")]
 mod delegate_sys;
 
+use crate::err::{IntoFfiAnalogValue, IntoFfiCount, WootingAnalogResult, WootingResult};
+use crate::sdk::AnalogSDK;
 use crate::{
     AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition,
     KeycodeType, PhysicalKey, SDKResult, WootingAnalogResult, sdk::*,
@@ -42,11 +44,11 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
 
     let result = panic::catch_unwind(|| {
         trace!("wooting_analog_initialise called");
-        ANALOG_SDK.lock().unwrap().initialise().into()
+        ANALOG_SDK.lock().unwrap().initialise()
     });
     trace!("catch unwind result: {:?}", result);
     match result {
-        Ok(c) => c,
+        Ok(c) => c.into_ffi_count(),
         Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
@@ -223,7 +225,7 @@ pub extern "C" fn wooting_analog_read_analog_device(
         .lock()
         .unwrap()
         .read_analog(code, device_id)
-        .into()
+        .into_ffi_analog_value()
 }
 
 #[unsafe(no_mangle)]
@@ -358,8 +360,8 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
         return delegate_sys::wooting_analog_get_connected_devices_info(buffer, len);
     }
 
-    let result: SDKResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
-    match result.0 {
+    let result: WootingResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
+    match result {
         Ok(mut devices) => {
             let device_no = (len as usize).min(devices.len());
 
@@ -480,7 +482,6 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         .lock()
         .unwrap()
         .read_full_buffer(len as usize, device_id)
-        .0
     {
         Ok(analog_data) => {
             //Fill up given slices

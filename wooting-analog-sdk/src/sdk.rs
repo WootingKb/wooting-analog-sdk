@@ -8,8 +8,8 @@ use crate::KeyPosition;
 use crate::KeycodeType;
 use crate::PhysicalKey;
 use crate::Plugin;
-use crate::SDKResult;
-use crate::WootingAnalogResult;
+use crate::err::WootingAnalogResult;
+use crate::err::WootingResult;
 use crate::keycode::*;
 use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
 use crate::plugin::DEFAULT_PLUGIN_DIR;
@@ -66,7 +66,7 @@ impl AnalogSDK {
         }
     }
 
-    pub fn initialise(&mut self) -> SDKResult<u32> {
+    pub fn initialise(&mut self) -> WootingResult<u32> {
         let dir = option_env!("WOOTING_ANALOG_SDK_PLUGINS_PATH").unwrap_or(DEFAULT_PLUGIN_DIR);
         self.initialise_with_plugin_path(dir, true)
     }
@@ -75,7 +75,7 @@ impl AnalogSDK {
         &mut self,
         plugin_dir: &str,
         nested: bool,
-    ) -> SDKResult<u32> {
+    ) -> WootingResult<u32> {
         if self.initialised {
             self.unload();
         }
@@ -158,7 +158,7 @@ impl AnalogSDK {
                 },
             ));
             debug!("{:?}", ret);
-            if let Ok(num) = ret.0 {
+            if let Ok(num) = ret {
                 plugins_initialised += 1;
                 device_no += num;
             }
@@ -168,9 +168,9 @@ impl AnalogSDK {
 
         self.initialised = plugins_initialised > 0;
         if !self.initialised {
-            Err(WootingAnalogResult::NoPlugins).into()
+            Err(WootingAnalogResult::NoPlugins)
         } else {
-            Ok(device_no).into()
+            Ok(device_no)
         }
     }
 
@@ -280,7 +280,7 @@ impl AnalogSDK {
             None => {
                 info!("Didn't find _plugin_create, assuming it's a C plugin");
                 let lib = self.loaded_libraries.pop().unwrap();
-                match CPlugin::new(lib).0 {
+                match CPlugin::new(lib) {
                     Ok(cplugin) => Box::new(cplugin),
                     Err(WootingAnalogResult::IncompatibleVersion) => {
                         bail!(
@@ -294,7 +294,7 @@ impl AnalogSDK {
             }
         };
         let name = plugin.name();
-        match name.0 {
+        match name {
             Ok(name) => {
                 info!("Loaded plugin: {:?}", name);
                 //plugin.on_plugin_load();
@@ -314,30 +314,30 @@ impl AnalogSDK {
     pub fn set_device_event_cb(
         &mut self,
         cb: impl Fn(DeviceEventType, DeviceInfo) + 'static + Send,
-    ) -> SDKResult<()> {
+    ) -> WootingResult<()> {
         if !self.initialised {
-            return WootingAnalogResult::UnInitialized.into();
+            return Err(WootingAnalogResult::UnInitialized);
         }
         self.device_event_callback
             .lock()
             .unwrap()
             .replace(Box::new(cb));
 
-        Ok(()).into()
+        Ok(())
     }
 
-    pub fn clear_device_event_cb(&mut self) -> SDKResult<()> {
+    pub fn clear_device_event_cb(&mut self) -> WootingResult<()> {
         if !self.initialised {
-            return Err(WootingAnalogResult::UnInitialized).into();
+            return Err(WootingAnalogResult::UnInitialized);
         }
         self.device_event_callback.lock().unwrap().take();
 
-        Ok(()).into()
+        Ok(())
     }
 
-    pub fn get_device_info(&mut self) -> SDKResult<Vec<DeviceInfo>> {
+    pub fn get_device_info(&mut self) -> WootingResult<Vec<DeviceInfo>> {
         if !self.initialised {
-            return Err(WootingAnalogResult::UnInitialized).into();
+            return Err(WootingAnalogResult::UnInitialized);
         }
         let mut devices: Vec<DeviceInfo> = vec![];
         let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
@@ -347,7 +347,7 @@ impl AnalogSDK {
             }
 
             //Give a reference to the buffer at the point where there is free space
-            match p.device_info().0 {
+            match p.device_info() {
                 Ok(mut p_devices) => {
                     devices.append(&mut p_devices);
                 }
@@ -362,15 +362,15 @@ impl AnalogSDK {
             }
         }
         if devices.is_empty() && !error.is_ok() {
-            Err(error).into()
+            Err(error)
         } else {
-            Ok(devices).into()
+            Ok(devices)
         }
     }
 
-    pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> SDKResult<f32> {
+    pub fn read_analog(&mut self, code: u16, device_id: DeviceID) -> WootingResult<f32> {
         if !self.initialised {
-            return Err(WootingAnalogResult::UnInitialized).into();
+            return Err(WootingAnalogResult::UnInitialized);
         }
 
         //Try and map the given keycode to HID
@@ -380,7 +380,7 @@ impl AnalogSDK {
             let mut err = WootingAnalogResult::Ok;
 
             for p in self.plugins.iter_mut() {
-                match p.read_analog(hid_code, device_id).into() {
+                match p.read_analog(hid_code, device_id) {
                     Ok(x) => {
                         value = value.max(x);
                         //If we were looking to read from a specific device, we've found that read, so no need to continue
@@ -396,12 +396,12 @@ impl AnalogSDK {
             }
 
             if value < 0.0 {
-                return Err(err).into();
+                return Err(err);
             }
 
-            value.into()
+            Ok(value)
         } else {
-            Err(WootingAnalogResult::NoMapping).into()
+            Err(WootingAnalogResult::NoMapping)
         }
     }
 
@@ -409,9 +409,9 @@ impl AnalogSDK {
         &mut self,
         max_length: usize,
         device_id: DeviceID,
-    ) -> SDKResult<HashMap<u16, f32>> {
+    ) -> WootingResult<HashMap<u16, f32>> {
         if !self.initialised {
-            return Err(WootingAnalogResult::UnInitialized).into();
+            return Err(WootingAnalogResult::UnInitialized);
         }
 
         let mut analog_data: HashMap<u16, f32> = HashMap::with_capacity(max_length);
@@ -426,7 +426,7 @@ impl AnalogSDK {
             }
 
             let remaining = max_length.saturating_sub(analog_data.len());
-            let plugin_data = p.read_full_buffer(remaining, device_id).into();
+            let plugin_data = p.read_full_buffer(remaining, device_id);
             match plugin_data {
                 Ok(mut data) => {
                     for (hid_code, analog) in data.drain() {
@@ -459,15 +459,15 @@ impl AnalogSDK {
             }
         }
         if !any_success {
-            return Err(err).into();
+            return Err(err);
         }
 
-        Ok(analog_data).into()
+        Ok(analog_data)
     }
 
     pub(crate) fn read_keycode(&mut self, code: u16, device_id: DeviceID) -> SDKResult<AnalogValue> {
         if !self.initialised {
-            return Err(WootingAnalogResult::UnInitialized).into();
+            return Err(WootingAnalogResult::UnInitialized);
         }
 
         let Some(hid_code) = crate::keycode::code_to_hid(code, &self.keycode_mode) else {
@@ -556,7 +556,7 @@ impl AnalogSDK {
         }
 
         if !any_success {
-            return Err(err).into();
+            return Err(err);
         }
 
         Ok(combined).into()
@@ -593,7 +593,7 @@ impl AnalogSDK {
     pub fn unload(&mut self) {
         debug!("Unloading plugins");
         for mut plugin in self.plugins.drain(..) {
-            let name = plugin.name().0;
+            let name = plugin.name();
             trace!("Firing on_plugin_unload for {:?}", name);
             plugin.unload();
             debug!("Unload successful for {:?}", name);

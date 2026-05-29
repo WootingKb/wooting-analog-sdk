@@ -77,7 +77,7 @@ fn find_dll_in_path(filename: &str) -> Option<PathBuf> {
     search_env_var("PATH")
 }
 
-fn try_system_dll() -> Result<(), WootingAnalogResult> {
+fn try_system_dll() -> WootingResult<()> {
     if LIB.is_none() {
         return Err(WootingAnalogResult::DLLNotFound);
     }
