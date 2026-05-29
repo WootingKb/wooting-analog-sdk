@@ -1,3 +1,4 @@
+mod err;
 #[cfg(feature = "ffi")]
 pub mod ffi;
 pub mod keycode;
@@ -8,16 +9,13 @@ mod virtual_input;
 
 pub use crate::plugin::Plugin;
 use enum_primitive_derive::Primitive;
-use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::hash::Hasher;
-use std::ops::Deref;
 use std::os::raw::{c_char, c_int};
-use thiserror::Error;
 
 /// The core `DeviceInfo` struct which contains all the interesting information
 /// for a particular device. This is for use internally and should be ignored if you're
@@ -548,199 +546,6 @@ pub enum DeviceEventType {
     Connected = 1,
     /// Device has been disconnected
     Disconnected = 2,
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive, Error, Copy)]
-#[repr(C)]
-pub enum WootingAnalogResult {
-    #[error("All OK")]
-    Ok = 1,
-    /// Item hasn't been initialized
-    #[error("SDK has not been initialized")]
-    UnInitialized = -2000isize,
-    /// No Devices are connected
-    #[error("No Devices are connected")]
-    NoDevices = -1999isize,
-    /// Device has been disconnected
-    #[error("Device has been disconnected")]
-    DeviceDisconnected = -1998isize,
-    /// Generic Failure
-    #[error("Generic Failure")]
-    Failure = -1997isize,
-    /// A given parameter was invalid
-    #[error("A given parameter was invalid")]
-    InvalidArgument = -1996isize,
-    /// No Plugins were found
-    #[error("No Plugins were found")]
-    NoPlugins = -1995isize,
-    /// The specified function was not found in the library
-    #[error("The specified function was not found in the library")]
-    FunctionNotFound = -1994isize,
-    /// No Keycode mapping to HID was found for the given Keycode
-    #[error("No Keycode mapping to HID was found for the given Keycode")]
-    NoMapping = -1993isize,
-    /// Indicates that it isn't available on this platform
-    #[error("Unavailable on this platform")]
-    NotAvailable = -1992isize,
-    /// Indicates that the operation that is trying to be used is for an older version
-    #[error("Incompatible SDK Version")]
-    IncompatibleVersion = -1991isize,
-    /// Indicates that the Analog SDK could not be found on the system
-    #[error("The Wooting Analog SDK could not be found on the system")]
-    DLLNotFound = -1990isize,
-}
-
-impl WootingAnalogResult {
-    pub fn is_ok(&self) -> bool {
-        *self == WootingAnalogResult::Ok
-    }
-
-    pub fn is_ok_or_no_device(&self) -> bool {
-        *self == WootingAnalogResult::Ok || *self == WootingAnalogResult::NoDevices
-    }
-}
-
-impl Default for WootingAnalogResult {
-    fn default() -> Self {
-        WootingAnalogResult::FunctionNotFound
-    }
-}
-
-#[derive(Debug)]
-pub struct SDKResult<T>(pub std::result::Result<T, WootingAnalogResult>);
-
-impl<T> Default for SDKResult<T> {
-    fn default() -> Self {
-        Err(Default::default()).into()
-    }
-}
-
-impl<T> Deref for SDKResult<T> {
-    type Target = std::result::Result<T, WootingAnalogResult>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> From<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn from(ptr: std::result::Result<T, WootingAnalogResult>) -> Self {
-        SDKResult(ptr)
-    }
-}
-
-impl<T> Into<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn into(self) -> std::result::Result<T, WootingAnalogResult> {
-        self.0
-    }
-}
-
-//TODO: Figure out a way to not have to use this for the lib_wrap_option in the sdk
-impl<'a> From<FfiStr<'a>> for SDKResult<FfiStr<'a>> {
-    fn from(res: FfiStr<'a>) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl From<c_int> for SDKResult<c_int> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
-impl From<c_int> for SDKResult<u32> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res as u32).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
-impl Into<c_int> for WootingAnalogResult {
-    fn into(self) -> c_int {
-        self as c_int
-    }
-}
-
-impl From<u32> for SDKResult<u32> {
-    fn from(res: u32) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl Into<i32> for SDKResult<u32> {
-    fn into(self) -> i32 {
-        match self.0 {
-            Ok(v) => v as i32,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<c_int> for SDKResult<c_int> {
-    fn into(self) -> c_int {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl From<f32> for SDKResult<f32> {
-    fn from(res: f32) -> Self {
-        if res >= 0.0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_f32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
-impl Into<f32> for WootingAnalogResult {
-    fn into(self) -> f32 {
-        (self as i32) as f32
-    }
-}
-
-impl Into<f32> for SDKResult<f32> {
-    fn into(self) -> f32 {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<WootingAnalogResult> for SDKResult<()> {
-    fn into(self) -> WootingAnalogResult {
-        match self.0 {
-            Ok(_) => WootingAnalogResult::Ok,
-            Err(e) => e,
-        }
-    }
-}
-
-impl From<WootingAnalogResult> for SDKResult<()> {
-    fn from(res: WootingAnalogResult) -> Self {
-        if res.is_ok() {
-            Ok(()).into()
-        } else {
-            Err(res).into()
-        }
-    }
-}
-
-impl Into<bool> for WootingAnalogResult {
-    fn into(self) -> bool {
-        self == WootingAnalogResult::Ok
-    }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

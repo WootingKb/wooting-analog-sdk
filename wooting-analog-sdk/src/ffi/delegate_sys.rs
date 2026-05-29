@@ -1,6 +1,6 @@
 use crate::{
     AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeyCode, KeyPosition, PhysicalKey,
-    WootingAnalogResult,
+    err::{DelegateError, WootingAnalogResult},
 };
 use libloading::Symbol;
 use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
@@ -77,15 +77,15 @@ fn find_dll_in_path(filename: &str) -> Option<PathBuf> {
     search_env_var("PATH")
 }
 
-fn try_system_dll() -> Result<(), WootingAnalogResult> {
+fn try_system_dll() -> Result<(), DelegateError> {
     if LIB.is_none() {
-        return Err(WootingAnalogResult::DLLNotFound);
+        return Err(DelegateError::DllNotFound);
     }
 
     if wooting_analog_version() == *SDK_VERSION {
         Ok(())
     } else {
-        Err(WootingAnalogResult::IncompatibleVersion)
+        Err(DelegateError::IncompatibleSystemDll)
     }
 }
 
