@@ -77,15 +77,15 @@ fn find_dll_in_path(filename: &str) -> Option<PathBuf> {
     search_env_var("PATH")
 }
 
-fn try_system_dll() -> WootingResult<()> {
+fn try_system_dll() -> Result<(), DelegateError> {
     if LIB.is_none() {
-        return Err(WootingAnalogResult::DLLNotFound);
+        return Err(DelegateError::DllNotFound);
     }
 
     if wooting_analog_version() == *SDK_VERSION {
         Ok(())
     } else {
-        Err(WootingAnalogResult::IncompatibleVersion)
+        Err(DelegateError::IncompatibleSystemDll)
     }
 }
 

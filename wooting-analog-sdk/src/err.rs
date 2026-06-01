@@ -1,11 +1,111 @@
 use enum_primitive_derive::Primitive;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::ffi::{c_float, c_int};
+use std::{ffi::c_int, path::PathBuf};
 use thiserror::Error;
 
-pub type WootingResult<T> = std::result::Result<T, WootingAnalogResult>;
+use crate::{DeviceID, KeycodeType};
 
+#[derive(Error, Debug)]
+pub enum DelegateError {
+    #[error("dll not found")]
+    DllNotFound,
+
+    #[error("incompatible system version dll")]
+    IncompatibleSystemDll,
+}
+
+#[derive(Error, Debug)]
+pub enum PluginError {
+    #[error("plugin failed to call \"{0}\": function not found")]
+    FunctionUnavailable(&'static str),
+
+    #[error(
+        "plugin with version {version} is incompatible with the current SDK version ({expected})"
+    )]
+    VersionMismatch { version: u32, expected: u32 },
+
+    #[error("file \"{0:?}\" is not a valid plugin")]
+    InvalidPlugin(PathBuf),
+
+    #[error("path \"{0:?}\" is not a valid plugin directory")]
+    InvalidDirectory(PathBuf),
+
+    #[error("failed to read plugin directory: {0}")]
+    IoError(#[from] std::io::Error),
+
+    #[error("failed to load dll")]
+    DynamicLibraryError {
+        #[source]
+        source: libloading::Error,
+    },
+
+    #[error("zero plugins available")]
+    ZeroPlugins,
+}
+
+// TODO: refine this more after we've refactored the SDK struct
+// the uninit error will most likely go away
+#[derive(Error, Debug)]
+pub enum ReadError {
+    #[error("SDK was not initialized")]
+    Uninitialized,
+
+    #[error("keycode {keycode} does not map to any HID code using {mode:?} mode")]
+    NoMapping { keycode: u16, mode: KeycodeType },
+
+    #[error(transparent)]
+    Device(#[from] DeviceError),
+
+    #[error(transparent)]
+    Plugin(#[from] PluginError),
+}
+
+#[derive(Error, Debug)]
+pub enum DeviceErrorKind {
+    #[error("device disconnected")]
+    Disconnected,
+
+    #[error("unable to fetch devices")]
+    ZeroDevices,
+}
+
+#[derive(Error, Debug)]
+pub struct DeviceError {
+    pub kind: DeviceErrorKind,
+    pub device_id: Option<DeviceID>,
+}
+
+impl DeviceError {
+    pub fn disconnected(id: Option<DeviceID>) -> Self {
+        Self {
+            kind: DeviceErrorKind::Disconnected,
+            device_id: id,
+        }
+    }
+
+    pub fn is_disconnected(&self) -> bool {
+        matches!(self.kind, DeviceErrorKind::Disconnected)
+    }
+
+    pub fn zero_devices() -> Self {
+        Self {
+            kind: DeviceErrorKind::ZeroDevices,
+            device_id: None,
+        }
+    }
+}
+
+impl std::fmt::Display for DeviceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.device_id {
+            Some(id) => write!(f, "{} (id: {id})", self.kind),
+            None => write!(f, "{}", self.kind),
+        }
+    }
+}
+
+// TODO: format errors (remove capitalization)
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Default, PartialEq, Clone, Primitive, Error, Copy)]
 #[repr(C)]
@@ -76,37 +176,24 @@ impl From<WootingAnalogResult> for f32 {
     }
 }
 
-impl<T> From<WootingResult<T>> for WootingAnalogResult {
-    fn from(result: WootingResult<T>) -> Self {
-        match result {
-            Ok(_) => WootingAnalogResult::Ok,
-            Err(err) => err,
-        }
-    }
-}
-
-pub(crate) trait IntoFfiCount {
-    fn into_ffi_count(self) -> c_int;
-}
-
-impl IntoFfiCount for WootingResult<u32> {
-    fn into_ffi_count(self) -> c_int {
-        match self {
-            Ok(count) => count as c_int,
-            Err(err) => err as c_int,
-        }
-    }
-}
-
-pub(crate) trait IntoFfiAnalogValue {
-    fn into_ffi_analog_value(self) -> c_float;
-}
-
-impl IntoFfiAnalogValue for WootingResult<f32> {
-    fn into_ffi_analog_value(self) -> c_float {
-        match self {
-            Ok(value) => value as c_float,
-            Err(err) => (err as i32) as c_float,
+impl From<ReadError> for WootingAnalogResult {
+    fn from(err: ReadError) -> Self {
+        match err {
+            ReadError::Uninitialized => Self::UnInitialized,
+            ReadError::NoMapping { .. } => Self::NoMapping,
+            ReadError::Device(device_error) => match device_error.kind {
+                DeviceErrorKind::Disconnected => Self::DeviceDisconnected,
+                DeviceErrorKind::ZeroDevices => Self::NoDevices,
+            },
+            ReadError::Plugin(plugin_error) => match plugin_error {
+                PluginError::FunctionUnavailable(_) => Self::FunctionNotFound,
+                PluginError::VersionMismatch { .. } => Self::IncompatibleVersion,
+                PluginError::InvalidPlugin(_)
+                | PluginError::InvalidDirectory(_)
+                | PluginError::IoError(_)
+                | PluginError::ZeroPlugins => Self::NoPlugins,
+                PluginError::DynamicLibraryError { .. } => Self::NotAvailable,
+            },
         }
     }
 }

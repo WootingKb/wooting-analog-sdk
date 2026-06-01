@@ -16,10 +16,6 @@ include = [
     "DeviceType",
     "MAX_KEY_STATES",
 ]
-exclude = [
-    "_plugin_create",
-    "plugin_version",
-]
 prefix = "WootingAnalog_"
 renaming_overrides_prefixing = true
 item_types = ["enums", "structs", "typedefs", "functions", "opaque", "constants"]

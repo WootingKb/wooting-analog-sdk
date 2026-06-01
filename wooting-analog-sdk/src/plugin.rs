@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::{str, thread};
 
-use crate::err::{WootingAnalogResult, WootingResult};
+use crate::err::{DeviceError, PluginError, ReadError};
 #[cfg(feature = "virtual-input")]
 use crate::virtual_input::VirtualKeyboard;
 use crate::{
@@ -34,13 +34,13 @@ pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The core Plugin trait which needs to be implemented for an Analog Plugin to function
 pub trait Plugin {
     /// Get a name describing the `Plugin`.
-    fn name(&mut self) -> WootingResult<&'static str>;
+    fn name(&mut self) -> Result<&'static str, PluginError>;
 
     /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
     fn initialise(
         &mut self,
         callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
-    ) -> WootingResult<u32>;
+    ) -> Result<u32, ReadError>;
 
     /// A function fired to check if the plugin is currently initialised
     fn is_initialised(&mut self) -> bool;
@@ -51,7 +51,7 @@ pub trait Plugin {
     /// # Notes
     ///
     /// Although, the client should be copying any data they want to use for a prolonged time as there is no lifetime guarantee on the data.
-    fn device_info(&mut self) -> WootingResult<Vec<DeviceInfo>>;
+    fn device_info(&mut self) -> Result<Vec<DeviceInfo>, ReadError>;
 
     /// A callback fired immediately before the plugin is unloaded. Use this if
     /// you need to do any cleanup.
@@ -59,7 +59,7 @@ pub trait Plugin {
 
     /// Function called to get the analog value for a particular HID key `code` from the device with ID `device`.
     /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
-    fn read_analog(&mut self, code: u16, device_id: DeviceID) -> WootingResult<f32>;
+    fn read_analog(&mut self, code: u16, device_id: DeviceID) -> Result<f32, ReadError>;
 
     fn read_keycode(&mut self, code: KeyCode, device_id: DeviceID) -> SDKResult<AnalogValue>;
 
@@ -76,7 +76,7 @@ pub trait Plugin {
         &mut self,
         max_length: usize,
         device: DeviceID,
-    ) -> WootingResult<HashMap<c_ushort, c_float>>;
+    ) -> Result<HashMap<c_ushort, c_float>, ReadError>;
 
     fn read_full_buffer_with_ctx(&mut self, device_id: DeviceID) -> SDKResult<AnalogData>;
 
@@ -140,7 +140,7 @@ trait DeviceImplementation: DynClone + Send {
         &self,
         device: &HidDevice,
         max_length: usize,
-    ) -> WootingResult<Option<HashMap<c_ushort, c_float>>> {
+    ) -> Result<Option<HashMap<c_ushort, c_float>>, DeviceError> {
         let mut buffer: [u8; ANALOG_BUFFER_SIZE_V1] = [0; ANALOG_BUFFER_SIZE_V1];
         let res = device.read_timeout(&mut buffer, 50);
 
@@ -154,7 +154,7 @@ trait DeviceImplementation: DynClone + Send {
             Err(e) => {
                 error!("Failed to read buffer: {}", e);
 
-                return Err(WootingAnalogResult::DeviceDisconnected);
+                return Err(DeviceError::disconnected(None));
             }
         }
         Ok(Some(
@@ -294,14 +294,13 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
             Err(e) => {
                 error!("Failed to read buffer: {}", e);
 
-                return Err(WootingAnalogResult::DeviceDisconnected);
+                return Err(DeviceError::disconnected(None));
             }
         }
         Ok(Some(
             buffer
                 .chunks_exact(4)
                 .take(max_length)
-                .filter(|&b| b[3] != 0)
                 .map(|b| {
                     let matrix_pos = b[0];
                     let key = b[1];
@@ -330,6 +329,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                         ),
                     }
                 })
+                .filter(|(k, v)| k != &KeyCode::default() && v != &AnalogValue::default())
                 .collect(),
         ))
     }
@@ -384,7 +384,7 @@ impl Device {
                                     }
                                 }
                                 Err(e) => {
-                                    if e != WootingAnalogResult::DeviceDisconnected {
+                                    if !e.is_disconnected() {
                                         error!(
                                             "Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...",
                                             e
@@ -405,7 +405,7 @@ impl Device {
                                     }
                                 }
                                 Err(e) => {
-                                    if e != WootingAnalogResult::DeviceDisconnected {
+                                    if !e.is_disconnected() {
                                         error!(
                                             "Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...",
                                             e
@@ -536,7 +536,7 @@ impl WootingPlugin {
         }
     }
 
-    fn init_worker(&mut self) -> WootingResult<u32> {
+    fn init_worker(&mut self) -> Result<u32, DeviceError> {
         let init_device_closure =
             |hid: &HidApi,
              devices: &Arc<Mutex<HashMap<DeviceID, Device>>>,
@@ -616,7 +616,7 @@ impl WootingPlugin {
             }
             Err(e) => {
                 error!("Error obtaining HIDAPI: {}", e);
-                return Err(WootingAnalogResult::Failure);
+                return Err(DeviceError::zero_devices());
             }
         };
 
@@ -667,33 +667,22 @@ impl WootingPlugin {
         debug!("Started thread");
         Ok(self.devices.lock().unwrap().len() as u32)
     }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn _plugin_create() -> *mut dyn Plugin {
-        let boxed: Box<dyn Plugin> = Box::new(Self::new());
-        Box::into_raw(boxed)
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn plugin_version() -> &'static str {
-        ANALOG_SDK_PLUGIN_VERSION
-    }
 }
 
 impl Plugin for WootingPlugin {
-    fn name(&mut self) -> WootingResult<&'static str> {
+    fn name(&mut self) -> Result<&'static str, PluginError> {
         Ok(PLUGIN_NAME)
     }
 
     fn initialise(
         &mut self,
         callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
-    ) -> WootingResult<u32> {
+    ) -> Result<u32, ReadError> {
         if let Err(e) = env_logger::try_init() {
             warn!("Unable to initialize Env Logger: {}", e);
         }
 
-        let ret = self.init_worker();
+        let ret = self.init_worker()?;
 
         #[cfg(feature = "virtual-input")]
         {
@@ -707,8 +696,8 @@ impl Plugin for WootingPlugin {
             self.device_event_cb = Arc::new(Mutex::new(Some(callback)));
         }
 
-        self.initialised.store(ret.is_ok(), Ordering::Relaxed);
-        ret
+        self.initialised.store(true, Ordering::Relaxed);
+        Ok(ret)
     }
 
     fn is_initialised(&mut self) -> bool {
@@ -734,11 +723,11 @@ impl Plugin for WootingPlugin {
 
     fn read_keycode(&mut self, code: KeyCode, device_id: DeviceID) -> SDKResult<AnalogValue> {
         if !self.initialised.load(Ordering::Relaxed) {
-            return Err(WootingAnalogResult::UnInitialized);
+            return Err(ReadError::Uninitialized);
         }
 
         if self.devices.lock().unwrap().is_empty() {
-            return Err(WootingAnalogResult::NoDevices);
+            return Err(ReadError::Device(DeviceError::zero_devices()));
         }
 
         if device_id == 0 {
@@ -810,13 +799,13 @@ impl Plugin for WootingPlugin {
         &mut self,
         max_length: usize,
         device_id: DeviceID,
-    ) -> WootingResult<HashMap<c_ushort, c_float>> {
+    ) -> Result<HashMap<c_ushort, c_float>, ReadError> {
         if !self.initialised.load(Ordering::Relaxed) {
-            return Err(WootingAnalogResult::UnInitialized);
+            return Err(ReadError::Uninitialized);
         }
 
         if self.devices.lock().unwrap().is_empty() {
-            return Err(WootingAnalogResult::NoDevices);
+            return Err(ReadError::Device(DeviceError::zero_devices()));
         }
 
         //If the Device ID is 0 we want to go through all the connected devices
@@ -824,7 +813,7 @@ impl Plugin for WootingPlugin {
         if device_id == 0 {
             let mut analog: HashMap<c_ushort, c_float> = HashMap::new();
             let mut any_read = false;
-            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
+            let mut error = None;
             for (_id, device) in self.devices.lock().unwrap().iter_mut() {
                 match device.read_full_with_ctx() {
                     Ok(val) => {
@@ -841,26 +830,28 @@ impl Plugin for WootingPlugin {
                         any_read = true;
                     }
                     Err(e) => {
-                        error = e;
+                        error = Some(e);
                     }
                 }
             }
 
-            if !any_read {
-                Err(error)
-            } else {
-                #[cfg(feature = "virtual-input")]
-                self.virtual_keyboard.iter_over(|iter| {
-                    for (key, value) in iter {
-                        analog
-                            .entry(*key)
-                            .and_modify(|v| *v = v.max(*value))
-                            .or_insert(*value);
-                    }
-                });
-
-                Ok(analog)
+            if let Some(err) = error
+                && !any_read
+            {
+                return Err(ReadError::Device(err));
             }
+
+            #[cfg(feature = "virtual-input")]
+            self.virtual_keyboard.iter_over(|iter| {
+                for (key, value) in iter {
+                    analog
+                        .entry(*key)
+                        .and_modify(|v| *v = v.max(*value))
+                        .or_insert(*value);
+                }
+            });
+
+            Ok(analog)
         } else
         //If the device id is not 0, we try and find a connected device with that ID and read from it
         {
@@ -880,11 +871,11 @@ impl Plugin for WootingPlugin {
 
     fn read_full_buffer_with_ctx(&mut self, device_id: DeviceID) -> SDKResult<AnalogData> {
         if !self.initialised.load(Ordering::Relaxed) {
-            return Err(WootingAnalogResult::UnInitialized);
+            return Err(ReadError::Uninitialized);
         }
 
         if self.devices.lock().unwrap().is_empty() {
-            return Err(WootingAnalogResult::NoDevices);
+            return Err(ReadError::Device(DeviceError::zero_devices()));
         }
 
         // If the Device ID is 0 we want to go through all the connected devices
@@ -902,7 +893,7 @@ impl Plugin for WootingPlugin {
                         any_read = true;
                     }
                     Err(e) => {
-                        error = e;
+                        error = Some(e);
                     }
                 }
             }
@@ -1057,9 +1048,9 @@ impl Plugin for WootingPlugin {
         }
     }
 
-    fn device_info(&mut self) -> WootingResult<Vec<DeviceInfo>> {
+    fn device_info(&mut self) -> Result<Vec<DeviceInfo>, ReadError> {
         if !self.initialised.load(Ordering::Relaxed) {
-            return Err(WootingAnalogResult::UnInitialized);
+            return Err(ReadError::Uninitialized);
         }
 
         let mut devices = vec![];

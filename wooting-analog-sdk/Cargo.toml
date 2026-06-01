@@ -23,7 +23,6 @@ shared_memory = { workspace = true, optional = true }
 enum-primitive-derive = "0.3"
 libloading = "0.8"
 thiserror = "2"
-anyhow = "1"
 num-traits = "0.2"
 ffi-support = "0.4"
 scancode = "0.1"

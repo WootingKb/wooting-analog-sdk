@@ -25,15 +25,15 @@ macro_rules! lib_wrap {
                 fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> $fn_ret_tys)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
-                        //TODO: Retain the obtained function pointer between calls
-                        let func :  Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    error!("{}", e);
-                                }).ok();
-                        match func {
-                            Some(f) => f($($fn_arg_names),*).into(),
-                            _ => Default::default()
 
-                        }
+                        //TODO: Retain the obtained function pointer between calls
+                        self.lib.get(stringify!($fn_names)
+                            .as_bytes())
+                            .inspect_err(|e| {
+                                error!("{}", e);
+                            })
+                            .map(|f: Symbol<FnPtr>| f($($fn_arg_names),*))
+                            .unwrap_or_default()
                     }
                 }
             //}
@@ -53,17 +53,17 @@ macro_rules! lib_wrap_option {
             //lib_wrap! {
             //    @as_item
                 #[unsafe(no_mangle)]
-                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> WootingResult<$fn_ret_tys>)* {
+                fn $fn_names(&mut self, $($fn_arg_names: $fn_arg_tys),*) $(-> Result<$fn_ret_tys, WootingAnalogResult>)* {
                     unsafe {
                         type FnPtr = unsafe fn($($fn_arg_tys),*) $(-> $fn_ret_tys)*;
-                        let func :Option<Symbol<FnPtr>>  = self.lib.get(stringify!($fn_names).as_bytes()).map_err(|e| {
-                                    error!("{}", e);
-                                }).ok();
-                        match func {
-                            Some(f) => Ok(f($($fn_arg_names),*)),
-                            _ => Err(WootingAnalogResult::FunctionNotFound)
 
-                        }
+                        self.lib.get(stringify!($fn_names)
+                            .as_bytes())
+                            .inspect_err(|e| {
+                                error!("{}", e);
+                            })
+                            .map(|f: Symbol<FnPtr>| f($($fn_arg_names),*))
+                            .map_err(|_| WootingAnalogResult::FunctionNotFound)
                     }
                 }
             //}
@@ -80,7 +80,7 @@ pub struct CPlugin {
 }
 
 impl CPlugin {
-    pub fn new(lib: Library) -> WootingResult<CPlugin> {
+    pub fn new(lib: Library) -> Result<CPlugin, PluginError> {
         unsafe {
             if let Ok(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION") {
                 let v = **ver;
@@ -90,7 +90,10 @@ impl CPlugin {
                         "CPlugin ABI version does not match! Given: {}, Expected: {}",
                         v, CPLUGIN_ABI_VERSION
                     );
-                    return Err(WootingAnalogResult::IncompatibleVersion);
+                    return Err(PluginError::VersionMismatch {
+                        version: v,
+                        expected: CPLUGIN_ABI_VERSION,
+                    });
                 }
             }
         }
@@ -142,22 +145,26 @@ extern "C" fn call_closure(
 }
 
 impl Plugin for CPlugin {
-    fn name(&mut self) -> WootingResult<&'static str> {
-        self.name().map(|s| s.as_str())
+    fn name(&mut self) -> Result<&'static str, PluginError> {
+        self.name()
+            .map(|s| s.as_str())
+            .map_err(|_| PluginError::FunctionUnavailable("name"))
     }
 
     fn initialise(
         &mut self,
         callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
-    ) -> WootingResult<u32> {
+    ) -> Result<u32, ReadError> {
         let data = Box::into_raw(Box::new(callback));
         self.cb_data_ptr = Some(data);
         self.initialise(data as *const _, call_closure)
             .map(|res| res as u32)
+            .map_err(|_| ReadError::Plugin(PluginError::FunctionUnavailable("initialise")))
     }
 
-    fn read_analog(&mut self, code: u16, device: DeviceID) -> WootingResult<f32> {
+    fn read_analog(&mut self, code: u16, device: DeviceID) -> Result<f32, ReadError> {
         self.read_analog(code, device)
+            .map_err(|_| ReadError::Plugin(PluginError::FunctionUnavailable("read_analog")))
     }
 
     fn read_keycode(
@@ -184,18 +191,22 @@ impl Plugin for CPlugin {
         &mut self,
         max_length: usize,
         device: DeviceID,
-    ) -> WootingResult<HashMap<c_ushort, c_float>> {
+    ) -> Result<HashMap<c_ushort, c_float>, ReadError> {
         let mut code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length);
         let mut analog_buffer: Vec<c_float> = Vec::with_capacity(max_length);
         code_buffer.resize(max_length, 0);
         analog_buffer.resize(max_length, 0.0);
         let count: usize = {
-            let write_count = self.read_full_buffer(
-                code_buffer.as_ptr(),
-                analog_buffer.as_ptr(),
-                max_length as c_uint,
-                device,
-            )?;
+            let write_count = self
+                .read_full_buffer(
+                    code_buffer.as_ptr(),
+                    analog_buffer.as_ptr(),
+                    max_length as c_uint,
+                    device,
+                )
+                .map_err(|_| {
+                    ReadError::Plugin(PluginError::FunctionUnavailable("read_full_buffer"))
+                })?;
             max_length.min(write_count as usize)
         };
 
@@ -210,10 +221,12 @@ impl Plugin for CPlugin {
     fn read_full_buffer_with_ctx(&mut self, _device: DeviceID) -> SDKResult<AnalogData> {
         // TODO: for now let's assume c plugins can never supply this data
         // can be possible if we include it as an optional function that they can implement
-        Err(WootingAnalogResult::FunctionNotFound)
+        Err(ReadError::Plugin(PluginError::FunctionUnavailable(
+            "read_full_buffer_with_ctx",
+        )))
     }
 
-    fn device_info(&mut self) -> WootingResult<Vec<DeviceInfo>> {
+    fn device_info(&mut self) -> Result<Vec<DeviceInfo>, ReadError> {
         let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
 
         match self
@@ -228,7 +241,9 @@ impl Plugin for CPlugin {
                     .collect();
                 Ok(devices)
             },
-            Err(e) => Err(e),
+            Err(_) => Err(ReadError::Plugin(PluginError::FunctionUnavailable(
+                "device_info",
+            ))),
         }
     }
 

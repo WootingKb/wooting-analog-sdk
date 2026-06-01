@@ -1,7 +1,7 @@
 #[cfg(feature = "dist")]
 mod delegate_sys;
 
-use crate::err::{IntoFfiAnalogValue, IntoFfiCount, WootingAnalogResult, WootingResult};
+use crate::err::WootingAnalogResult;
 use crate::sdk::AnalogSDK;
 use crate::{
     AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition,
@@ -48,7 +48,10 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
     });
     trace!("catch unwind result: {:?}", result);
     match result {
-        Ok(c) => c.into_ffi_count(),
+        Ok(c) => match c {
+            Ok(c) => c as c_int,
+            Err(e) => WootingAnalogResult::from(e).into(),
+        },
         Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
@@ -221,11 +224,10 @@ pub extern "C" fn wooting_analog_read_analog_device(
         return delegate_sys::wooting_analog_read_analog_device(code, device_id);
     }
 
-    ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_analog(code, device_id)
-        .into_ffi_analog_value()
+    match ANALOG_SDK.lock().unwrap().read_analog(code, device_id) {
+        Ok(v) => v,
+        Err(e) => WootingAnalogResult::from(e).into(),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -252,7 +254,7 @@ pub unsafe extern "C" fn wooting_analog_read_keycode_device(
             *out = v;
             WootingAnalogResult::Ok
         }
-        Err(e) => e,
+        Err(e) => WootingAnalogResult::from(e),
     }
 }
 
@@ -308,7 +310,7 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
         return delegate_sys::wooting_analog_set_device_event_cb(cb);
     }
 
-    ANALOG_SDK
+    match ANALOG_SDK
         .lock()
         .unwrap()
         .set_device_event_cb(move |event, device: DeviceInfo| {
@@ -320,8 +322,10 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
             unsafe {
                 drop(Box::from_raw(device_raw));
             }
-        })
-        .into()
+        }) {
+        Ok(_) => WootingAnalogResult::Ok,
+        Err(e) => WootingAnalogResult::from(e),
+    }
 }
 
 /// Clears the device event callback that has been set
@@ -336,7 +340,10 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
         return delegate_sys::wooting_analog_clear_device_event_cb();
     }
 
-    ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
+    match ANALOG_SDK.lock().unwrap().clear_device_event_cb() {
+        Ok(_) => WootingAnalogResult::Ok,
+        Err(e) => WootingAnalogResult::from(e),
+    }
 }
 
 thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = RefCell::new(None));
@@ -360,8 +367,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
         return delegate_sys::wooting_analog_get_connected_devices_info(buffer, len);
     }
 
-    let result: WootingResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
-    match result {
+    match ANALOG_SDK.lock().unwrap().get_device_info() {
         Ok(mut devices) => {
             let device_no = (len as usize).min(devices.len());
 
@@ -393,7 +399,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
             });
             device_no as i32
         }
-        Err(e) => e.into(),
+        Err(e) => WootingAnalogResult::from(e).into(),
     }
 }
 
@@ -497,7 +503,7 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
             }
             count as c_int
         }
-        Err(e) => e as c_int,
+        Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
 
@@ -578,7 +584,7 @@ pub unsafe extern "C" fn wooting_analog_read_positions_device(
             }
             count as c_int
         }
-        Err(e) => e as c_int,
+        Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
 
