@@ -72,8 +72,8 @@ pub enum DeviceErrorKind {
 
 #[derive(Error, Debug)]
 pub struct DeviceError {
-    pub kind: DeviceErrorKind,
-    pub device_id: Option<DeviceID>,
+    pub(crate) kind: DeviceErrorKind,
+    pub(crate) device_id: Option<DeviceID>,
 }
 
 impl DeviceError {
@@ -93,6 +93,14 @@ impl DeviceError {
             kind: DeviceErrorKind::ZeroDevices,
             device_id: None,
         }
+    }
+
+    pub fn kind(&self) -> &DeviceErrorKind {
+        &self.kind
+    }
+
+    pub fn device_id(&self) -> Option<&DeviceID> {
+        self.device_id.as_ref()
     }
 }
 
@@ -181,19 +189,31 @@ impl From<ReadError> for WootingAnalogResult {
         match err {
             ReadError::Uninitialized => Self::UnInitialized,
             ReadError::NoMapping { .. } => Self::NoMapping,
-            ReadError::Device(device_error) => match device_error.kind {
-                DeviceErrorKind::Disconnected => Self::DeviceDisconnected,
-                DeviceErrorKind::ZeroDevices => Self::NoDevices,
-            },
-            ReadError::Plugin(plugin_error) => match plugin_error {
-                PluginError::FunctionUnavailable(_) => Self::FunctionNotFound,
-                PluginError::VersionMismatch { .. } => Self::IncompatibleVersion,
-                PluginError::InvalidPlugin(_)
-                | PluginError::InvalidDirectory(_)
-                | PluginError::IoError(_)
-                | PluginError::ZeroPlugins => Self::NoPlugins,
-                PluginError::DynamicLibraryError { .. } => Self::NotAvailable,
-            },
+            ReadError::Device(device_error) => Self::from(device_error),
+            ReadError::Plugin(plugin_error) => Self::from(plugin_error),
+        }
+    }
+}
+
+impl From<PluginError> for WootingAnalogResult {
+    fn from(err: PluginError) -> Self {
+        match err {
+            PluginError::FunctionUnavailable(_) => Self::FunctionNotFound,
+            PluginError::VersionMismatch { .. } => Self::IncompatibleVersion,
+            PluginError::InvalidPlugin(_)
+            | PluginError::InvalidDirectory(_)
+            | PluginError::IoError(_)
+            | PluginError::ZeroPlugins => Self::NoPlugins,
+            PluginError::DynamicLibraryError { .. } => Self::NotAvailable,
+        }
+    }
+}
+
+impl From<DeviceError> for WootingAnalogResult {
+    fn from(err: DeviceError) -> Self {
+        match err.kind {
+            DeviceErrorKind::Disconnected => Self::DeviceDisconnected,
+            DeviceErrorKind::ZeroDevices => Self::NoDevices,
         }
     }
 }
