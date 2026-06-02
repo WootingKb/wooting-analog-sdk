@@ -61,6 +61,12 @@ pub enum ReadError {
     Plugin(#[from] PluginError),
 }
 
+impl ReadError {
+    pub fn function_unavailable(name: &'static str) -> Self {
+        Self::Plugin(PluginError::FunctionUnavailable(name))
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum DeviceErrorKind {
     #[error("device disconnected")]

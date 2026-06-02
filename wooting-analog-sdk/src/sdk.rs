@@ -188,7 +188,7 @@ impl AnalogSDK {
         Err(PluginError::InvalidDirectory(dir.to_path_buf()))
     }
 
-    unsafe fn load_plugin(&mut self, path: &Path) -> Result<CPlugin, PluginError> {
+    unsafe fn load_plugin(&mut self, path: &Path) -> Result<(), PluginError> {
         if path.is_dir() {
             return Err(PluginError::InvalidPlugin(path.to_path_buf()));
         }
@@ -203,7 +203,10 @@ impl AnalogSDK {
             .name()
             .inspect(|name| println!("Loaded plugin: {:?}", name))?;
 
-        Ok(plugin)
+        self.plugins.push(Box::new(plugin));
+
+        // Ok(plugin)
+        Ok(())
     }
 
     pub fn set_device_event_cb(

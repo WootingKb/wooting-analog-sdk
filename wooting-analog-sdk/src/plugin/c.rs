@@ -159,12 +159,12 @@ impl Plugin for CPlugin {
         self.cb_data_ptr = Some(data);
         self.initialise(data as *const _, call_closure)
             .map(|res| res as u32)
-            .map_err(|_| ReadError::Plugin(PluginError::FunctionUnavailable("initialise")))
+            .map_err(|_| ReadError::function_unavailable("initialise"))
     }
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> Result<f32, ReadError> {
         self.read_analog(code, device)
-            .map_err(|_| ReadError::Plugin(PluginError::FunctionUnavailable("read_analog")))
+            .map_err(|_| ReadError::function_unavailable("read_analog"))
     }
 
     fn read_keycode(
@@ -204,9 +204,7 @@ impl Plugin for CPlugin {
                     max_length as c_uint,
                     device,
                 )
-                .map_err(|_| {
-                    ReadError::Plugin(PluginError::FunctionUnavailable("read_full_buffer"))
-                })?;
+                .map_err(|_| ReadError::function_unavailable("read_full_buffer"))?;
             max_length.min(write_count as usize)
         };
 
@@ -221,9 +219,7 @@ impl Plugin for CPlugin {
     fn read_full_buffer_with_ctx(&mut self, _device: DeviceID) -> SDKResult<AnalogData> {
         // TODO: for now let's assume c plugins can never supply this data
         // can be possible if we include it as an optional function that they can implement
-        Err(ReadError::Plugin(PluginError::FunctionUnavailable(
-            "read_full_buffer_with_ctx",
-        )))
+        Err(ReadError::function_unavailable("read_full_buffer_with_ctx"))
     }
 
     fn device_info(&mut self) -> Result<Vec<DeviceInfo>, ReadError> {
@@ -241,9 +237,7 @@ impl Plugin for CPlugin {
                     .collect();
                 Ok(devices)
             },
-            Err(_) => Err(ReadError::Plugin(PluginError::FunctionUnavailable(
-                "device_info",
-            ))),
+            Err(_) => Err(ReadError::function_unavailable("device_info")),
         }
     }
 
