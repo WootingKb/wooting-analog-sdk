@@ -295,6 +295,18 @@ pub enum ValueMetadata {
     },
 }
 
+// struct V2 {}
+
+// #[repr(C, u8)]
+// enum V2T {
+//     V1 { code: u16, value: f32 },
+//     V2(V2),
+//     // NO ADDING
+// }
+
+// fn v1_api() -> (u16, f32) {todo!()}
+// fn v2_api() -> V2T {todo!()}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C)]
 pub struct KeyPosition {
@@ -312,8 +324,8 @@ impl KeyPosition {
 #[derive(Copy, Clone, Debug, Default, PartialEq, PartialOrd)]
 #[repr(C)]
 pub struct AnalogValue {
-    inner: f32,
-    metadata: ValueMetadata,
+    pub(crate) inner: f32,
+    pub(crate) metadata: ValueMetadata,
 }
 
 impl AnalogValue {
@@ -362,6 +374,71 @@ impl From<f32> for AnalogValue {
             metadata: ValueMetadata::None,
         }
     }
+}
+
+// should not be publicly accessible
+#[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
+#[repr(C)]
+pub(crate) struct Key {
+    pub(crate) code: KeyCode,
+    pub(crate) value: AnalogValue,
+}
+
+/// Maximum number of active binds per physical key (DKS has 4 underlying binds + advanced key entry)
+pub const MAX_KEY_STATES: u8 = 5;
+
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
+#[repr(C)]
+pub struct PhysicalKey {
+    pub(crate) pos: KeyPosition,
+    pub(crate) state_count: u8,
+    pub(crate) states: [KeyState; MAX_KEY_STATES as usize],
+}
+
+impl Default for PhysicalKey {
+    fn default() -> Self {
+        Self {
+            pos: KeyPosition::default(),
+            state_count: 0,
+            states: [KeyState::default(); MAX_KEY_STATES as usize],
+        }
+    }
+}
+
+impl PhysicalKey {
+    pub(crate) fn new(pos: KeyPosition) -> Self {
+        Self {
+            pos,
+            state_count: 0,
+            states: [KeyState::default(); MAX_KEY_STATES as usize],
+        }
+    }
+
+    pub(crate) fn push_state(&mut self, state: KeyState) -> bool {
+        if self.state_count < MAX_KEY_STATES {
+            self.states[self.state_count as usize] = state;
+            self.state_count += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn states(&self) -> &[KeyState] {
+        &self.states[..self.state_count as usize]
+    }
+
+    pub(crate) fn max_value(&self) -> f32 {
+        self.states().iter().map(|s| s.value).fold(0.0, f32::max)
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
+#[repr(C)]
+pub struct KeyState {
+    pub(crate) value: f32,
+    pub(crate) keycode: KeyCode,
+    pub(crate) actuated: bool,
 }
 
 pub type DeviceID = u64;

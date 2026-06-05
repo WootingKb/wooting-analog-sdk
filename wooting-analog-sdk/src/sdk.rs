@@ -3,8 +3,10 @@ use crate::DeviceEventType;
 use crate::DeviceID;
 use crate::DeviceInfo;
 use crate::KeyCode;
+use crate::KeyPosition;
 use crate::KeySource;
 use crate::KeycodeType;
+use crate::PhysicalKey;
 use crate::Plugin;
 use crate::SDKResult;
 use crate::WootingAnalogResult;
@@ -508,41 +510,40 @@ impl AnalogSDK {
         &mut self,
         max_length: usize,
         device_id: DeviceID,
-    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
+    ) -> SDKResult<Vec<PhysicalKey>> {
         if !self.initialised {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
-        let mut analog_data = HashMap::with_capacity(max_length);
+        let mut map: HashMap<KeyPosition, PhysicalKey> = HashMap::with_capacity(max_length);
 
         let mut err = WootingAnalogResult::Ok;
         let mut any_success = false;
         //Read from all and add up
         for p in self.plugins.iter_mut() {
             // Check if we've already collected enough data
-            if analog_data.len() >= max_length {
+            if map.len() >= max_length {
                 break;
             }
 
-            let remaining = max_length.saturating_sub(analog_data.len());
-            let plugin_data = p.read_full_buffer_with_ctx(remaining, device_id).into();
+            let remaining = max_length.saturating_sub(map.len());
+            let plugin_data: Result<Vec<PhysicalKey>, WootingAnalogResult> = p.read_full_buffer_with_ctx(remaining, device_id).into();
             match plugin_data {
-                Ok(mut data) => {
-                    for (mut k, v) in data.drain() {
-                        match hid_to_code(k, &self.keycode_mode) {
-                            Some(code) => k.inner = code,
-                            None => warn!("Couldn't map HID:{:?} to {:?}", k, self.keycode_mode),
-                        }
-                        
-                        let mut total_analog = v;
-
+                Ok(physical_keys) => {
+                    for pk in physical_keys {
                         //No point in checking if the value is already present if we are only looking for data from one device
                         if device_id == 0 {
-                            if let Some(val) = analog_data.get(&k) {
-                                total_analog = total_analog.max(*val);
-                            }
+                            let pk_max = pk.max_value();
+                            map.entry(pk.pos)
+                                .and_modify(|existing| {
+                                    if pk_max > existing.max_value() {
+                                        *existing = pk;
+                                    }
+                                })
+                                .or_insert(pk);
+                        } else {
+                            map.insert(pk.pos, pk);
                         }
-                        analog_data.insert(k, total_analog);
                     }
 
                     any_success = true;
@@ -561,7 +562,7 @@ impl AnalogSDK {
             return Err(err).into();
         }
 
-        Ok(analog_data).into()
+        Ok(map.into_values().collect()).into()
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire

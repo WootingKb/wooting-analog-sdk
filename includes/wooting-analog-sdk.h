@@ -7,6 +7,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+/// Maximum number of active binds per physical key (DKS has 4 underlying binds + advanced key entry)
+#define WootingAnalog_MAX_KEY_STATES 5
+
 typedef enum WootingAnalogResult {
   WootingAnalogResult_Ok = 1,
   /// Item hasn't been initialized
@@ -179,6 +182,18 @@ typedef struct WootingAnalog_DeviceInfo_FFI {
   WootingAnalog_DeviceType device_type;
 } WootingAnalog_DeviceInfo_FFI;
 
+typedef struct WootingAnalog_KeyState {
+  float value;
+  struct WootingAnalog_KeyCode keycode;
+  bool actuated;
+} WootingAnalog_KeyState;
+
+typedef struct WootingAnalog_PhysicalKey {
+  struct WootingAnalog_KeyPosition pos;
+  uint8_t state_count;
+  struct WootingAnalog_KeyState states[WootingAnalog_MAX_KEY_STATES];
+} WootingAnalog_PhysicalKey;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -321,8 +336,7 @@ int wooting_analog_read_full_buffer(unsigned short *code_buffer,
                                     float *analog_buffer,
                                     unsigned int len);
 
-int wooting_analog_read_full_buffer_with_ctx(struct WootingAnalog_KeyCode *code_buffer,
-                                             struct WootingAnalog_AnalogValue *analog_buffer,
+int wooting_analog_read_full_buffer_with_ctx(struct WootingAnalog_PhysicalKey *physical_keys,
                                              unsigned int len);
 
 /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
@@ -346,8 +360,7 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
 
-int wooting_analog_read_full_buffer_device_with_ctx(struct WootingAnalog_KeyCode *code_buffer,
-                                                    struct WootingAnalog_AnalogValue *analog_buffer,
+int wooting_analog_read_full_buffer_device_with_ctx(struct WootingAnalog_PhysicalKey *physical_keys,
                                                     unsigned int len,
                                                     WootingAnalog_DeviceID device_id);
 
