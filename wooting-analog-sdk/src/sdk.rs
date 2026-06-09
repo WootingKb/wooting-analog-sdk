@@ -9,6 +9,7 @@ use crate::KeycodeType;
 use crate::PhysicalKey;
 use crate::Plugin;
 use crate::SDKResult;
+use crate::AnalogData;
 use crate::WootingAnalogResult;
 use crate::keycode::*;
 use crate::plugin::ANALOG_SDK_PLUGIN_VERSION;
@@ -510,59 +511,42 @@ impl AnalogSDK {
         &mut self,
         max_length: usize,
         device_id: DeviceID,
-    ) -> SDKResult<Vec<PhysicalKey>> {
+    ) -> SDKResult<AnalogData> {
         if !self.initialised {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
 
-        let mut map: HashMap<KeyPosition, PhysicalKey> = HashMap::with_capacity(max_length);
-
+        let mut combined = AnalogData::new();
         let mut err = WootingAnalogResult::Ok;
         let mut any_success = false;
-        //Read from all and add up
+
         for p in self.plugins.iter_mut() {
-            // Check if we've already collected enough data
-            if map.len() >= max_length {
+            if combined.len() >= max_length {
                 break;
             }
 
-            let remaining = max_length.saturating_sub(map.len());
-            let plugin_data: Result<Vec<PhysicalKey>, WootingAnalogResult> = p.read_full_buffer_with_ctx(remaining, device_id).into();
-            match plugin_data {
-                Ok(physical_keys) => {
-                    for pk in physical_keys {
-                        //No point in checking if the value is already present if we are only looking for data from one device
-                        if device_id == 0 {
-                            let pk_max = pk.max_value();
-                            map.entry(pk.pos)
-                                .and_modify(|existing| {
-                                    if pk_max > existing.max_value() {
-                                        *existing = pk;
-                                    }
-                                })
-                                .or_insert(pk);
-                        } else {
-                            map.insert(pk.pos, pk);
-                        }
-                    }
-
+            let remaining = max_length.saturating_sub(combined.len());
+            match p.read_full_buffer_with_ctx(remaining, device_id).into() {
+                Ok(plugin_data) => {
+                    combined.merge(plugin_data);
                     any_success = true;
                 }
                 Err(e) => {
-                    //TODO: Improve collating of multiple errors
-                    err = e
+                    err = e;
                 }
             }
-            //If we are looking for a specific device, just break out when we find one that returns good
-            if device_id != 0 {
+
+            // If looking for a specific device, break after first successful read
+            if device_id != 0 && any_success {
                 break;
             }
         }
+
         if !any_success {
             return Err(err).into();
         }
 
-        Ok(map.into_values().collect()).into()
+        Ok(combined).into()
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire

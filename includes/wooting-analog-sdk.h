@@ -194,6 +194,33 @@ typedef struct WootingAnalog_PhysicalKey {
   struct WootingAnalog_KeyState states[WootingAnalog_MAX_KEY_STATES];
 } WootingAnalog_PhysicalKey;
 
+enum WootingAnalog_V2Data_Tag
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
+  WootingAnalog_V2Data_V1,
+  WootingAnalog_V2Data_V2,
+};
+#ifndef __cplusplus
+typedef uint8_t WootingAnalog_V2Data_Tag;
+#endif // __cplusplus
+
+typedef struct WootingAnalog_V2Data_WootingAnalog_V1_Body {
+  uint16_t keycode;
+  float value;
+} WootingAnalog_V2Data_WootingAnalog_V1_Body;
+
+typedef struct WootingAnalog_V2Data {
+  WootingAnalog_V2Data_Tag tag;
+  union {
+    WootingAnalog_V2Data_WootingAnalog_V1_Body v1;
+    struct {
+      struct WootingAnalog_PhysicalKey v2;
+    };
+  };
+} WootingAnalog_V2Data;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -336,7 +363,7 @@ int wooting_analog_read_full_buffer(unsigned short *code_buffer,
                                     float *analog_buffer,
                                     unsigned int len);
 
-int wooting_analog_read_full_buffer_with_ctx(struct WootingAnalog_PhysicalKey *physical_keys,
+int wooting_analog_read_full_buffer_with_ctx(struct WootingAnalog_V2Data *data_buffer,
                                              unsigned int len);
 
 /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
@@ -360,7 +387,7 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
 
-int wooting_analog_read_full_buffer_device_with_ctx(struct WootingAnalog_PhysicalKey *physical_keys,
+int wooting_analog_read_full_buffer_device_with_ctx(struct WootingAnalog_V2Data *data_buffer,
                                                     unsigned int len,
                                                     WootingAnalog_DeviceID device_id);
 

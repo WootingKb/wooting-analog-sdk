@@ -1,5 +1,5 @@
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeyCode, KeySource, PhysicalKey, WootingAnalogResult
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeySource, V2Data, WootingAnalogResult,
 };
 use libloading::Symbol;
 use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
@@ -159,7 +159,9 @@ delegate_sys! {
     wooting_analog_read_full_buffer_device_with_ctx(
         // code_buffer: *mut KeyCode,
         // analog_buffer: *mut AnalogValue,
-        physical_keys: *mut PhysicalKey,
+        // physical_keys: *mut PhysicalKey,
+        // key_buffer: *mut V2DataKey,
+        data_buffer: *mut V2Data,
         len: c_uint,
         device_id: DeviceID
     ) -> c_int;

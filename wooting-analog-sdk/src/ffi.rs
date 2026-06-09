@@ -2,7 +2,9 @@
 mod delegate_sys;
 
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition, KeySource, KeycodeType, PhysicalKey, SDKResult, ValueMetadata, WootingAnalogResult, sdk::*
+    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition,
+    KeySource, KeycodeType, PhysicalKey, SDKResult, V2Data, ValueMetadata, WootingAnalogResult,
+    sdk::*,
 };
 #[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
@@ -421,7 +423,9 @@ pub extern "C" fn wooting_analog_read_full_buffer(
 pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx(
     // code_buffer: *mut KeyCode,
     // analog_buffer: *mut AnalogValue,
-    physical_keys: *mut PhysicalKey,
+    // physical_keys: *mut PhysicalKey,
+    // key_buffer: *mut V2DataKey,
+    data_buffer: *mut V2Data,
     len: c_uint,
 ) -> c_int {
     #[cfg(feature = "dist")]
@@ -429,13 +433,15 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_with_ctx(
         return delegate_sys::wooting_analog_read_full_buffer_device_with_ctx(
             // code_buffer,
             // analog_buffer,
-            physical_keys,
+            // physical_keys,
+            // key_buffer,
+            data_buffer,
             len,
             0,
         );
     }
 
-    unsafe { wooting_analog_read_full_buffer_device_with_ctx(physical_keys, len, 0) }
+    unsafe { wooting_analog_read_full_buffer_device_with_ctx(data_buffer, len, 0) }
 }
 
 /// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
@@ -511,7 +517,9 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
 pub unsafe extern "C" fn wooting_analog_read_full_buffer_device_with_ctx(
     // code_buffer: *mut KeyCode,
     // analog_buffer: *mut AnalogValue,
-    physical_keys: *mut PhysicalKey,
+    // physical_keys: *mut PhysicalKey,
+    // key_buffer: *mut V2DataKey,
+    data_buffer: *mut V2Data,
     len: c_uint,
     device_id: DeviceID,
 ) -> c_int {
@@ -520,7 +528,9 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_device_with_ctx(
         return delegate_sys::wooting_analog_read_full_buffer_device_with_ctx(
             // code_buffer,
             // analog_buffer,
-            physical_keys,
+            // physical_keys,
+            // key_buffer,
+            data_buffer,
             len,
             device_id,
         );
@@ -538,10 +548,22 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_device_with_ctx(
     //     slice::from_raw_parts_mut(analog_buffer, len as usize)
     // };
 
-    let keys = unsafe {
-        assert!(!physical_keys.is_null());
+    // let keys = unsafe {
+    //     assert!(!physical_keys.is_null());
 
-        slice::from_raw_parts_mut(physical_keys, len as usize)
+    //     slice::from_raw_parts_mut(physical_keys, len as usize)
+    // };
+
+    // let keys = unsafe {
+    //     assert!(!key_buffer.is_null());
+
+    //     slice::from_raw_parts_mut(key_buffer, len as usize)
+    // };
+
+    let values = unsafe {
+        assert!(!data_buffer.is_null());
+
+        slice::from_raw_parts_mut(data_buffer, len as usize)
     };
 
     match ANALOG_SDK
@@ -551,14 +573,14 @@ pub unsafe extern "C" fn wooting_analog_read_full_buffer_device_with_ctx(
         .0
     {
         Ok(analog_data) => {
-            //Fill up given slices
             let mut count: usize = 0;
-            for key in analog_data.iter() {
-                if count >= keys.len() {
+            for data in analog_data.into_vec() {
+                if count >= values.len() {
                     break;
                 }
 
-                keys[count] = key.clone();
+                // keys[count] = *k;
+                values[count] = data.clone();
                 // analog[count] = *val;
                 count += 1;
             }

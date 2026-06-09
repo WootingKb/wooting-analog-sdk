@@ -16,7 +16,9 @@ use std::{str, thread};
 #[cfg(feature = "virtual-input")]
 use crate::virtual_input::VirtualKeyboard;
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, Key, KeyCode, KeyMetadata, KeyNamespace, KeyPosition, KeySource, KeyState, PhysicalKey, SDKResult, ValueMetadata, WootingAnalogResult
+    AnalogData, AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceType, Key, KeyCode,
+    KeyMetadata, KeyNamespace, KeyPosition, KeySource, KeyState, PhysicalKey, SDKResult,
+    ValueMetadata, WootingAnalogResult,
 };
 
 #[cfg(target_os = "macos")]
@@ -77,7 +79,7 @@ pub trait Plugin {
         &mut self,
         max_length: usize,
         device_id: DeviceID,
-    ) -> SDKResult<Vec<PhysicalKey>>;
+    ) -> SDKResult<AnalogData>;
 }
 
 const ANALOG_BUFFER_SIZE_V1: usize = 48;
@@ -368,9 +370,10 @@ impl Device {
                                     if let Some(data) = data {
                                         let mut map = t_buffer.lock().unwrap();
                                         map.clear();
-                                        map.extend(data.iter().map(|(k, v)| 
-                                            Key { code: KeyCode::from(*k), value: AnalogValue::from(*v) }
-                                        ));
+                                        map.extend(data.iter().map(|(k, v)| Key {
+                                            code: KeyCode::from(*k),
+                                            value: AnalogValue::from(*v),
+                                        }));
                                     }
                                 }
                                 Err(e) => {
@@ -444,12 +447,17 @@ impl Device {
         let buffer_guard = self.buffer.lock().unwrap();
 
         let value: Option<Key> = match key_source {
-            KeySource::Raw(code) => buffer_guard.iter().find(|k| k.code.as_u16() == code).cloned(),
+            KeySource::Raw(code) => buffer_guard
+                .iter()
+                .find(|k| k.code.as_u16() == code)
+                .cloned(),
             KeySource::Code(code) => buffer_guard.iter().find(|k| k.code == code).cloned(),
-            KeySource::Position(position) => buffer_guard.iter().find_map(|k| match k.value.metadata {
-                ValueMetadata::Basic { pos, .. } if pos == position => Some(k.clone()),
-                _ => None,
-            }),
+            KeySource::Position(position) => {
+                buffer_guard.iter().find_map(|k| match k.value.metadata {
+                    ValueMetadata::Basic { pos, .. } if pos == position => Some(k.clone()),
+                    _ => None,
+                })
+            }
         };
 
         SDKResult(Ok(value.unwrap_or_default()))
@@ -787,8 +795,7 @@ impl Plugin for WootingPlugin {
                                 })
                                 .or_insert(v);
                         }
-                            any_read = true;
-
+                        any_read = true;
                     }
                     Err(e) => {
                         error = e;
@@ -816,9 +823,11 @@ impl Plugin for WootingPlugin {
         {
             match self.devices.lock().unwrap().get_mut(&device_id) {
                 Some(device) => match device.read_full_with_ctx().into() {
-                    Ok(val) => {
-                        Ok(val.iter().map(|k| (k.code.as_u16(), k.value.as_f32())).collect()).into()
-                    }
+                    Ok(val) => Ok(val
+                        .iter()
+                        .map(|k| (k.code.as_u16(), k.value.as_f32()))
+                        .collect())
+                    .into(),
                     Err(e) => Err(e).into(),
                 },
                 None => Err(WootingAnalogResult::NoDevices).into(),
@@ -828,9 +837,9 @@ impl Plugin for WootingPlugin {
 
     fn read_full_buffer_with_ctx(
         &mut self,
-        max_length: usize,
+        _max_length: usize,
         device_id: DeviceID,
-    ) -> SDKResult<Vec<PhysicalKey>> {
+    ) -> SDKResult<AnalogData> {
         if !self.initialised.load(Ordering::Relaxed) {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
@@ -839,55 +848,45 @@ impl Plugin for WootingPlugin {
             return Err(WootingAnalogResult::NoDevices).into();
         }
 
-        //If the Device ID is 0 we want to go through all the connected devices
-        //and combine the analog values
-        if device_id == 0 {
-            let mut map: HashMap<KeyPosition, PhysicalKey> = HashMap::new();
-            let mut any_read = false;
-            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
-            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
-                match device.read_full_with_ctx().into() {
-              Ok(keys) => {
-                  // First, group this device's keys by position
-                  let mut device_map: HashMap<KeyPosition, PhysicalKey> = HashMap::new();
-
-                  for key in keys {
-                    if let ValueMetadata::Basic { pos, actuated } = key.value.metadata {
+        // TODO: needs to be taken out later, will tidy this up when working on the new rust api
+        fn keys_to_analog_data(keys: Vec<Key>, data: &mut AnalogData) {
+            for key in keys {
+                match key.value.metadata {
+                    ValueMetadata::None => {
+                        data.insert_v1(key.code.as_u16(), key.value.as_f32());
+                    }
+                    ValueMetadata::Basic { pos, actuated } => {
                         let key_state = KeyState {
                             value: key.value.inner,
                             keycode: key.code,
                             actuated,
                         };
-
-                        device_map.entry(pos)
-                            .and_modify(|pk| { pk.push_state(key_state); })
-                            .or_insert_with(|| {
-                                let mut pk = PhysicalKey::new(pos);
-                                pk.push_state(key_state);
-                                pk
-                            });
+                        // Accumulate states at the same position
+                        data.push_v2_state(pos, key_state);
                     }
                 }
+            }
+        }
 
-                // Merge into main map, keeping highest value per position
-                for (pos, device_pk) in device_map {
-                    let device_max = device_pk.max_value();
+        // If the Device ID is 0 we want to go through all the connected devices
+        // and combine the analog values
+        if device_id == 0 {
+            let mut combined = AnalogData::new();
+            let mut any_read = false;
+            let mut error: WootingAnalogResult = WootingAnalogResult::Ok;
 
-                    map.entry(pos)
-                        .and_modify(|existing_pk| {
-                            if device_max > existing_pk.max_value() {
-                                *existing_pk = device_pk;
-                            }
-                        })
-                        .or_insert(device_pk);
+            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+                match device.read_full_with_ctx().into() {
+                    Ok(keys) => {
+                        let mut device_data = AnalogData::new();
+                        keys_to_analog_data(keys, &mut device_data);
+                        combined.merge(device_data);
+                        any_read = true;
+                    }
+                    Err(e) => {
+                        error = e;
+                    }
                 }
-
-                  any_read = true;
-              }
-              Err(e) => {
-                  error = e;
-              }
-          }
             }
 
             if !any_read {
@@ -904,38 +903,17 @@ impl Plugin for WootingPlugin {
                 //     }
                 // });
 
-                let physical_keys: Vec<PhysicalKey> = map.into_values().collect();
-                Ok(physical_keys).into()
+                Ok(combined).into()
             }
-        } else
-        //If the device id is not 0, we try and find a connected device with that ID and read from it
-        {
+        } else {
+            // If the device id is not 0, we try and find a connected device with that ID and read from it
             match self.devices.lock().unwrap().get_mut(&device_id) {
                 Some(device) => match device.read_full_with_ctx().into() {
                     Ok(keys) => {
-                        let mut map: HashMap<KeyPosition, PhysicalKey> = HashMap::new();
-
-                        for key in keys {
-                            if let ValueMetadata::Basic { pos, actuated } = key.value.metadata {
-                                let key_state = KeyState {
-                                    value: key.value.inner,
-                                    keycode: key.code,
-                                    actuated,
-                                };
-
-                                map.entry(pos)
-                                    .and_modify(|pk| { pk.push_state(key_state); })
-                                    .or_insert_with(|| {
-                                        let mut pk = PhysicalKey::new(pos);
-                                        pk.push_state(key_state);
-                                        pk
-                                    });
-                            }
-                        }
-
-                        let physical_keys: Vec<PhysicalKey> = map.into_values().collect();
-                        Ok(physical_keys).into()
-                    },
+                        let mut data = AnalogData::new();
+                        keys_to_analog_data(keys, &mut data);
+                        Ok(data).into()
+                    }
                     Err(e) => Err(e).into(),
                 },
                 None => Err(WootingAnalogResult::NoDevices).into(),

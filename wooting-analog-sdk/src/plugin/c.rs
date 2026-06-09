@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
 
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, PhysicalKey, Plugin, SDKResult, WootingAnalogResult
+    AnalogData, AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, Plugin,
+    SDKResult, WootingAnalogResult,
 };
 
 macro_rules! lib_wrap {
@@ -208,9 +209,9 @@ impl Plugin for CPlugin {
 
     fn read_full_buffer_with_ctx(
         &mut self,
-        max_length: usize,
-        device: DeviceID,
-    ) -> SDKResult<Vec<PhysicalKey>> {
+        _max_length: usize,
+        _device: DeviceID,
+    ) -> SDKResult<AnalogData> {
         // TODO: for now let's assume c plugins can never supply this data
         // can be possible if we include it as an optional function that they can implement
         SDKResult(Err(WootingAnalogResult::FunctionNotFound))

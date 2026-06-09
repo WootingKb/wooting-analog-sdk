@@ -376,6 +376,100 @@ impl From<f32> for AnalogValue {
     }
 }
 
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[repr(C, u8)]
+pub enum V2Data {
+    V1 { keycode: u16, value: f32 },
+    V2(PhysicalKey),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AnalogData {
+    v1: HashMap<u16, f32>,
+    v2: HashMap<KeyPosition, PhysicalKey>,
+}
+
+impl AnalogData {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(v1_capacity: usize, v2_capacity: usize) -> Self {
+        Self {
+            v1: HashMap::with_capacity(v1_capacity),
+            v2: HashMap::with_capacity(v2_capacity),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.v1.is_empty() && self.v2.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.v1.len() + self.v2.len()
+    }
+
+    pub fn insert_v1(&mut self, keycode: u16, value: f32) {
+        self.v1
+            .entry(keycode)
+            .and_modify(|existing| *existing = existing.max(value))
+            .or_insert(value);
+    }
+
+    pub fn insert_v2(&mut self, pk: PhysicalKey) {
+        self.v2
+            .entry(pk.pos)
+            .and_modify(|existing| {
+                if pk.max_value() > existing.max_value() {
+                    *existing = pk;
+                }
+            })
+            .or_insert(pk);
+    }
+
+    pub(crate) fn push_v2_state(&mut self, pos: KeyPosition, state: KeyState) {
+        self.v2
+            .entry(pos)
+            .and_modify(|existing| {
+                existing.push_state(state);
+            })
+            .or_insert_with(|| {
+                let mut pk = PhysicalKey::new(pos);
+                pk.push_state(state);
+                pk
+            });
+    }
+
+    pub fn merge(&mut self, other: AnalogData) {
+        for (keycode, value) in other.v1 {
+            self.insert_v1(keycode, value);
+        }
+        for (_, pk) in other.v2 {
+            self.insert_v2(pk);
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = V2Data> + '_ {
+        self.v1
+            .iter()
+            .map(|(&keycode, &value)| V2Data::V1 { keycode, value })
+            .chain(self.v2.values().cloned().map(V2Data::V2))
+    }
+
+    // TODO: for performance return iterator instead since FFI will iterate over these anyway to
+    // copy them into the raw V2Data pointer. could make this function pub(crate) so only our FFI
+    // functions can use it, feels like it wouldn't be useful for rust side anyway.
+    pub fn into_vec(self) -> Vec<V2Data> {
+        self.v1
+            .into_iter()
+            .map(|(keycode, value)| V2Data::V1 { keycode, value })
+            .chain(self.v2.into_values().map(V2Data::V2))
+            .collect()
+    }
+}
+
 // should not be publicly accessible
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
 #[repr(C)]
