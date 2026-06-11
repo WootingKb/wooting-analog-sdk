@@ -374,87 +374,114 @@ impl AnalogSDK {
         Ok(analog_data)
     }
 
-    pub(crate) fn read_keycode(&mut self, code: u16, device_id: DeviceID) -> SDKResult<AnalogValue> {
+    pub(crate) fn read_keycode(
+        &mut self,
+        code: u16,
+        device_id: DeviceID,
+    ) -> Result<AnalogValue, ReadError> {
         if !self.initialised {
             return Err(ReadError::Uninitialized);
         }
 
         let Some(hid_code) = crate::keycode::code_to_hid(code, &self.keycode_mode) else {
-            return Err(WootingAnalogResult::NoMapping).into();
+            return Err(ReadError::NoMapping {
+                keycode: code,
+                mode: self.keycode_mode.clone(),
+            });
         };
 
         let mut value = AnalogValue::from(-1.0);
-        let mut err = WootingAnalogResult::Ok;
+        let mut error = None;
 
         for p in self.plugins.iter_mut() {
-            match p.read_keycode(KeyCode::from(hid_code), device_id).into() {
+            match p.read_keycode(KeyCode::from(hid_code), device_id) {
                 Ok(x) => {
                     value = value.max(x);
                     if device_id != 0 {
                         break;
                     }
                 }
-                Err(e) => err = e,
+                Err(e) => error = Some(e),
             }
         }
 
-        if value < 0.0 {
-            return Err(err).into();
+        if let Some(err) = error
+            && value < 0.0
+        {
+            return Err(err);
         }
 
-        SDKResult(Ok(value))
+        Ok(value)
     }
 
     pub(crate) fn read_position(
         &mut self,
         position: KeyPosition,
         device_id: DeviceID,
-    ) -> SDKResult<PhysicalKey> {
+    ) -> Result<PhysicalKey, ReadError> {
         if !self.initialised {
-            return Err(WootingAnalogResult::UnInitialized).into();
+            return Err(ReadError::Uninitialized);
         }
 
-        let mut result = PhysicalKey::new(position);
-        let mut err = WootingAnalogResult::Ok;
+        let mut physical_key = PhysicalKey::new(position);
+        let mut error = None;
 
         for p in self.plugins.iter_mut() {
-            match p.read_position(position, device_id).into() {
+            match p.read_position(position, device_id) {
                 Ok(pk) => {
                     for i in 0..pk.state_count {
-                        result.push_state(pk.states[i as usize]);
+                        physical_key.push_state(pk.states[i as usize]);
                     }
                     if device_id != 0 {
                         break;
                     }
                 }
-                Err(e) => err = e,
+                Err(e) => error = Some(e),
             }
         }
 
-        if result.state_count == 0 {
-            return Err(err).into();
+        if let Some(err) = error
+            && physical_key.state_count == 0
+        {
+            return Err(err);
         }
 
-        SDKResult(Ok(result))
+        Ok(physical_key)
     }
 
-    pub(crate) fn inputs(&mut self, device_id: DeviceID) -> SDKResult<AnalogData> {
+    // TODO: hide hashmap impl detail behind opaque struct
+    // will probably be -> InputsPosition { .. }
+    // could even try Inputs<Position> ?
+    pub(crate) fn read_positions(
+        &mut self,
+        device_id: DeviceID,
+    ) -> Result<HashMap<KeyPosition, PhysicalKey>, ReadError> {
         if !self.initialised {
-            return Err(WootingAnalogResult::UnInitialized).into();
+            return Err(ReadError::Uninitialized);
         }
 
-        let mut combined = AnalogData::new();
-        let mut err = WootingAnalogResult::Ok;
+        let mut positions = HashMap::new();
+        let mut error = None;
         let mut any_success = false;
 
         for p in self.plugins.iter_mut() {
-            match p.read_full_buffer_with_ctx(device_id).into() {
+            match p.read_positions(0, device_id) {
                 Ok(plugin_data) => {
-                    combined.merge(plugin_data);
+                    for (_, physical_key) in plugin_data {
+                        positions
+                            .entry(physical_key.pos)
+                            .and_modify(|existing: &mut PhysicalKey| {
+                                if physical_key.max_value() > existing.max_value() {
+                                    *existing = physical_key;
+                                }
+                            })
+                            .or_insert(physical_key);
+                    }
+
                     any_success = true;
                 }
                 Err(e) => {
-                    err = e;
+                    error = Some(e);
                 }
             }
 
@@ -464,24 +491,13 @@ impl AnalogSDK {
             }
         }
 
-        if !any_success {
+        if let Some(err) = error
+            && !any_success
+        {
             return Err(err);
         }
 
-        Ok(combined).into()
-    }
-
-    // TODO: hide hashmap impl detail behind opaque struct
-    // will probably be -> InputsPosition { .. }
-    // could even try Inputs<Position> ?
-    pub(crate) fn read_positions(
-        &mut self,
-        device_id: DeviceID,
-    ) -> SDKResult<HashMap<KeyPosition, PhysicalKey>> {
-        self.inputs(device_id)
-            .0
-            .map(|data| data.position_based)
-            .into()
+        Ok(positions)
     }
 
     // TODO: hide hashmap impl detail behind opaque struct
@@ -490,11 +506,49 @@ impl AnalogSDK {
     pub(crate) fn read_keycodes(
         &mut self,
         device_id: DeviceID,
-    ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {
-        self.inputs(device_id)
-            .0
-            .map(|data| data.keycode_based)
-            .into()
+    ) -> Result<HashMap<KeyCode, AnalogValue>, ReadError> {
+        if !self.initialised {
+            return Err(ReadError::Uninitialized);
+        }
+
+        let mut keycodes = HashMap::new();
+        let mut error = None;
+        let mut any_success = false;
+
+        for p in self.plugins.iter_mut() {
+            match p.read_keycodes(0, device_id) {
+                Ok(plugin_data) => {
+                    for (k, v) in plugin_data {
+                        keycodes
+                            .entry(k)
+                            .and_modify(|existing| {
+                                if &v > existing {
+                                    *existing = v;
+                                }
+                            })
+                            .or_insert(v);
+                    }
+
+                    any_success = true;
+                }
+                Err(e) => {
+                    error = Some(e);
+                }
+            }
+
+            // If looking for a specific device, break after first successful read
+            if device_id != 0 && any_success {
+                break;
+            }
+        }
+
+        if let Some(err) = error
+            && !any_success
+        {
+            return Err(err);
+        }
+
+        Ok(keycodes)
     }
 
     /// Unload all plugins and loaded plugin libraries, making sure to fire

@@ -1,6 +1,6 @@
 use crate::{
     AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeyCode, KeyPosition, PhysicalKey,
-    WootingAnalogResult,
+    err::{DelegateError, WootingAnalogResult},
 };
 use libloading::Symbol;
 use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};

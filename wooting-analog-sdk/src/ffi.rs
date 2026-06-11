@@ -1,11 +1,10 @@
 #[cfg(feature = "dist")]
 mod delegate_sys;
 
-use crate::err::WootingAnalogResult;
 use crate::sdk::AnalogSDK;
 use crate::{
     AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition,
-    KeycodeType, PhysicalKey, SDKResult, WootingAnalogResult, sdk::*,
+    KeycodeType, PhysicalKey, err::WootingAnalogResult,
 };
 #[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
@@ -241,12 +240,7 @@ pub unsafe extern "C" fn wooting_analog_read_keycode_device(
         return delegate_sys::wooting_analog_read_keycode_device(keycode, value, device_id);
     }
 
-    match ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_keycode(keycode, device_id)
-        .0
-    {
+    match ANALOG_SDK.lock().unwrap().read_keycode(keycode, device_id) {
         Ok(v) => {
             let Some(out) = (unsafe { value.as_mut() }) else {
                 return WootingAnalogResult::InvalidArgument;
@@ -278,7 +272,7 @@ pub unsafe extern "C" fn wooting_analog_read_position_device(
             return WootingAnalogResult::InvalidArgument;
         };
 
-        match ANALOG_SDK.lock().unwrap().read_position(*pos, device_id).0 {
+        match ANALOG_SDK.lock().unwrap().read_position(*pos, device_id) {
             Ok(pk) => {
                 let Some(out) = physical_key.as_mut() else {
                     return WootingAnalogResult::InvalidArgument;
@@ -286,7 +280,7 @@ pub unsafe extern "C" fn wooting_analog_read_position_device(
                 *out = pk;
                 WootingAnalogResult::Ok
             }
-            Err(e) => e,
+            Err(e) => WootingAnalogResult::from(e),
         }
     }
 }
@@ -536,7 +530,7 @@ pub unsafe extern "C" fn wooting_analog_read_keycodes_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    match ANALOG_SDK.lock().unwrap().read_keycodes(device_id).0 {
+    match ANALOG_SDK.lock().unwrap().read_keycodes(device_id) {
         Ok(analog_data) => {
             let mut count: usize = 0;
             for (k, v) in analog_data {
@@ -550,7 +544,7 @@ pub unsafe extern "C" fn wooting_analog_read_keycodes_device(
             }
             count as c_int
         }
-        Err(e) => e as c_int,
+        Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
 
@@ -571,7 +565,7 @@ pub unsafe extern "C" fn wooting_analog_read_positions_device(
         slice::from_raw_parts_mut(physical_keys, len as usize)
     };
 
-    match ANALOG_SDK.lock().unwrap().read_positions(device_id).0 {
+    match ANALOG_SDK.lock().unwrap().read_positions(device_id) {
         Ok(analog_data) => {
             let mut count: usize = 0;
             for (_, k) in analog_data {
