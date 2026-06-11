@@ -163,11 +163,21 @@ impl Plugin for CPlugin {
         self.read_analog(code, device)
     }
 
-    fn read_analog_with_ctx(
+    fn read_keycode(
         &mut self,
-        _key_source: crate::KeySource,
+        _code: crate::KeyCode,
         _device_id: DeviceID,
     ) -> SDKResult<AnalogValue> {
+        // TODO: for now let's assume c plugins can never supply this data
+        // can be possible if we include it as an optional function that they can implement
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
+    }
+
+    fn read_position(
+        &mut self,
+        _position: crate::KeyPosition,
+        _device_id: DeviceID,
+    ) -> SDKResult<crate::PhysicalKey> {
         // TODO: for now let's assume c plugins can never supply this data
         // can be possible if we include it as an optional function that they can implement
         SDKResult(Err(WootingAnalogResult::FunctionNotFound))
@@ -207,11 +217,7 @@ impl Plugin for CPlugin {
         Ok(analog_data).into()
     }
 
-    fn read_full_buffer_with_ctx(
-        &mut self,
-        _max_length: usize,
-        _device: DeviceID,
-    ) -> SDKResult<AnalogData> {
+    fn read_full_buffer_with_ctx(&mut self, _device: DeviceID) -> SDKResult<AnalogData> {
         // TODO: for now let's assume c plugins can never supply this data
         // can be possible if we include it as an optional function that they can implement
         SDKResult(Err(WootingAnalogResult::FunctionNotFound))
@@ -251,5 +257,21 @@ impl Plugin for CPlugin {
                 ));
             }
         }
+    }
+
+    fn read_keycodes(
+        &mut self,
+        _max_length: usize,
+        _device_id: DeviceID,
+    ) -> SDKResult<HashMap<crate::KeyCode, AnalogValue>> {
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
+    }
+
+    fn read_positions(
+        &mut self,
+        _max_length: usize,
+        _device_id: DeviceID,
+    ) -> SDKResult<HashMap<crate::KeyPosition, crate::PhysicalKey>> {
+        SDKResult(Err(WootingAnalogResult::FunctionNotFound))
     }
 }

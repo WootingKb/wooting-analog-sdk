@@ -12,6 +12,7 @@ use ffi_support::FfiStr;
 pub use num_traits::{FromPrimitive, ToPrimitive};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::hash::Hasher;
 use std::ops::Deref;
@@ -152,14 +153,6 @@ impl DeviceInfo {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[repr(C, u8)]
-pub enum KeySource {
-    Raw(u16),
-    Code(KeyCode),
-    Position(KeyPosition),
-}
-
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, PartialEq, Clone, Primitive)]
 #[repr(C)]
@@ -211,8 +204,8 @@ pub enum KeyMetadata {
 #[derive(Copy, Clone, Eq, Debug, Default)]
 #[repr(C)]
 pub struct KeyCode {
-    inner: u16,
-    metadata: KeyMetadata,
+    pub(crate) inner: u16,
+    pub(crate) metadata: KeyMetadata,
 }
 
 impl KeyCode {
@@ -295,18 +288,6 @@ pub enum ValueMetadata {
     },
 }
 
-// struct V2 {}
-
-// #[repr(C, u8)]
-// enum V2T {
-//     V1 { code: u16, value: f32 },
-//     V2(V2),
-//     // NO ADDING
-// }
-
-// fn v1_api() -> (u16, f32) {todo!()}
-// fn v2_api() -> V2T {todo!()}
-
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C)]
 pub struct KeyPosition {
@@ -376,19 +357,10 @@ impl From<f32> for AnalogValue {
     }
 }
 
-use std::collections::HashMap;
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-#[repr(C, u8)]
-pub enum V2Data {
-    V1 { keycode: u16, value: f32 },
-    V2(PhysicalKey),
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct AnalogData {
-    v1: HashMap<u16, f32>,
-    v2: HashMap<KeyPosition, PhysicalKey>,
+    keycode_based: HashMap<KeyCode, AnalogValue>,
+    position_based: HashMap<KeyPosition, PhysicalKey>,
 }
 
 impl AnalogData {
@@ -396,77 +368,84 @@ impl AnalogData {
         Self::default()
     }
 
-    pub fn with_capacity(v1_capacity: usize, v2_capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            v1: HashMap::with_capacity(v1_capacity),
-            v2: HashMap::with_capacity(v2_capacity),
+            keycode_based: HashMap::with_capacity(capacity),
+            position_based: HashMap::with_capacity(capacity),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.v1.is_empty() && self.v2.is_empty()
+        self.keycode_based.is_empty() && self.position_based.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.v1.len() + self.v2.len()
+        self.keycode_based.len() + self.position_based.len()
     }
 
-    pub fn insert_v1(&mut self, keycode: u16, value: f32) {
-        self.v1
-            .entry(keycode)
-            .and_modify(|existing| *existing = existing.max(value))
+    pub fn insert_keycode_based(&mut self, code: KeyCode, value: AnalogValue) {
+        self.keycode_based
+            .entry(code)
+            .and_modify(|existing| {
+                if &value > existing {
+                    *existing = value;
+                }
+            })
             .or_insert(value);
     }
 
-    pub fn insert_v2(&mut self, pk: PhysicalKey) {
-        self.v2
-            .entry(pk.pos)
+    pub fn insert_position_based(&mut self, physical_key: PhysicalKey) {
+        self.position_based
+            .entry(physical_key.pos)
             .and_modify(|existing| {
-                if pk.max_value() > existing.max_value() {
-                    *existing = pk;
+                if physical_key.max_value() > existing.max_value() {
+                    *existing = physical_key;
                 }
             })
-            .or_insert(pk);
+            .or_insert(physical_key);
     }
 
-    pub(crate) fn push_v2_state(&mut self, pos: KeyPosition, state: KeyState) {
-        self.v2
-            .entry(pos)
+    pub(crate) fn push_v2_state(&mut self, position: KeyPosition, state: KeyState) {
+        self.position_based
+            .entry(position)
             .and_modify(|existing| {
                 existing.push_state(state);
             })
             .or_insert_with(|| {
-                let mut pk = PhysicalKey::new(pos);
+                let mut pk = PhysicalKey::new(position);
                 pk.push_state(state);
                 pk
             });
     }
 
     pub fn merge(&mut self, other: AnalogData) {
-        for (keycode, value) in other.v1 {
-            self.insert_v1(keycode, value);
+        for (keycode, value) in other.keycode_based {
+            self.insert_keycode_based(keycode, value);
         }
-        for (_, pk) in other.v2 {
-            self.insert_v2(pk);
+        for (_, pk) in other.position_based {
+            self.insert_position_based(pk);
         }
     }
+}
 
-    pub fn iter(&self) -> impl Iterator<Item = V2Data> + '_ {
-        self.v1
-            .iter()
-            .map(|(&keycode, &value)| V2Data::V1 { keycode, value })
-            .chain(self.v2.values().cloned().map(V2Data::V2))
-    }
+impl From<Vec<Key>> for AnalogData {
+    fn from(keys: Vec<Key>) -> Self {
+        let mut data = Self::new();
 
-    // TODO: for performance return iterator instead since FFI will iterate over these anyway to
-    // copy them into the raw V2Data pointer. could make this function pub(crate) so only our FFI
-    // functions can use it, feels like it wouldn't be useful for rust side anyway.
-    pub fn into_vec(self) -> Vec<V2Data> {
-        self.v1
-            .into_iter()
-            .map(|(keycode, value)| V2Data::V1 { keycode, value })
-            .chain(self.v2.into_values().map(V2Data::V2))
-            .collect()
+        for key in keys {
+            if let ValueMetadata::Basic { pos, actuated } = key.value.metadata {
+                let key_state = KeyState {
+                    value: key.value.inner,
+                    keycode: key.code,
+                    actuated,
+                };
+                data.push_v2_state(pos, key_state);
+            }
+
+            data.insert_keycode_based(key.code, key.value);
+        }
+
+        data
     }
 }
 
@@ -524,6 +503,10 @@ impl PhysicalKey {
 
     pub(crate) fn max_value(&self) -> f32 {
         self.states().iter().map(|s| s.value).fold(0.0, f32::max)
+    }
+
+    pub(crate) fn is_advanced_key(&self) -> bool {
+        self.states.iter().any(|s| s.keycode.is_advanced_key())
     }
 }
 
