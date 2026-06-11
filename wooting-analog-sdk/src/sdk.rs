@@ -465,7 +465,7 @@ impl AnalogSDK {
         Ok(analog_data).into()
     }
 
-    pub fn read_keycode(&mut self, code: u16, device_id: DeviceID) -> SDKResult<AnalogValue> {
+    pub(crate) fn read_keycode(&mut self, code: u16, device_id: DeviceID) -> SDKResult<AnalogValue> {
         if !self.initialised {
             return Err(WootingAnalogResult::UnInitialized).into();
         }
@@ -496,7 +496,7 @@ impl AnalogSDK {
         SDKResult(Ok(value))
     }
 
-    pub fn read_position(
+    pub(crate) fn read_position(
         &mut self,
         position: KeyPosition,
         device_id: DeviceID,
@@ -565,7 +565,7 @@ impl AnalogSDK {
     // TODO: hide hashmap impl detail behind opaque struct
     // will probably be -> InputsPosition { .. }
     // could even try Inputs<Position> ?
-    pub fn read_positions(
+    pub(crate) fn read_positions(
         &mut self,
         device_id: DeviceID,
     ) -> SDKResult<HashMap<KeyPosition, PhysicalKey>> {
@@ -578,7 +578,7 @@ impl AnalogSDK {
     // TODO: hide hashmap impl detail behind opaque struct
     // will probably be -> InputsKeyCode { .. }
     // could even try Inputs<KeyCode> ?
-    pub fn read_keycodes(
+    pub(crate) fn read_keycodes(
         &mut self,
         device_id: DeviceID,
     ) -> SDKResult<HashMap<KeyCode, AnalogValue>> {

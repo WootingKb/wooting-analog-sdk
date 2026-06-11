@@ -168,8 +168,8 @@ impl Plugin for CPlugin {
         _code: crate::KeyCode,
         _device_id: DeviceID,
     ) -> SDKResult<AnalogValue> {
-        // TODO: for now let's assume c plugins can never supply this data
-        // can be possible if we include it as an optional function that they can implement
+        // TODO: for now let's assume c plugins can not yet supply this data
+        // can easily be included via an optional fn in plugin.h 
         SDKResult(Err(WootingAnalogResult::FunctionNotFound))
     }
 
@@ -178,8 +178,8 @@ impl Plugin for CPlugin {
         _position: crate::KeyPosition,
         _device_id: DeviceID,
     ) -> SDKResult<crate::PhysicalKey> {
-        // TODO: for now let's assume c plugins can never supply this data
-        // can be possible if we include it as an optional function that they can implement
+        // TODO: for now let's assume c plugins can not yet supply this data
+        // can easily be included via an optional fn in plugin.h 
         SDKResult(Err(WootingAnalogResult::FunctionNotFound))
     }
 

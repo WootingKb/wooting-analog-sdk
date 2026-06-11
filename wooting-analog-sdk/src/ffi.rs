@@ -504,9 +504,6 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
 pub unsafe extern "C" fn wooting_analog_read_keycodes_device(
     code_buffer: *mut KeyCode,
     analog_buffer: *mut AnalogValue,
-    // physical_keys: *mut PhysicalKey,
-    // key_buffer: *mut V2DataKey,
-    // data_buffer: *mut V2Data,
     len: c_uint,
     device_id: DeviceID,
 ) -> c_int {

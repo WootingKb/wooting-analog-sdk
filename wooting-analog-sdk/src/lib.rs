@@ -363,6 +363,8 @@ pub struct AnalogData {
     position_based: HashMap<KeyPosition, PhysicalKey>,
 }
 
+// everything on this struct is pub but most likely this will be an internal type only
+// i'll leave it for now but in the next PR this will all be hidden away properly
 impl AnalogData {
     pub fn new() -> Self {
         Self::default()
@@ -405,7 +407,7 @@ impl AnalogData {
             .or_insert(physical_key);
     }
 
-    pub(crate) fn push_v2_state(&mut self, position: KeyPosition, state: KeyState) {
+    pub fn push_v2_state(&mut self, position: KeyPosition, state: KeyState) {
         self.position_based
             .entry(position)
             .and_modify(|existing| {
