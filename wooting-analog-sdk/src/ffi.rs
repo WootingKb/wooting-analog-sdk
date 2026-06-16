@@ -1,21 +1,24 @@
 #[cfg(feature = "dist")]
 mod delegate_sys;
 
-use crate::sdk::AnalogSDK;
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition,
-    KeycodeType, PhysicalKey, err::WootingAnalogResult,
+    AnalogSdk, AnalogValue, Initialised, KeyCode, KeyPosition, PhysicalKey,
+    device::{DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI},
+    err::WootingAnalogResult,
+    keycode::KeycodeType,
 };
 #[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
 use log::{error, trace};
 use num_traits::FromPrimitive;
-use std::cell::RefCell;
-use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
-use std::sync::{LazyLock, Mutex};
-use std::{env, panic, slice};
+use std::{
+    cell::RefCell,
+    os::raw::{c_char, c_float, c_int, c_uint, c_ushort},
+    panic, slice,
+    sync::{LazyLock, Mutex},
+};
 
-static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
+static ANALOG_SDK: LazyLock<Mutex<Option<AnalogSdk<Initialised>>>> = LazyLock::new(|| {
     // Initialising logger with default "off".
     // If the library user wants logging, they can set the RUST_LOG environment variable, e.g. to "info".
     // TODO: Consider using file logging or allowing the user to set a custom log callback.
@@ -25,7 +28,7 @@ static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
         println!("ERROR: Could not initialise logging. '{:?}'", e);
     }
 
-    Mutex::new(AnalogSDK::new())
+    Mutex::new(None)
 });
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -43,14 +46,27 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
 
     let result = panic::catch_unwind(|| {
         trace!("wooting_analog_initialise called");
-        ANALOG_SDK.lock().unwrap().initialise()
+
+        let mut guard = ANALOG_SDK.lock().unwrap();
+
+        // Already initialised - return current device count
+        if let Some(sdk) = guard.as_ref() {
+            return Ok(sdk.device_count() as c_int);
+        }
+
+        match AnalogSdk::new().initialise() {
+            Ok(sdk) => {
+                let count = sdk.device_count() as c_int;
+                *guard = Some(sdk);
+                Ok(count)
+            }
+            Err(e) => Err(e),
+        }
     });
-    trace!("catch unwind result: {:?}", result);
+
     match result {
-        Ok(c) => match c {
-            Ok(c) => c as c_int,
-            Err(e) => WootingAnalogResult::from(e).into(),
-        },
+        Ok(Ok(count)) => count,
+        Ok(Err(e)) => WootingAnalogResult::from(e).into(),
         Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
@@ -95,7 +111,7 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
         return delegate_sys::wooting_analog_is_initialised();
     }
 
-    ANALOG_SDK.lock().unwrap().initialised
+    ANALOG_SDK.lock().unwrap().is_some()
 }
 
 /// Uninitialises the SDK, returning it to an empty state, similar to how it would be before first initialisation
@@ -110,7 +126,7 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
 
     trace!("wooting_analog_uninitialise called");
     let result = panic::catch_unwind(|| {
-        //Drop the memory that was being kept for the connected devices info call
+        // Drop the memory that was being kept for the connected devices info call
         CONNECTED_DEVICES.with(|devs| {
             let old = (*devs.borrow_mut()).take();
             if let Some(mut old_devices) = old {
@@ -121,7 +137,8 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
                 }
             }
         });
-        ANALOG_SDK.lock().unwrap().unload();
+
+        ANALOG_SDK.lock().unwrap().take();
     });
 
     trace!("catch unwind result {:?}", result);
@@ -150,23 +167,22 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
         return delegate_sys::wooting_analog_set_keycode_mode(mode);
     }
 
-    if !ANALOG_SDK.lock().unwrap().initialised {
-        return WootingAnalogResult::UnInitialized;
+    let Some(key_mode) = KeycodeType::from_u32(mode) else {
+        return WootingAnalogResult::InvalidArgument;
+    };
+
+    #[cfg(not(windows))]
+    if key_mode == KeycodeType::VirtualKeyTranslate {
+        return WootingAnalogResult::NotAvailable;
     }
 
-    //TODO: Make it return invalid argument when attempting to use VirtualKeyTranslate on platforms other than win
-    if let Some(key_mode) = KeycodeType::from_u32(mode) {
-        #[cfg(not(windows))]
-        {
-            if key_mode == KeycodeType::VirtualKeyTranslate {
-                return WootingAnalogResult::NotAvailable;
-            }
-        }
-        ANALOG_SDK.lock().unwrap().keycode_mode = key_mode;
-        WootingAnalogResult::Ok
-    } else {
-        WootingAnalogResult::InvalidArgument
-    }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    sdk.keycode_mode = key_mode;
+    WootingAnalogResult::Ok
 }
 
 /// Reads the Analog value of the key with identifier `code` from any connected device. The set of key identifiers that is used
@@ -223,8 +239,13 @@ pub extern "C" fn wooting_analog_read_analog_device(
         return delegate_sys::wooting_analog_read_analog_device(code, device_id);
     }
 
-    match ANALOG_SDK.lock().unwrap().read_analog(code, device_id) {
-        Ok(v) => v,
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
+
+    match sdk.read_keycode_for(device_id, code) {
+        Ok(v) => f32::from(v),
         Err(e) => WootingAnalogResult::from(e).into(),
     }
 }
@@ -240,7 +261,12 @@ pub unsafe extern "C" fn wooting_analog_read_keycode_device(
         return delegate_sys::wooting_analog_read_keycode_device(keycode, value, device_id);
     }
 
-    match ANALOG_SDK.lock().unwrap().read_keycode(keycode, device_id) {
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    match sdk.read_keycode_for(device_id, keycode) {
         Ok(v) => {
             let Some(out) = (unsafe { value.as_mut() }) else {
                 return WootingAnalogResult::InvalidArgument;
@@ -267,21 +293,24 @@ pub unsafe extern "C" fn wooting_analog_read_position_device(
         );
     }
 
-    unsafe {
-        let Some(pos) = position.as_ref() else {
-            return WootingAnalogResult::InvalidArgument;
-        };
+    let Some(pos) = (unsafe { position.as_ref() }) else {
+        return WootingAnalogResult::InvalidArgument;
+    };
 
-        match ANALOG_SDK.lock().unwrap().read_position(*pos, device_id) {
-            Ok(pk) => {
-                let Some(out) = physical_key.as_mut() else {
-                    return WootingAnalogResult::InvalidArgument;
-                };
-                *out = pk;
-                WootingAnalogResult::Ok
-            }
-            Err(e) => WootingAnalogResult::from(e),
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    match sdk.read_position_for(device_id, *pos) {
+        Ok(pk) => {
+            let Some(out) = (unsafe { physical_key.as_mut() }) else {
+                return WootingAnalogResult::InvalidArgument;
+            };
+            *out = pk;
+            WootingAnalogResult::Ok
         }
+        Err(e) => WootingAnalogResult::from(e),
     }
 }
 
@@ -304,22 +333,23 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
         return delegate_sys::wooting_analog_set_device_event_cb(cb);
     }
 
-    match ANALOG_SDK
-        .lock()
-        .unwrap()
-        .set_device_event_cb(move |event, device: DeviceInfo| {
-            // Create pointer to the C version of Device Info to pass to the callback
-            let device_box: Box<DeviceInfo_FFI> = Box::new(device.into());
-            let device_raw = Box::into_raw(device_box);
-            cb(event, device_raw);
-            //We need to box up the pointer again to ensure it is properly dropped
-            unsafe {
-                drop(Box::from_raw(device_raw));
-            }
-        }) {
-        Ok(_) => WootingAnalogResult::Ok,
-        Err(e) => WootingAnalogResult::from(e),
-    }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    sdk.set_device_events(move |event, device: DeviceInfo| {
+        // Create pointer to the C version of Device Info to pass to the callback
+        let device_box: Box<DeviceInfo_FFI> = Box::new(device.into());
+        let device_raw = Box::into_raw(device_box);
+        cb(event, device_raw);
+        // We need to box up the pointer again to ensure it is properly dropped
+        unsafe {
+            drop(Box::from_raw(device_raw));
+        }
+    });
+
+    WootingAnalogResult::Ok
 }
 
 /// Clears the device event callback that has been set
@@ -334,10 +364,13 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
         return delegate_sys::wooting_analog_clear_device_event_cb();
     }
 
-    match ANALOG_SDK.lock().unwrap().clear_device_event_cb() {
-        Ok(_) => WootingAnalogResult::Ok,
-        Err(e) => WootingAnalogResult::from(e),
-    }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    sdk.clear_device_event_cb();
+    WootingAnalogResult::Ok
 }
 
 thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = RefCell::new(None));
@@ -361,7 +394,12 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
         return delegate_sys::wooting_analog_get_connected_devices_info(buffer, len);
     }
 
-    match ANALOG_SDK.lock().unwrap().get_device_info() {
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
+
+    match sdk.get_device_info() {
         Ok(mut devices) => {
             let device_no = (len as usize).min(devices.len());
 
@@ -379,8 +417,8 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
                 .collect();
 
             buff.swap_with_slice(c_devices.clone().as_mut());
-            //We want to keep track of the structs that we've allocated and free up the last set that had been
-            //given
+            // We want to keep track of the structs that we've allocated and free up the last set that had been
+            // given
             CONNECTED_DEVICES.with(|devs| {
                 let old = (*devs.borrow_mut()).replace(c_devices);
                 if let Some(mut old_devices) = old {
@@ -478,25 +516,28 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    match ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_full_buffer(len as usize, device_id)
-    {
-        Ok(analog_data) => {
-            //Fill up given slices
-            let mut count: usize = 0;
-            for (code, val) in analog_data.iter() {
-                if count >= codes.len() {
-                    break;
-                }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
 
-                codes[count] = *code;
-                analog[count] = *val;
-                count += 1;
+    let mut count: usize = 0;
+
+    match sdk.read_keycodes_for(device_id, |analog_data| {
+        for (code, val) in analog_data
+            .iter()
+            .map(|(k, v)| (u16::from(k), f32::from(v)))
+        {
+            if count >= codes.len() {
+                break;
             }
-            count as c_int
+
+            codes[count] = code;
+            analog[count] = val;
+            count += 1;
         }
+    }) {
+        Ok(()) => count as c_int,
         Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
@@ -530,20 +571,25 @@ pub unsafe extern "C" fn wooting_analog_read_keycodes_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    match ANALOG_SDK.lock().unwrap().read_keycodes(device_id) {
-        Ok(analog_data) => {
-            let mut count: usize = 0;
-            for (k, v) in analog_data {
-                if count >= codes.len() {
-                    break;
-                }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
 
-                codes[count] = k;
-                analog[count] = v;
-                count += 1;
+    let mut count: usize = 0;
+
+    match sdk.read_keycodes_for(device_id, |analog_data| {
+        for (k, v) in analog_data {
+            if count >= codes.len() {
+                break;
             }
-            count as c_int
+
+            codes[count] = k;
+            analog[count] = v;
+            count += 1;
         }
+    }) {
+        Ok(()) => count as c_int,
         Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
@@ -565,19 +611,24 @@ pub unsafe extern "C" fn wooting_analog_read_positions_device(
         slice::from_raw_parts_mut(physical_keys, len as usize)
     };
 
-    match ANALOG_SDK.lock().unwrap().read_positions(device_id) {
-        Ok(analog_data) => {
-            let mut count: usize = 0;
-            for (_, k) in analog_data {
-                if count >= keys.len() {
-                    break;
-                }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
 
-                keys[count] = k;
-                count += 1;
+    let mut count: usize = 0;
+
+    match sdk.read_positions_for(device_id, |analog_data| {
+        for (_, k) in analog_data {
+            if count >= keys.len() {
+                break;
             }
-            count as c_int
+
+            keys[count] = k;
+            count += 1;
         }
+    }) {
+        Ok(()) => count as c_int,
         Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }

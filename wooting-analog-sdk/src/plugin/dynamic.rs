@@ -1,14 +1,16 @@
 use ffi_support::FfiStr;
 use libloading::{Library, Symbol};
-use log::*;
-use log::{error, info};
-use std::collections::HashMap;
-use std::os::raw::{c_float, c_int, c_uint, c_ushort, c_void};
+use log::{debug, error, info};
+use std::{
+    collections::HashMap,
+    os::raw::{c_float, c_int, c_uint, c_ushort, c_void},
+};
 
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeyCode, KeyPosition,
-    PhysicalKey, Plugin,
-    err::{PluginError, ReadError, WootingAnalogResult},
+    AnalogValue, KeyCode, KeyPosition, PhysicalKey, Plugin,
+    device::{DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI},
+    err::{DeviceError, PluginError, ReadError, WootingAnalogResult},
+    plugin::wooting::ANALOG_MAX_SIZE,
 };
 
 macro_rules! lib_wrap {
@@ -74,14 +76,28 @@ macro_rules! lib_wrap_option {
 
 const CPLUGIN_ABI_VERSION: u32 = 1;
 
-pub struct CPlugin {
+#[derive(Debug)]
+pub struct DynamicPlugin {
     lib: Library,
-    cb_data_ptr: Option<*mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>>,
+    cb_data_ptr: Option<*mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>,
     //funcs: HashMap<&'static str, Option<Symbol>>
+    code_buffer: Vec<u16>,
+    value_buffer: Vec<f32>,
+    analog_data: HashMap<u16, f32>,
+    device_ids: Vec<DeviceID>,
 }
 
-impl CPlugin {
-    pub fn new(lib: Library) -> Result<CPlugin, PluginError> {
+// SAFETY: The raw pointer `cb_data_ptr` is only used for FFI with C plugins.
+// It points to a leaked Box that is:
+// - Created in `initialise` via `Box::into_raw`
+// - Accessed in the C callback (`call_closure`) which reconstructs and re-leaks it
+// - Cleaned up in `unload` via `Box::from_raw`
+// The pointer is not shared or accessed concurrently - the C plugin serializes callback invocations.
+unsafe impl Send for DynamicPlugin {}
+unsafe impl Sync for DynamicPlugin {}
+
+impl DynamicPlugin {
+    pub fn new(lib: Library) -> Result<DynamicPlugin, PluginError> {
         unsafe {
             if let Ok(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION") {
                 let v = **ver;
@@ -99,9 +115,13 @@ impl CPlugin {
             }
         }
 
-        Ok(CPlugin {
+        Ok(DynamicPlugin {
             lib,
             cb_data_ptr: None, //funcs: HashMap::new()
+            code_buffer: vec![0; ANALOG_MAX_SIZE],
+            value_buffer: vec![0.0; ANALOG_MAX_SIZE],
+            analog_data: HashMap::new(),
+            device_ids: Vec::new(),
         })
     }
 
@@ -119,6 +139,32 @@ impl CPlugin {
         fn is_initialised() -> bool;
         fn unload();
     }
+
+    /// Check if this plugin owns the given device_id.
+    /// Returns true if device_id is 0 (all devices) or if we own it.
+    fn has_device(&self, device_id: DeviceID) -> bool {
+        device_id == 0 || self.device_ids.contains(&device_id)
+    }
+
+    /// Fetch device info from the C plugin and cache the device IDs
+    fn refresh_device_ids(&mut self) {
+        let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null(); 10];
+
+        if let Ok(num) = self
+            .device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
+            .map(|no| no as usize)
+        {
+            device_infos.truncate(num);
+            self.device_ids = unsafe {
+                device_infos
+                    .iter()
+                    .filter_map(|dev| dev.as_ref())
+                    .map(|dev| dev.device_id)
+                    .collect()
+            };
+            debug!("DynamicPlugin owns device IDs: {:?}", self.device_ids);
+        }
+    }
 }
 
 extern "C" fn call_closure(
@@ -133,10 +179,11 @@ extern "C" fn call_closure(
             return;
         }
 
-        let device_info = device_raw.as_ref().unwrap().into_device_info();
+        // Use to_device_info() to borrow and copy the data without freeing the C-owned memory
+        let device_info = device_raw.as_ref().unwrap().to_device_info();
 
         let callback_ptr =
-            Box::from_raw(data as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>);
+            Box::from_raw(data as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>);
 
         (*callback_ptr)(event, &device_info);
 
@@ -145,7 +192,7 @@ extern "C" fn call_closure(
     }
 }
 
-impl Plugin for CPlugin {
+impl Plugin for DynamicPlugin {
     fn name(&mut self) -> Result<&'static str, PluginError> {
         self.name()
             .map(|s| s.as_str())
@@ -154,28 +201,40 @@ impl Plugin for CPlugin {
 
     fn initialise(
         &mut self,
-        callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
+        callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>,
     ) -> Result<u32, ReadError> {
         let data = Box::into_raw(Box::new(callback));
         self.cb_data_ptr = Some(data);
-        self.initialise(data as *const _, call_closure)
+        let result = self
+            .initialise(data as *const _, call_closure)
             .map(|res| res as u32)
-            .map_err(|_| ReadError::function_unavailable("initialise"))
+            .map_err(|_| ReadError::function_unavailable("initialise"));
+
+        // Cache the device IDs this plugin owns
+        self.refresh_device_ids();
+
+        result
     }
 
     fn read_analog(&mut self, code: u16, device: DeviceID) -> Result<f32, ReadError> {
+        if !self.has_device(device) {
+            return Err(ReadError::Device(DeviceError::zero_devices()));
+        }
         self.read_analog(code, device)
             .map_err(|_| ReadError::function_unavailable("read_analog"))
     }
 
     fn read_keycode(
         &mut self,
-        _code: KeyCode,
-        _device_id: DeviceID,
+        code: KeyCode,
+        device_id: DeviceID,
     ) -> Result<AnalogValue, ReadError> {
-        // TODO: for now let's assume c plugins can not yet supply this data
-        // can easily be included via an optional fn in plugin.h
-        Err(ReadError::function_unavailable("read_keycode"))
+        if !self.has_device(device_id) {
+            return Err(ReadError::Device(DeviceError::zero_devices()));
+        }
+        self.read_analog(u16::from(code), device_id)
+            .map(AnalogValue::from)
+            .map_err(|_| ReadError::function_unavailable("read_keycode"))
     }
 
     fn read_position(
@@ -190,35 +249,58 @@ impl Plugin for CPlugin {
 
     fn read_full_buffer(
         &mut self,
-        max_length: usize,
         device: DeviceID,
     ) -> Result<HashMap<c_ushort, c_float>, ReadError> {
-        let mut code_buffer: Vec<c_ushort> = Vec::with_capacity(max_length);
-        let mut analog_buffer: Vec<c_float> = Vec::with_capacity(max_length);
-        code_buffer.resize(max_length, 0);
-        analog_buffer.resize(max_length, 0.0);
+        if !self.has_device(device) {
+            return Err(ReadError::Device(DeviceError::zero_devices()));
+        }
+
         let count: usize = {
             let write_count = self
                 .read_full_buffer(
-                    code_buffer.as_ptr(),
-                    analog_buffer.as_ptr(),
-                    max_length as c_uint,
+                    self.code_buffer.as_ptr(),
+                    self.value_buffer.as_ptr(),
+                    ANALOG_MAX_SIZE as c_uint,
                     device,
                 )
                 .map_err(|_| ReadError::function_unavailable("read_full_buffer"))?;
-            max_length.min(write_count as usize)
+            ANALOG_MAX_SIZE.min(write_count as usize)
         };
 
-        let mut analog_data: HashMap<c_ushort, c_float> = HashMap::with_capacity(count);
         for i in 0..count {
-            analog_data.insert(code_buffer[i], analog_buffer[i]);
+            self.analog_data
+                .insert(self.code_buffer[i], self.value_buffer[i]);
         }
 
-        Ok(analog_data)
+        self.code_buffer.fill(0);
+        self.value_buffer.fill(0.0);
+
+        Ok(std::mem::take(&mut self.analog_data))
+    }
+
+    fn read_keycodes(
+        &mut self,
+        device_id: DeviceID,
+    ) -> Result<HashMap<KeyCode, AnalogValue>, ReadError> {
+        if !self.has_device(device_id) {
+            return Err(ReadError::Device(DeviceError::zero_devices()));
+        }
+
+        Ok(Plugin::read_full_buffer(self, device_id)?
+            .iter()
+            .map(|(k, v)| (KeyCode::from(*k), AnalogValue::from(*v)))
+            .collect())
+    }
+
+    fn read_positions(
+        &mut self,
+        _device_id: DeviceID,
+    ) -> Result<HashMap<KeyPosition, PhysicalKey>, ReadError> {
+        Err(ReadError::function_unavailable("read_positions"))
     }
 
     fn device_info(&mut self) -> Result<Vec<DeviceInfo>, ReadError> {
-        let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null_mut(); 10];
+        let mut device_infos: Vec<*const DeviceInfo_FFI> = vec![std::ptr::null(); 10];
 
         match self
             .device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
@@ -228,7 +310,8 @@ impl Plugin for CPlugin {
                 device_infos.truncate(num as usize);
                 let devices = device_infos
                     .drain(..)
-                    .map(|dev| dev.as_ref().unwrap().into_device_info())
+                    .filter_map(|dev| dev.as_ref())
+                    .map(|dev| dev.to_device_info())
                     .collect();
                 Ok(devices)
             },
@@ -246,25 +329,9 @@ impl Plugin for CPlugin {
         if let Some(ptr) = self.cb_data_ptr {
             unsafe {
                 drop(Box::from_raw(
-                    ptr as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>,
+                    ptr as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>,
                 ));
             }
         }
-    }
-
-    fn read_keycodes(
-        &mut self,
-        _max_length: usize,
-        _device_id: DeviceID,
-    ) -> Result<HashMap<KeyCode, AnalogValue>, ReadError> {
-        Err(ReadError::function_unavailable("read_keycodes"))
-    }
-
-    fn read_positions(
-        &mut self,
-        _max_length: usize,
-        _device_id: DeviceID,
-    ) -> Result<HashMap<KeyPosition, PhysicalKey>, ReadError> {
-        Err(ReadError::function_unavailable("read_positions"))
     }
 }

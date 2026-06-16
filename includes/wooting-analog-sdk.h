@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-/// Maximum number of active binds per physical key (DKS has 4 underlying binds + advanced key entry)
+/// Maximum number of active binds per physical key
 #define WootingAnalog_MAX_KEY_STATES 5
 
 typedef enum WootingAnalogResult {
@@ -37,7 +37,7 @@ typedef enum WootingAnalogResult {
 } WootingAnalogResult;
 
 typedef enum WootingAnalog_KeyNamespace {
-  WootingAnalog_KeyNamespace_HidNormal = 1,
+  WootingAnalog_KeyNamespace_HidNormal = 0,
   WootingAnalog_KeyNamespace_HidFunction = 3,
   WootingAnalog_KeyNamespace_CustomFunction = 4,
   WootingAnalog_KeyNamespace_GamepadBinding = 5,
@@ -143,7 +143,7 @@ typedef struct WootingAnalog_KeyState {
 
 typedef struct WootingAnalog_PhysicalKey {
   struct WootingAnalog_KeyPosition pos;
-  uint8_t state_count;
+  uint8_t active_key_count;
   struct WootingAnalog_KeyState states[WootingAnalog_MAX_KEY_STATES];
 } WootingAnalog_PhysicalKey;
 

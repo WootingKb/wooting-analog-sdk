@@ -11,9 +11,9 @@ use std::{
 use log::{error, info, warn};
 use shared_memory::ShmemConf;
 
-use crate::{DeviceEventType, DeviceInfo, DeviceType};
+use crate::device::{DeviceEventType, DeviceInfo, DeviceType};
 
-type Callback = Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>;
+type Callback = Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>;
 
 #[derive(Debug, PartialEq)]
 pub struct SharedState {

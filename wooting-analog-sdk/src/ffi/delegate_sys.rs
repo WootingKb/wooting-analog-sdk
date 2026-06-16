@@ -1,5 +1,6 @@
 use crate::{
-    AnalogValue, DeviceEventType, DeviceID, DeviceInfo_FFI, KeyCode, KeyPosition, PhysicalKey,
+    AnalogValue, KeyCode, KeyPosition, PhysicalKey,
+    device::{DeviceEventType, DeviceID, DeviceInfo_FFI},
     err::{DelegateError, WootingAnalogResult},
 };
 use libloading::Symbol;

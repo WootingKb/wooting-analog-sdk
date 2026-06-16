@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::{ffi::c_int, path::PathBuf};
 use thiserror::Error;
 
-use crate::{DeviceID, KeycodeType};
+use crate::{device::DeviceID, keycode::KeycodeType};
 
 #[derive(Error, Debug)]
 pub enum DelegateError {
@@ -51,7 +51,7 @@ pub enum ReadError {
     #[error("SDK was not initialized")]
     Uninitialized,
 
-    #[error("keycode {keycode} does not map to any HID code using {mode:?} mode")]
+    #[error("keycode {keycode} does not map to any type using {mode:?} mode")]
     NoMapping { keycode: u16, mode: KeycodeType },
 
     #[error(transparent)]

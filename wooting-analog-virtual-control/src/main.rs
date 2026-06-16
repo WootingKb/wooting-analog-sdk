@@ -9,7 +9,7 @@ use iced::{
 };
 use log::{error, info};
 use shared_memory::*;
-use wooting_analog_sdk::DeviceType;
+use wooting_analog_sdk::device::DeviceType;
 
 const KEY_WIDTH: u16 = 60;
 const KEY_SPACING: u16 = 10;

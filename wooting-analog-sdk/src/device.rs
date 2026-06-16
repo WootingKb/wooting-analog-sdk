@@ -1,0 +1,653 @@
+use dyn_clone::DynClone;
+use enum_primitive_derive::Primitive;
+use hidapi::{DeviceInfo as DeviceInfoHID, HidDevice};
+use log::error;
+use num_traits::FromPrimitive;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    ffi::{CStr, CString, c_char, c_float, c_int, c_ushort},
+    hash::Hasher,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread::{self, JoinHandle},
+};
+
+use crate::{
+    AnalogValue, KeyCode, KeyPosition, PhysicalKey, ValueMetadata,
+    err::DeviceError,
+    key::{Key, KeyState},
+    keycode::{KeyMetadata, KeyNamespace},
+    plugin::wooting::{
+        self, ANALOG_BUFFER_SIZE_V1, ANALOG_BUFFER_SIZE_V2, ANALOG_MAX_SIZE, WOOTING_PID_MODE_MASK,
+        WOOTING_VID,
+    },
+};
+
+pub type DeviceID = u64;
+
+// We do this little alias so that we can force cbindgen to rename it to point to the DeviceType enum.
+// For the rust side, we want to have it as a c_int so we can ensure it's valid and within bounds.
+// As just taking it as the enum straight up can cause undefined behaviour if an invalid value is provided
+/// cbindgen:ignore
+type DeviceType_FFI = c_int;
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Clone, Primitive)]
+#[repr(C)]
+pub enum DeviceType {
+    /// Device is of type Keyboard
+    Keyboard = 1,
+    /// Device is of type Keypad
+    Keypad = 2,
+    /// Device
+    Other = 3,
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Clone, Primitive)]
+#[repr(C)]
+pub enum DeviceEventType {
+    /// Device has been connected
+    Connected = 1,
+    /// Device has been disconnected
+    Disconnected = 2,
+}
+
+/// The core `DeviceInfo` struct which contains all the interesting information
+/// for a particular device. This is for use internally and should be ignored if you're
+/// trying to use it when trying to interact with the SDK using the wrapper
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
+pub struct DeviceInfo {
+    /// Device Vendor ID `vid`
+    pub vendor_id: u16,
+    /// Device Product ID `pid`
+    pub product_id: u16,
+    /// Device Manufacturer name
+    pub manufacturer_name: String,
+    /// Device name
+    pub device_name: String,
+    /// Unique device ID, which should be generated using `generate_device_id`
+    pub device_id: DeviceID,
+    /// Hardware type of the Device
+    pub device_type: DeviceType,
+}
+
+/// The core `DeviceInfo` struct which contains all the interesting information
+/// for a particular device. This is the version which the consumer of the SDK will receive
+/// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
+/// DeviceInfo is for
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub(crate) struct DeviceInfo_FFI {
+    /// Device Vendor ID `vid`
+    pub vendor_id: u16,
+    /// Device Product ID `pid`
+    pub product_id: u16,
+    /// Device Manufacturer name
+    pub manufacturer_name: *mut c_char,
+    /// Device name
+    pub device_name: *mut c_char,
+    /// Unique device ID, which should be generated using `generate_device_id`
+    pub device_id: DeviceID,
+    /// Hardware type of the Device see `DeviceType` enum
+    pub device_type: DeviceType_FFI,
+}
+
+impl From<DeviceInfo> for DeviceInfo_FFI {
+    fn from(device: DeviceInfo) -> Self {
+        DeviceInfo_FFI {
+            vendor_id: device.vendor_id,
+            product_id: device.product_id,
+            manufacturer_name: CString::new(device.manufacturer_name).unwrap().into_raw(),
+            device_name: CString::new(device.device_name).unwrap().into_raw(),
+            device_id: device.device_id,
+            device_type: device.device_type as c_int,
+        }
+    }
+}
+
+impl Drop for DeviceInfo_FFI {
+    fn drop(&mut self) {
+        //Ensure we properly drop the memory for the char pointers
+        unsafe {
+            let _c_string = CString::from_raw(self.manufacturer_name);
+            let _c_string = CString::from_raw(self.device_name);
+        }
+    }
+}
+
+impl DeviceInfo_FFI {
+    /// Convert FFI struct to owned DeviceInfo, copying the string data.
+    ///
+    /// # Safety
+    /// This does NOT free the underlying C strings - caller is responsible for
+    /// memory management of the original FFI struct. Use this when receiving
+    /// DeviceInfo_FFI from C plugins where the plugin owns the memory.
+    pub fn to_device_info(&self) -> DeviceInfo {
+        let device_type = DeviceType::from_i32(self.device_type);
+        if device_type.is_none() {
+            log::error!(
+                "Invalid Device Type when converting DeviceInfo_FFI into DeviceInfo: {}",
+                self.device_type
+            );
+        }
+
+        DeviceInfo {
+            vendor_id: self.vendor_id,
+            product_id: self.product_id,
+            manufacturer_name: unsafe {
+                CStr::from_ptr(self.manufacturer_name)
+                    .to_str()
+                    .unwrap()
+                    .to_owned()
+            },
+            device_name: unsafe {
+                CStr::from_ptr(self.device_name)
+                    .to_str()
+                    .unwrap()
+                    .to_owned()
+            },
+            device_id: self.device_id,
+            device_type: device_type.unwrap_or(DeviceType::Other),
+        }
+    }
+
+    /// Convert owned FFI struct to DeviceInfo, consuming and freeing the FFI struct.
+    ///
+    /// Use this when Rust created the DeviceInfo_FFI (via From<DeviceInfo>) and
+    /// owns the allocated strings.
+    pub fn into_device_info(self) -> DeviceInfo {
+        let device_type = DeviceType::from_i32(self.device_type);
+        if device_type.is_none() {
+            log::error!(
+                "Invalid Device Type when converting DeviceInfo_FFI into DeviceInfo: {}",
+                self.device_type
+            );
+        }
+
+        // Read strings before Drop runs
+        let manufacturer_name = unsafe {
+            CStr::from_ptr(self.manufacturer_name)
+                .to_str()
+                .unwrap()
+                .to_owned()
+        };
+        let device_name = unsafe {
+            CStr::from_ptr(self.device_name)
+                .to_str()
+                .unwrap()
+                .to_owned()
+        };
+
+        DeviceInfo {
+            vendor_id: self.vendor_id,
+            product_id: self.product_id,
+            manufacturer_name,
+            device_name,
+            device_id: self.device_id,
+            device_type: device_type.unwrap_or(DeviceType::Other),
+        }
+        // self is dropped here, freeing the C strings via Drop impl
+    }
+}
+
+impl DeviceInfo {
+    //    pub fn new(
+    //        vendor_id: u16,
+    //        product_id: u16,
+    //        manufacturer_name: &str,
+    //        device_name: &str,
+    //        serial_number: &str,
+    //        device_type: DeviceType,
+    //    ) -> Self {
+    //        DeviceInfo {
+    //            vendor_id,
+    //            product_id,
+    //            manufacturer_name,
+    //            device_name,
+    //            device_id: generate_device_id(serial_number, vendor_id, product_id),
+    //            device_type
+    //        }
+    //    }
+
+    pub fn new_with_id(
+        vendor_id: u16,
+        product_id: u16,
+        manufacturer_name: String,
+        device_name: String,
+        device_id: DeviceID,
+        device_type: DeviceType,
+    ) -> Self {
+        DeviceInfo {
+            vendor_id,
+            product_id,
+            manufacturer_name,
+            device_name,
+            device_id,
+            device_type,
+        }
+    }
+}
+
+/// Struct holding the information we need to find the device and the analog interface
+pub(crate) struct DeviceHardwareID {
+    vid: u16,
+    pid: Option<u16>,
+    usage_page: u16,
+    has_modes: bool,
+}
+
+/// Trait which defines how the Plugin can communicate with a particular device
+pub(crate) trait DeviceImplementation: DynClone + Send {
+    /// Gives the device hardware ID that can be used to obtain the analog interface for this device
+    fn device_hardware_id(&self) -> DeviceHardwareID;
+
+    /// Used to determine if the given `device` matches the hardware id given by `device_hardware_id`
+    fn matches(&self, device: &DeviceInfoHID) -> bool {
+        let hid = self.device_hardware_id();
+        let pid = if hid.has_modes {
+            device.product_id() & WOOTING_PID_MODE_MASK
+        } else {
+            device.product_id()
+        };
+        //Check if the pid & hid match
+        (hid.pid.is_none() || hid.pid.map_or(false, |hid_pid| pid == hid_pid))
+            && device.vendor_id().eq(&hid.vid)
+            && device.usage_page().eq(&hid.usage_page)
+    }
+
+    /// Convert the given raw `value` into the appropriate float value. The given value should be 0.0f-1.0f
+    fn analog_value_to_float(&self, value: u16) -> f32 {
+        (f32::from(value) / 255_f32).min(1.0)
+    }
+
+    /// Get the current set of pressed keys and their analog values from the given `device`. Using `buffer` to read into
+    ///
+    /// `max_length` is not the max length of the report, it is the max number of key + analog value pairs to read
+    fn get_analog_buffer(
+        &self,
+        device: &HidDevice,
+        max_length: usize,
+    ) -> Result<Option<HashMap<c_ushort, c_float>>, DeviceError> {
+        let mut buffer: [u8; ANALOG_BUFFER_SIZE_V1] = [0; ANALOG_BUFFER_SIZE_V1];
+        let res = device.read_timeout(&mut buffer, 50);
+
+        match res {
+            Ok(len) => {
+                // If the length is 0 then that means the read timed out, so we shouldn't use it to update values
+                if len == 0 {
+                    return Ok(None);
+                }
+            }
+            Err(e) => {
+                error!("Failed to read buffer: {}", e);
+
+                return Err(DeviceError::disconnected(None));
+            }
+        }
+        Ok(Some(
+            buffer
+                .chunks_exact(3) //Split it into groups of 3 as the analog report is in the format of 2 byte code + 1 byte analog value
+                .take(max_length) //Only take up to the max length of results. Doing this
+                .filter(|&s| s[2] != 0) //Get rid of entries where the analog value is 0
+                .map(|s| {
+                    (
+                        ((u16::from(s[0])) << 8) | u16::from(s[1]), // Convert the first 2 bytes into the u16 code
+                        self.analog_value_to_float(u16::from(s[2])), //Convert the remaining byte into the float analog value
+                    )
+                })
+                .collect(),
+        ))
+    }
+
+    fn get_analog_buffer_with_ctx(
+        &self,
+        _device: &HidDevice,
+        _max_length: usize,
+    ) -> Result<Option<Vec<Key>>, DeviceError> {
+        Ok(None)
+    }
+
+    /// Get the unique device ID from the given `device_info`
+    fn get_device_id(&self, device_info: &DeviceInfoHID) -> DeviceID {
+        generate_device_id(
+            device_info.serial_number().as_ref().unwrap_or(&"NO SERIAL"),
+            device_info.vendor_id(),
+            device_info.product_id(),
+        )
+    }
+}
+
+dyn_clone::clone_trait_object!(DeviceImplementation);
+
+#[derive(Debug, Clone)]
+pub(crate) struct WootingOne;
+
+impl DeviceImplementation for WootingOne {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: 0x03EB,
+            pid: Some(0xFF01),
+            usage_page: 0xFF54,
+            has_modes: false,
+        }
+    }
+
+    fn analog_value_to_float(&self, value: u16) -> f32 {
+        ((f32::from(value) * 1.2) / 255_f32).min(1.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct WootingTwo;
+
+impl DeviceImplementation for WootingTwo {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: 0x03EB,
+            pid: Some(0xFF02),
+            usage_page: 0xFF54,
+            has_modes: false,
+        }
+    }
+
+    fn analog_value_to_float(&self, value: u16) -> f32 {
+        ((f32::from(value) * 1.2) / 255_f32).min(1.0)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct WootingNewFirmware;
+
+impl DeviceImplementation for WootingNewFirmware {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: None,
+            usage_page: 0xFF54,
+            has_modes: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct WootingAnalogProtocolV2;
+
+impl DeviceImplementation for WootingAnalogProtocolV2 {
+    fn device_hardware_id(&self) -> DeviceHardwareID {
+        DeviceHardwareID {
+            vid: WOOTING_VID,
+            pid: None,
+            usage_page: 0xFF53,
+            has_modes: true,
+        }
+    }
+
+    fn get_analog_buffer(
+        &self,
+        device: &HidDevice,
+        max_length: usize,
+    ) -> Result<Option<HashMap<c_ushort, c_float>>, DeviceError> {
+        match self.get_analog_buffer_with_ctx(device, max_length) {
+            Ok(data) => match data {
+                Some(data) => Ok(Some(
+                    data.iter()
+                        .map(|k| (u16::from(k.code), f32::from(k.value)))
+                        .collect::<HashMap<c_ushort, c_float>>(),
+                )),
+                None => Ok(None),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    fn get_analog_buffer_with_ctx(
+        &self,
+        device: &HidDevice,
+        max_length: usize,
+    ) -> Result<Option<Vec<Key>>, DeviceError> {
+        let mut buffer: [u8; ANALOG_BUFFER_SIZE_V2] = [0; ANALOG_BUFFER_SIZE_V2];
+        let res = device.read_timeout(&mut buffer, 50);
+
+        match res {
+            Ok(len) => {
+                // If the length is 0 then that means the read timed out, so we shouldn't use it to update values
+                if len == 0 {
+                    return Ok(None);
+                }
+            }
+            Err(e) => {
+                error!("Failed to read buffer: {}", e);
+
+                return Err(DeviceError::disconnected(None));
+            }
+        }
+        Ok(Some(
+            buffer
+                .chunks_exact(4)
+                .take(max_length)
+                .map(|b| {
+                    let matrix_pos = b[0];
+                    let key = b[1];
+                    let packed = b[2];
+                    let value = b[3];
+
+                    let row = (matrix_pos >> 5) & 0x07;
+                    let col = matrix_pos & 0x1F;
+                    let actuated = (packed & 0x01) != 0;
+                    let _reserved = packed >> 1;
+                    let key_namespace = (packed >> 2) & 0x0F;
+                    let value_part = (packed >> 6) & 0x03;
+
+                    let value = (u16::from(value) << 2) | u16::from(value_part);
+
+                    Key {
+                        code: KeyCode::from((u16::from(key_namespace) << 8) | u16::from(key))
+                            .with_metadata(KeyMetadata::Basic {
+                                namespace: KeyNamespace::from(key_namespace),
+                            }),
+                        value: AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
+                            ValueMetadata::Basic {
+                                pos: KeyPosition { x: row, y: col },
+                                actuated,
+                            },
+                        ),
+                    }
+                })
+                .filter(|k| k.value.inner > 0.0)
+                .collect(),
+        ))
+    }
+
+    fn analog_value_to_float(&self, value: u16) -> f32 {
+        (f32::from(value) / 1023.).min(1.0)
+    }
+}
+
+/// A fully contained device which uses `device_impl` to interface with the `device`
+pub(crate) struct Device {
+    pub(crate) device_info: DeviceInfo,
+    buffer: Arc<Mutex<Vec<Key>>>,
+    pub(crate) connected: Arc<AtomicBool>,
+    pressed_keys: Vec<Key>,
+    worker: Option<JoinHandle<i32>>,
+}
+unsafe impl Send for Device {}
+
+impl Device {
+    pub(crate) fn new(
+        device_info: &DeviceInfoHID,
+        device: HidDevice,
+        device_impl: Box<dyn DeviceImplementation>,
+    ) -> (DeviceID, Self) {
+        let id_hash = device_impl.get_device_id(device_info);
+
+        let buffer: Arc<Mutex<Vec<Key>>> = Default::default();
+        let connected = Arc::new(AtomicBool::new(true));
+
+        let worker = {
+            let t_buffer = Arc::clone(&buffer);
+            let t_connected = Arc::clone(&connected);
+
+            thread::spawn(move || {
+                loop {
+                    if !t_connected.load(Ordering::Relaxed) {
+                        return 0;
+                    }
+
+                    match device_impl.device_hardware_id().usage_page {
+                        wooting::ANALOG_INTERFACE_V1 => {
+                            match device_impl.get_analog_buffer(&device, ANALOG_MAX_SIZE) {
+                                Ok(data) => {
+                                    if let Some(data) = data {
+                                        let mut map = t_buffer.lock().unwrap();
+                                        map.clear();
+                                        map.extend(data.iter().map(|(k, v)| Key {
+                                            code: KeyCode::from(*k),
+                                            value: AnalogValue::from(*v),
+                                        }));
+                                    }
+                                }
+                                Err(e) => {
+                                    if !e.is_disconnected() {
+                                        error!(
+                                            "Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...",
+                                            e
+                                        );
+                                    }
+                                    t_connected.store(false, Ordering::Relaxed);
+                                    return 0;
+                                }
+                            }
+                        }
+                        wooting::ANALOG_INTERFACE_V2 => {
+                            match device_impl.get_analog_buffer_with_ctx(&device, ANALOG_MAX_SIZE) {
+                                Ok(data) => {
+                                    if let Some(data) = data {
+                                        let mut map = t_buffer.lock().unwrap();
+                                        map.clear();
+                                        map.extend(data);
+                                    }
+                                }
+                                Err(e) => {
+                                    if !e.is_disconnected() {
+                                        error!(
+                                            "Read failed from device that isn't DeviceDisconnected, we got {:?}. Disconnecting device...",
+                                            e
+                                        );
+                                    }
+                                    t_connected.store(false, Ordering::Relaxed);
+                                    return 0;
+                                }
+                            }
+                        }
+                        _ => unreachable!(),
+                    };
+                }
+            })
+        };
+
+        (
+            id_hash,
+            Device {
+                device_info: DeviceInfo::new_with_id(
+                    device_info.vendor_id(),
+                    device_info.product_id(),
+                    device_info
+                        .manufacturer_string()
+                        .unwrap_or("ERR COULD NOT BE FOUND")
+                        .to_string(),
+                    device_info
+                        .product_string()
+                        .unwrap_or("ERR COULD NOT BE FOUND")
+                        .to_string(),
+                    id_hash,
+                    DeviceType::Keyboard,
+                ),
+                connected,
+                buffer,
+                pressed_keys: vec![],
+                worker: Some(worker),
+            },
+        )
+    }
+
+    pub(crate) fn read_keycode(&mut self, code: KeyCode) -> AnalogValue {
+        let buffer_guard = self.buffer.lock().unwrap();
+
+        buffer_guard
+            .iter()
+            .find(|k| k.code == code)
+            .map(|k| k.value)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn read_position(&mut self, position: KeyPosition) -> PhysicalKey {
+        let buffer_guard = self.buffer.lock().unwrap();
+
+        let mut physical_key = PhysicalKey::new(position);
+
+        for key in buffer_guard.iter() {
+            if let ValueMetadata::Basic { pos, actuated } = key.value.metadata
+                && pos == position
+            {
+                physical_key.push_state(KeyState {
+                    value: key.value.inner,
+                    keycode: key.code,
+                    actuated,
+                });
+            }
+        }
+
+        physical_key
+    }
+
+    pub(crate) fn read_full_with_ctx(&mut self) -> Result<Vec<Key>, DeviceError> {
+        let mut buffer = self.buffer.lock().unwrap().clone();
+        let new_pressed_keys = buffer.clone();
+
+        // Build set of current keycodes for O(1) lookup
+        let current_codes: std::collections::HashSet<KeyCode> =
+            buffer.iter().map(|k| k.code).collect();
+
+        // Add old pressed keys that are no longer pressed (for key release detection)
+        for key in self.pressed_keys.drain(..) {
+            if !current_codes.contains(&key.code) {
+                buffer.push(key)
+            }
+        }
+
+        // Store only the currently pressed keys for the next call
+        self.pressed_keys = new_pressed_keys;
+
+        Ok(buffer)
+    }
+}
+
+impl Drop for Device {
+    fn drop(&mut self) {
+        //self.device_info.clone().drop();
+        //Set the device to connected so the thread will stop if it hasn't already
+        self.connected.store(false, Ordering::Relaxed);
+        if let Some(worker) = self.worker.take() {
+            worker
+                .join()
+                .expect("Couldn't join on the associated thread");
+        }
+    }
+}
+
+// TODO: expose?
+pub(crate) fn generate_device_id(serial_number: &str, vendor_id: u16, product_id: u16) -> DeviceID {
+    use std::collections::hash_map::DefaultHasher;
+    let mut s = DefaultHasher::new();
+    s.write_u16(vendor_id);
+    s.write_u16(product_id);
+    s.write(serial_number.as_bytes());
+    s.finish()
+}
