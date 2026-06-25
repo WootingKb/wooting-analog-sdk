@@ -1,3 +1,5 @@
+//! Inspect analog values, associated metadata and helper functions.
+
 use std::{
     cmp::Ordering,
     fmt,
@@ -9,18 +11,32 @@ use serde::{Deserialize, Serialize};
 
 use crate::key::KeyPosition;
 
+/// Any additional information an [`AnalogValue`] can contain.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C, u8)]
 pub enum ValueMetadata {
+    /// The analog protocol does not support metadata.
     #[default]
     None,
     Basic {
-        pos: KeyPosition,
+        position: KeyPosition,
         actuated: bool,
     },
+
+    // Reserve 8 bytes to ensure we can avoid shifting the memory layout of the union a litte while
+    // longer. As soon as this type does shift a new enum should be created and used instead, while
+    // also keeping this one around for backwards compatibility.
+    #[doc(hidden)]
+    _Reserved([u8; 8]) = 255,
 }
 
+/// An analog float value with optional metadata.
+///
+/// The metadata is only present if the device supplying the data has support for it in the
+/// analog protocol. Some plugins or devices might run older firmware or simply don't have the
+/// extra data associated with a key press yielding no valuable extra data, other than the
+/// press depth.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
@@ -30,9 +46,13 @@ pub struct AnalogValue {
 }
 
 impl AnalogValue {
-    pub fn with_metadata(mut self, meta: ValueMetadata) -> Self {
+    pub(crate) fn with_metadata(mut self, meta: ValueMetadata) -> Self {
         self.metadata = meta;
         self
+    }
+
+    pub fn metadata(&self) -> &ValueMetadata {
+        &self.metadata
     }
 }
 

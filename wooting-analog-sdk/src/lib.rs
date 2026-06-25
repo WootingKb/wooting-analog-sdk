@@ -1,3 +1,40 @@
+//! # Wooting Analog SDK
+//! The Wooting Analog SDK is the open driver for Analog keyboards. It's goal is to create native
+//! support for Analog keyboards in any game or application.
+//!
+//! ## Example
+//! ```no_run
+//! use wooting_analog_sdk::{AnalogSdk, Initialised};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Configure and initialise the Analog SDK
+//! let analog_sdk: AnalogSdk<Initialised> = AnalogSdk::new().initialise()?;
+//!
+//! loop {
+//!     // Poll all available plugins for values by keycode
+//!     analog_sdk.read_keycodes(|ctx| {
+//!         for (keycode, value) in ctx.iter() {
+//!             println!("read keycode: {keycode} with value: {value}");
+//!         }
+//!     })?;
+//!
+//!     // Poll all available plugins for values by their matrix position
+//!     analog_sdk.read_positions(|ctx| {
+//!         for physical_key in ctx.iter() {
+//!             println!(
+//!                 "read from position: {} with values: {:?}",
+//!                 physical_key.position,
+//!                 physical_key.state(),
+//!             );
+//!         }
+
+//!     })?;
+//!     # break; // otherwise we will never get out of our doc test run
+//! }
+//! # Ok(())
+//! # }
+//! ```
+
 pub mod analog_value;
 pub mod ctx;
 pub mod device;
@@ -13,13 +50,13 @@ mod virtual_input;
 #[doc(inline)]
 pub use crate::{analog_value::AnalogValue, keycode::KeyCode};
 pub use crate::{
-    key::{KeyPosition, PhysicalKey},
+    key::{KeyPosition, KeyState, PhysicalKey},
     plugin::Plugin,
 };
 
 use crate::{
     analog_value::ValueMetadata,
-    ctx::{Context, KeyCodeFilter, PositionFilter},
+    ctx::{Ctx, KeyCodeFormat, PositionFormat},
     device::DeviceID,
     device::{DeviceEventType, DeviceInfo},
     err::{PluginError, ReadError},
@@ -27,7 +64,7 @@ use crate::{
     plugin::{DEFAULT_PLUGIN_DIR, dynamic::DynamicPlugin, wooting::WootingPlugin},
 };
 use libloading::Library;
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use std::{
     collections::HashMap,
     env::consts::DLL_EXTENSION,
@@ -38,6 +75,7 @@ use std::{
     thread,
 };
 
+/// A typestate marker for the state of the [`AnalogSdk`].
 pub struct Initialised {
     device_count: u32,
     plugins: Mutex<Vec<Box<dyn Plugin>>>,
@@ -63,6 +101,7 @@ impl Drop for Initialised {
     }
 }
 
+/// A typestate marker for the state of the [`AnalogSdk`].
 pub struct Uninitialised {
     nested: bool,
     plugin_dir: Option<PathBuf>,
@@ -134,17 +173,14 @@ impl Uninitialised {
             }
         }
 
-        if plugins.is_empty() {
-            return Err(PluginError::ZeroPlugins);
-        }
-
         Ok(plugins)
     }
 }
 
+/// The main way to poll data from registered analog devices.
 #[derive(Default)]
 pub struct AnalogSdk<S = Uninitialised> {
-    pub keycode_mode: KeycodeType,
+    pub(crate) keycode_mode: KeycodeType,
     device_events: Option<Arc<dyn Fn(DeviceEventType, DeviceInfo) + Send + Sync>>,
     keycodes: Mutex<HashMap<KeyCode, AnalogValue>>,
     positions: Mutex<HashMap<KeyPosition, PhysicalKey>>,
@@ -152,6 +188,23 @@ pub struct AnalogSdk<S = Uninitialised> {
 }
 
 impl AnalogSdk<Uninitialised> {
+    /// A builder to mark and configure any plugins it needs to load on initialisation.
+    ///
+    /// ```
+    /// use wooting_analog_sdk::{AnalogSdk, keycode::KeycodeType};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Configure the SDK before initialising using a builder pattern
+    /// let analog_sdk = AnalogSdk::new()
+    ///     .with_plugin_directory("/path/to/plugins", true)
+    ///     .with_device_events(|event, info| {
+    ///         println!("received event: {event:?} for device: {}", info.device_id);
+    ///      })
+    ///     .with_keycode_mode(KeycodeType::VirtualKey)
+    ///     .initialise()?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new() -> Self {
         Self::default()
     }
@@ -169,6 +222,8 @@ impl AnalogSdk<Uninitialised> {
         }
     }
 
+    /// Wooting devices are loaded by default. Only use this when you want to operate over
+    /// third-party devices and do not want to include Wooting devices in your results.
     pub fn without_wooting_plugin(self) -> Self {
         Self {
             state: Uninitialised {
@@ -198,7 +253,14 @@ impl AnalogSdk<Uninitialised> {
     }
 
     pub fn initialise(self) -> Result<AnalogSdk<Initialised>, PluginError> {
-        let mut plugins = self.state.load_plugins_from_dir()?;
+        let mut plugins = match self.state.load_plugins_from_dir() {
+            Ok(plugins) => plugins,
+            Err(PluginError::InvalidDirectory(path)) => {
+                warn!("plugin directory \"{path:?}\" invalid");
+                Vec::new()
+            }
+            Err(e) => return Err(e),
+        };
 
         if self.state.include_wooting_plugin {
             plugins.push(Box::new(WootingPlugin::new()));
@@ -228,6 +290,10 @@ impl AnalogSdk<Uninitialised> {
             }
         }
 
+        if plugins.is_empty() {
+            return Err(PluginError::ZeroPlugins);
+        }
+
         info!("{} plugins successfully initialised", plugins_initialised);
 
         Ok(AnalogSdk {
@@ -244,14 +310,16 @@ impl AnalogSdk<Uninitialised> {
 }
 
 impl AnalogSdk<Initialised> {
+    /// Read the single highest analog value across any connected devices by keycode.
     pub fn read_keycode<T>(&self, code: T) -> Result<AnalogValue, ReadError>
     where
         T: Into<u16>,
     {
-        self.read_keycode_for(0, code)
+        self.read_keycode_from(0, code)
     }
 
-    pub fn read_keycode_for<T>(
+    /// Read the single highest analog value from a specific device by keycode.
+    pub fn read_keycode_from<T>(
         &self,
         device_id: DeviceID,
         code: T,
@@ -261,6 +329,10 @@ impl AnalogSdk<Initialised> {
     {
         let code = code.into();
 
+        // Since the compiler monomorphizes entire functions for every concrete type that fits the
+        // bounds of the generic type paremeters, it can be quite costly to have it do so for larger
+        // functions. These inner functions reduce compile times and binary size. The outer function
+        // will be monomorphized and this inner will be reused for each one.
         fn inner_read_keycode(
             sdk: &AnalogSdk<Initialised>,
             device_id: DeviceID,
@@ -300,11 +372,13 @@ impl AnalogSdk<Initialised> {
         inner_read_keycode(self, device_id, code)
     }
 
+    /// Read all properties of a single physical key across any connected devices by matrix position.
     pub fn read_position(&self, position: KeyPosition) -> Result<PhysicalKey, ReadError> {
-        self.read_position_for(0, position)
+        self.read_position_from(0, position)
     }
 
-    pub fn read_position_for(
+    /// Read all properties of a single physical key from a specific device by matrix position.
+    pub fn read_position_from(
         &self,
         device_id: DeviceID,
         position: KeyPosition,
@@ -317,7 +391,7 @@ impl AnalogSdk<Initialised> {
             match p.read_position(position, device_id) {
                 Ok(pk) => {
                     for i in 0..pk.active_key_count {
-                        physical_key.push_state(pk.states[i as usize]);
+                        physical_key.push_state(pk.state[i as usize]);
                     }
 
                     any_success = true;
@@ -339,115 +413,152 @@ impl AnalogSdk<Initialised> {
         Ok(physical_key)
     }
 
-    pub fn read_keycodes<F>(&self, f: F) -> Result<(), ReadError>
+    /// Read all highest analog values across any connected devices, formatted by keycode.
+    pub fn read_keycodes<F, R>(&self, ctx: F) -> Result<R, ReadError>
     where
-        F: FnOnce(Context<KeyCodeFilter>),
+        F: FnOnce(Ctx<KeyCodeFormat<'_>>) -> R,
     {
-        self.read_keycodes_for(0, f)
+        self.read_keycodes_from(0, ctx)
     }
 
-    pub fn read_keycodes_for<F>(&self, device_id: DeviceID, f: F) -> Result<(), ReadError>
+    /// Read all highest analog values from a specific device, formatted by keycode.
+    pub fn read_keycodes_from<F, R>(&self, device_id: DeviceID, ctx: F) -> Result<R, ReadError>
     where
-        F: FnOnce(Context<KeyCodeFilter>),
+        F: FnOnce(Ctx<KeyCodeFormat<'_>>) -> R,
     {
-        let mut error = None;
-        let mut any_success = false;
+        let mut guard = self.lock_keycodes();
 
-        for p in self.state.lock_plugins().iter_mut() {
-            match p.read_keycodes(device_id) {
-                Ok(plugin_data) => {
-                    for (k, v) in plugin_data {
-                        self.lock_keycodes()
-                            .entry(k)
-                            .and_modify(|existing| {
-                                if &v > existing {
-                                    *existing = v;
-                                }
-                            })
-                            .or_insert(v);
+        // Since the compiler monomorphizes entire functions for every concrete type that fits the
+        // bounds of the generic type paremeters, it can be quite costly to have it do so for larger
+        // functions. These inner functions reduce compile times and binary size. The outer function
+        // will be monomorphized and this inner will be reused for each one.
+        fn inner_read_keycodes_from(
+            sdk: &AnalogSdk<Initialised>,
+            device_id: DeviceID,
+            guard: &mut MutexGuard<'_, HashMap<KeyCode, AnalogValue>>,
+        ) -> Result<(), ReadError> {
+            let mut error = None;
+            let mut any_success = false;
+
+            for p in sdk.state.lock_plugins().iter_mut() {
+                match p.read_keycodes(device_id) {
+                    Ok(plugin_data) => {
+                        for (mut k, v) in plugin_data {
+                            if let Some(code) = crate::keycode::hid_to_code(k, &sdk.keycode_mode) {
+                                k.inner = code;
+                            }
+
+                            guard
+                                .entry(k)
+                                .and_modify(|existing| {
+                                    if &v > existing {
+                                        *existing = v;
+                                    }
+                                })
+                                .or_insert(v);
+                        }
+
+                        any_success = true;
                     }
-
-                    any_success = true;
-                }
-                Err(e) => {
-                    error = Some(e);
-                }
-            }
-
-            // If looking for a specific device, break after first successful read
-            if device_id != 0 && any_success {
-                break;
-            }
-        }
-
-        if let Some(err) = error
-            && !any_success
-        {
-            return Err(err);
-        }
-
-        f(Context::with_keycodes(std::mem::take(
-            &mut self.lock_keycodes(),
-        )));
-
-        Ok(())
-    }
-
-    pub fn read_positions<F>(&self, f: F) -> Result<(), ReadError>
-    where
-        F: FnOnce(Context<PositionFilter>),
-    {
-        self.read_positions_for(0, f)
-    }
-
-    pub fn read_positions_for<F>(&self, device_id: DeviceID, f: F) -> Result<(), ReadError>
-    where
-        F: FnOnce(Context<PositionFilter>),
-    {
-        let mut error = None;
-        let mut any_success = false;
-
-        for p in self.state.lock_plugins().iter_mut() {
-            match p.read_positions(device_id) {
-                Ok(plugin_data) => {
-                    for (_, physical_key) in plugin_data {
-                        self.lock_positions()
-                            .entry(physical_key.pos)
-                            .and_modify(|existing: &mut PhysicalKey| {
-                                if physical_key.max_value() > existing.max_value() {
-                                    *existing = physical_key;
-                                }
-                            })
-                            .or_insert(physical_key);
+                    Err(e) => {
+                        error = Some(e);
                     }
-
-                    any_success = true;
                 }
-                Err(e) => {
-                    error = Some(e);
+
+                // If looking for a specific device, break after first successful read
+                if device_id != 0 && any_success {
+                    break;
                 }
             }
 
-            // If looking for a specific device, break after first successful read
-            if device_id != 0 && any_success {
-                break;
+            if let Some(err) = error
+                && !any_success
+            {
+                return Err(err);
             }
+
+            Ok(())
         }
 
-        if let Some(err) = error
-            && !any_success
-        {
-            return Err(err);
-        }
+        inner_read_keycodes_from(self, device_id, &mut guard)?;
 
-        f(Context::with_positions(std::mem::take(
-            &mut self.lock_positions(),
-        )));
+        let result = ctx(Ctx::with_keycodes(&mut guard));
+        guard.clear();
 
-        Ok(())
+        Ok(result)
     }
 
-    pub fn get_device_info(&self) -> Result<Vec<DeviceInfo>, ReadError> {
+    /// Read all pressed physical keys across any connected devices, formatted by matrix position.
+    pub fn read_positions<F, R>(&self, ctx: F) -> Result<R, ReadError>
+    where
+        F: FnOnce(Ctx<PositionFormat>) -> R,
+    {
+        self.read_positions_from(0, ctx)
+    }
+
+    /// Read all pressed physical keys for a specific device, formatted by matrix position.
+    pub fn read_positions_from<F, R>(&self, device_id: DeviceID, ctx: F) -> Result<R, ReadError>
+    where
+        F: FnOnce(Ctx<PositionFormat>) -> R,
+    {
+        let mut guard = self.lock_positions();
+
+        // Since the compiler monomorphizes entire functions for every concrete type that fits the
+        // bounds of the generic type paremeters, it can be quite costly to have it do so for larger
+        // functions. These inner functions reduce compile times and binary size. The outer function
+        // will be monomorphized and this inner will be reused for each one.
+        fn inner_read_positions_from(
+            sdk: &AnalogSdk<Initialised>,
+            device_id: DeviceID,
+            guard: &mut MutexGuard<'_, HashMap<KeyPosition, PhysicalKey>>,
+        ) -> Result<(), ReadError> {
+            let mut error = None;
+            let mut any_success = false;
+
+            for p in sdk.state.lock_plugins().iter_mut() {
+                match p.read_positions(device_id) {
+                    Ok(plugin_data) => {
+                        for (_, physical_key) in plugin_data {
+                            guard
+                                .entry(physical_key.position)
+                                .and_modify(|existing: &mut PhysicalKey| {
+                                    if physical_key.max_value() > existing.max_value() {
+                                        *existing = physical_key;
+                                    }
+                                })
+                                .or_insert(physical_key);
+                        }
+
+                        any_success = true;
+                    }
+                    Err(e) => {
+                        error = Some(e);
+                    }
+                }
+
+                // If looking for a specific device, break after first successful read
+                if device_id != 0 && any_success {
+                    break;
+                }
+            }
+
+            if let Some(err) = error
+                && !any_success
+            {
+                return Err(err);
+            }
+            Ok(())
+        }
+
+        inner_read_positions_from(self, device_id, &mut guard)?;
+
+        let result = ctx(Ctx::with_positions(&mut guard));
+        guard.clear();
+
+        Ok(result)
+    }
+
+    pub fn connected_devices(&self) -> Result<Vec<DeviceInfo>, ReadError> {
         let mut devices: Vec<DeviceInfo> = vec![];
         let mut error = None;
         for p in self.state.lock_plugins().iter_mut() {
@@ -491,8 +602,17 @@ impl AnalogSdk<Initialised> {
         self.device_events = None;
     }
 
+    pub fn insert_plugin<P: Plugin + 'static>(&mut self, plugin: P) {
+        self.state.lock_plugins().push(Box::new(plugin));
+    }
+
+    /// Uninitialises all plugins and then falls back to the default uninitialised state.
     pub fn uninitialise(self) -> AnalogSdk<Uninitialised> {
         AnalogSdk::default()
+    }
+
+    pub fn keycode_mode(&self) -> &KeycodeType {
+        &self.keycode_mode
     }
 
     pub fn device_count(&self) -> u32 {

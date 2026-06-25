@@ -1,5 +1,8 @@
+//! Inspect key codes, associated metadata and helper functions.
+
 use bimap::BiMap;
 use enum_primitive_derive::Primitive;
+use log::warn;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, sync::LazyLock};
@@ -337,7 +340,7 @@ static VIRTUALKEY_OVERRIDE: LazyLock<BiMap<u8, u16>> = LazyLock::new(|| {
 #[derive(Debug, PartialEq, Clone, Primitive, Default)]
 #[repr(C)]
 pub enum KeycodeType {
-    /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
+    /// USB HID Keycodes <https://www.usb.org/document-library/hid-usage-tables-112> pg53
     #[default]
     HID = 0,
     /// Scan code set 1
@@ -348,6 +351,7 @@ pub enum KeycodeType {
     VirtualKeyTranslate = 3,
 }
 
+/// A group of Wooting key namespaces.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(C)]
 pub enum KeyNamespace {
@@ -356,6 +360,7 @@ pub enum KeyNamespace {
     CustomFunction = 4,
     GamepadBinding = 5,
     AdvancedKey = 6,
+    Unknown = 255,
 }
 
 impl From<u8> for KeyNamespace {
@@ -366,11 +371,15 @@ impl From<u8> for KeyNamespace {
             4 => KeyNamespace::CustomFunction,
             5 => KeyNamespace::GamepadBinding,
             6 => KeyNamespace::AdvancedKey,
-            _ => panic!("missing or invalid key namespace: {value}"),
+            other => {
+                warn!("missing or invalid key namespace: {other}");
+                KeyNamespace::Unknown
+            }
         }
     }
 }
 
+/// Any additional information a [`KeyCode`] can contain.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C, u8)]
 pub enum KeyMetadata {
@@ -379,8 +388,19 @@ pub enum KeyMetadata {
     Basic {
         namespace: KeyNamespace,
     },
+
+    // Reserve 8 bytes to ensure we can avoid shifting the memory layout of the union a litte while
+    // longer. As soon as this type does shift a new enum should be created and used instead, while
+    // also keeping this one around for backwards compatibility.
+    #[doc(hidden)]
+    _Reserved([u8; 8]) = 255,
 }
 
+/// An analog key code with optional metadata.
+///
+/// The metadata is only present if the device supplying the data has support for it in the analog
+/// protocol. Some plugins or devices might run older firmware or simply don’t have the extra data
+/// associated with a key press yielding no valuable extra data, other than the key code.
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 pub struct KeyCode {
@@ -389,9 +409,17 @@ pub struct KeyCode {
 }
 
 impl KeyCode {
-    pub fn with_metadata(mut self, meta: KeyMetadata) -> Self {
-        self.metadata = meta;
-        self
+    pub(crate) fn with_namespace(raw: u16) -> Self {
+        let namespace = KeyNamespace::from((raw >> 8) as u8);
+
+        Self {
+            inner: raw,
+            metadata: KeyMetadata::Basic { namespace },
+        }
+    }
+
+    pub fn metadata(&self) -> &KeyMetadata {
+        &self.metadata
     }
 
     pub fn is_advanced_key(&self) -> bool {
@@ -402,6 +430,12 @@ impl KeyCode {
                 ..
             }
         )
+    }
+}
+
+impl std::fmt::Display for KeyCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -632,9 +666,9 @@ pub enum HIDCodes {
 
 pub(crate) fn vk_to_hid(vk: u16) -> Option<u16> {
     if let Some(&hid) = HID_TO_VK_MAP_US.get_by_right(&(vk as u8)) {
-        return Some(hid as u16);
+        Some(hid as u16)
     } else {
-        return None;
+        None
     }
 }
 
@@ -653,7 +687,7 @@ pub(crate) fn vk_to_hid_translate(vk: u16) -> Option<u16> {
                 return None;
             }
         }
-        return scancode_to_hid(scancode);
+        scancode_to_hid(scancode)
     }
 
     #[cfg(not(windows))]
@@ -662,9 +696,9 @@ pub(crate) fn vk_to_hid_translate(vk: u16) -> Option<u16> {
 
 pub(crate) fn hid_to_vk(hid: u16) -> Option<u16> {
     if let Some(&vk) = HID_TO_VK_MAP_US.get_by_left(&(hid as u8)) {
-        return Some(vk as u16);
+        Some(vk as u16)
     } else {
-        return None;
+        None
     }
 }
 
@@ -683,9 +717,9 @@ pub(crate) fn hid_to_vk_translate(hid: u16) -> Option<u16> {
             return None;
         }
 
-        return Some(vk as u16);
+        Some(vk as u16)
     } else {
-        return None;
+        None
     }
 
     #[cfg(not(windows))]

@@ -244,7 +244,7 @@ pub extern "C" fn wooting_analog_read_analog_device(
         return WootingAnalogResult::UnInitialized.into();
     };
 
-    match sdk.read_keycode_for(device_id, code) {
+    match sdk.read_keycode_from(device_id, code) {
         Ok(v) => f32::from(v),
         Err(e) => WootingAnalogResult::from(e).into(),
     }
@@ -266,7 +266,7 @@ pub unsafe extern "C" fn wooting_analog_read_keycode_device(
         return WootingAnalogResult::UnInitialized;
     };
 
-    match sdk.read_keycode_for(device_id, keycode) {
+    match sdk.read_keycode_from(device_id, keycode) {
         Ok(v) => {
             let Some(out) = (unsafe { value.as_mut() }) else {
                 return WootingAnalogResult::InvalidArgument;
@@ -302,7 +302,7 @@ pub unsafe extern "C" fn wooting_analog_read_position_device(
         return WootingAnalogResult::UnInitialized;
     };
 
-    match sdk.read_position_for(device_id, *pos) {
+    match sdk.read_position_from(device_id, *pos) {
         Ok(pk) => {
             let Some(out) = (unsafe { physical_key.as_mut() }) else {
                 return WootingAnalogResult::InvalidArgument;
@@ -373,7 +373,7 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
     WootingAnalogResult::Ok
 }
 
-thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = RefCell::new(None));
+thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = const { RefCell::new(None) });
 
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
 ///
@@ -399,7 +399,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
         return WootingAnalogResult::UnInitialized.into();
     };
 
-    match sdk.get_device_info() {
+    match sdk.connected_devices() {
         Ok(mut devices) => {
             let device_no = (len as usize).min(devices.len());
 
@@ -441,7 +441,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
 ///
 /// # Notes
 /// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
-/// key & analog value pairs that can be filled in.
+///   key & analog value pairs that can be filled in.
 /// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
 /// * If two devices have the same key pressed, the greater value will be given
 /// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
@@ -477,7 +477,7 @@ pub extern "C" fn wooting_analog_read_full_buffer(
 ///
 /// # Notes
 /// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
-/// key & analog value pairs that can be filled in.
+///   key & analog value pairs that can be filled in.
 /// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
 /// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 ///
@@ -521,13 +521,10 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         return WootingAnalogResult::UnInitialized.into();
     };
 
-    let mut count: usize = 0;
+    match sdk.read_keycodes_from(device_id, |ctx| {
+        let mut count: usize = 0;
 
-    match sdk.read_keycodes_for(device_id, |analog_data| {
-        for (code, val) in analog_data
-            .iter()
-            .map(|(k, v)| (u16::from(k), f32::from(v)))
-        {
+        for (code, val) in ctx.iter().map(|(k, v)| (u16::from(k), f32::from(v))) {
             if count >= codes.len() {
                 break;
             }
@@ -536,8 +533,10 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
             analog[count] = val;
             count += 1;
         }
+
+        count
     }) {
-        Ok(()) => count as c_int,
+        Ok(count) => count as c_int,
         Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
@@ -576,20 +575,22 @@ pub unsafe extern "C" fn wooting_analog_read_keycodes_device(
         return WootingAnalogResult::UnInitialized.into();
     };
 
-    let mut count: usize = 0;
+    match sdk.read_keycodes_from(device_id, |ctx| {
+        let mut count: usize = 0;
 
-    match sdk.read_keycodes_for(device_id, |analog_data| {
-        for (k, v) in analog_data {
+        for (k, v) in ctx.iter() {
             if count >= codes.len() {
                 break;
             }
 
-            codes[count] = k;
-            analog[count] = v;
+            codes[count] = *k;
+            analog[count] = *v;
             count += 1;
         }
+
+        count
     }) {
-        Ok(()) => count as c_int,
+        Ok(count) => count as c_int,
         Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
@@ -616,19 +617,21 @@ pub unsafe extern "C" fn wooting_analog_read_positions_device(
         return WootingAnalogResult::UnInitialized.into();
     };
 
-    let mut count: usize = 0;
+    match sdk.read_positions_from(device_id, |ctx| {
+        let mut count: usize = 0;
 
-    match sdk.read_positions_for(device_id, |analog_data| {
-        for (_, k) in analog_data {
+        for physical_key in ctx.iter() {
             if count >= keys.len() {
                 break;
             }
 
-            keys[count] = k;
+            keys[count] = *physical_key;
             count += 1;
         }
+
+        count
     }) {
-        Ok(()) => count as c_int,
+        Ok(count) => count as c_int,
         Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }

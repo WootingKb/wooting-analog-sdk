@@ -1,103 +1,149 @@
+//! Analog data collection with extra context for each key press in various formats.
+//!
+//! When polling data from the [`AnalogSdk`](crate::AnalogSdk) through
+//! [`read_keycodes`](crate::AnalogSdk::read_keycodes) or
+//! [`read_positions`](crate::AnalogSdk::read_positions) the data format is based on what filter
+//! is applied to `Ctx`.
+//! - [`Ctx<KeyCodeFilter>`] will iterate over the plain keycodes and analog values the underlying
+//!   device reported when it was polled.
+//! - [`Ctx<PositionFilter>`] will have a different format where some post processing was done by
+//!   grouping all active keycodes and values together into a [`PhysicalKey`] for each
+//!   physical [`KeyPosition`].
+//!
+//! ```no_run
+//! # use wooting_analog_sdk::AnalogSdk;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let analog_sdk = AnalogSdk::new().initialise()?;
+//! // Polls and operates over the `Ctx<KeyCodeFilter>` format.
+//! analog_sdk.read_keycodes(|ctx| {
+//!     for (keycode, value) in ctx.iter() {
+//!         println!("read keycode: {keycode} with value: {value}");
+//!     }
+//! })?;
+//!
+//! // Same as read_keycodes but with the `Ctx<PositionFilter>` format instead.
+//! analog_sdk.read_positions(|ctx| {
+//!     for physical_key in ctx.iter() {
+//!         println!(
+//!             "read from position: {} with values: {:?}",
+//!             physical_key.position,
+//!             physical_key.state(),
+//!         );
+//!     }
+//! })?;
+//! # Ok(())
+//! # }
+//! ```
+
 use std::collections::HashMap;
 
 use crate::{AnalogValue, KeyCode, KeyPosition, PhysicalKey};
 
-pub struct KeyCodeFilter {
-    data: HashMap<KeyCode, AnalogValue>,
+/// Configure [`Ctx`] to contain poll results based on keycodes and analog values.
+pub struct KeyCodeFormat<'ctx> {
+    data: &'ctx mut HashMap<KeyCode, AnalogValue>,
 }
 
-pub struct PositionFilter {
-    data: HashMap<KeyPosition, PhysicalKey>,
+/// Configure [`Ctx`] to contain poll results based on matrix position and physical keys.
+pub struct PositionFormat<'ctx> {
+    data: &'ctx mut HashMap<KeyPosition, PhysicalKey>,
 }
 
-pub struct Context<F> {
-    filter: F,
+/// An analog data collection with a specific set of filters to poll analog data with different
+/// formats.
+pub struct Ctx<F> {
+    // Use generic type parameters for formats instead of explicit standalone types to prevent a
+    // breaking change when formats might need to share state. These generics give no extra
+    // overhead compared to explicit types, but it does give us more flexibility in the future.
+    format: F,
 }
 
-impl Context<KeyCodeFilter> {
-    pub(crate) fn with_keycodes(data: HashMap<KeyCode, AnalogValue>) -> Self {
+impl<'ctx> Ctx<KeyCodeFormat<'ctx>> {
+    pub(crate) fn with_keycodes(data: &'ctx mut HashMap<KeyCode, AnalogValue>) -> Self {
         Self {
-            filter: KeyCodeFilter { data },
+            format: KeyCodeFormat { data },
         }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&KeyCode, &AnalogValue)> {
-        self.filter.data.iter()
+        self.format.data.iter()
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &KeyCode> {
-        self.filter.data.keys()
+        self.format.data.keys()
     }
 
     pub fn values(&self) -> impl Iterator<Item = &AnalogValue> {
-        self.filter.data.values()
+        self.format.data.values()
     }
 
     pub fn get(&self, key: &KeyCode) -> Option<&AnalogValue> {
-        self.filter.data.get(key)
+        self.format.data.get(key)
     }
 
     pub fn contains(&self, key: &KeyCode) -> bool {
-        self.filter.data.contains_key(key)
+        self.format.data.contains_key(key)
     }
 
     pub fn len(&self) -> usize {
-        self.filter.data.len()
+        self.format.data.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.filter.data.is_empty()
+        self.format.data.is_empty()
     }
 
     pub fn remove(&mut self, key: &KeyCode) -> Option<AnalogValue> {
-        self.filter.data.remove(key)
+        self.format.data.remove(key)
     }
 }
 
-impl Context<PositionFilter> {
-    pub(crate) fn with_positions(data: HashMap<KeyPosition, PhysicalKey>) -> Self {
+impl<'ctx> Ctx<PositionFormat<'ctx>> {
+    pub(crate) fn with_positions(data: &'ctx mut HashMap<KeyPosition, PhysicalKey>) -> Self {
         Self {
-            filter: PositionFilter { data },
+            format: PositionFormat { data },
         }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &PhysicalKey> {
-        self.filter.data.values()
+        self.format.data.values()
     }
 
     pub fn get(&self, position: &KeyPosition) -> Option<&PhysicalKey> {
-        self.filter.data.get(position)
+        self.format.data.get(position)
     }
 
     pub fn contains(&self, position: &KeyPosition) -> bool {
-        self.filter.data.contains_key(position)
+        self.format.data.contains_key(position)
     }
 
     pub fn len(&self) -> usize {
-        self.filter.data.len()
+        self.format.data.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.filter.data.is_empty()
+        self.format.data.is_empty()
+    }
+
+    pub fn remove(&mut self, key: &KeyPosition) -> Option<PhysicalKey> {
+        self.format.data.remove(key)
     }
 }
 
-impl IntoIterator for Context<KeyCodeFilter> {
-    type Item = (KeyCode, AnalogValue);
-
-    type IntoIter = std::collections::hash_map::IntoIter<KeyCode, AnalogValue>;
+impl<'ctx> IntoIterator for &'ctx Ctx<KeyCodeFormat<'ctx>> {
+    type Item = (&'ctx KeyCode, &'ctx AnalogValue);
+    type IntoIter = std::collections::hash_map::Iter<'ctx, KeyCode, AnalogValue>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.filter.data.into_iter()
+        self.format.data.iter()
     }
 }
 
-impl IntoIterator for Context<PositionFilter> {
-    type Item = (KeyPosition, PhysicalKey);
-
-    type IntoIter = std::collections::hash_map::IntoIter<KeyPosition, PhysicalKey>;
+impl<'ctx> IntoIterator for &'ctx Ctx<PositionFormat<'ctx>> {
+    type Item = &'ctx PhysicalKey;
+    type IntoIter = std::collections::hash_map::Values<'ctx, KeyPosition, PhysicalKey>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.filter.data.into_iter()
+        self.format.data.values()
     }
 }

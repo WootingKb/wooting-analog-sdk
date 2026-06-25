@@ -15,7 +15,7 @@ pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
 #[cfg(target_os = "windows")]
 pub const DEFAULT_PLUGIN_DIR: &str = "C:\\Program Files\\WootingAnalogPlugins";
 
-pub static ANALOG_SDK_PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+type Callback = Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>;
 
 /// The core Plugin trait which needs to be implemented for an Analog Plugin to function
 pub trait Plugin: Send + Sync {
@@ -25,7 +25,7 @@ pub trait Plugin: Send + Sync {
     /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
     fn initialise(
         &mut self,
-        callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>,
+        callback: Callback,
     ) -> Result<u32, ReadError>;
 
     /// A function fired to check if the plugin is currently initialised

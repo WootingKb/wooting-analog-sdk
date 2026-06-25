@@ -68,7 +68,7 @@ jobs:
       - name: Setup Build Environment
         run: |
           sudo apt update
-          sudo apt install libudev-dev libhidapi-dev
+          sudo apt install libudev-dev libhidapi-dev cmake
 
       - name: Setup rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -80,6 +80,8 @@ jobs:
 
       - name: cargo test
         run: cargo test --all-features
+        env:
+          WOOTING_BUILD_TEST_PLUGIN: 1
 
   verify-headers:
     runs-on: ubuntu-latest

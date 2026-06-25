@@ -11,7 +11,7 @@ use std::{
 use log::{error, info, warn};
 use shared_memory::ShmemConf;
 
-use crate::device::{DeviceEventType, DeviceInfo, DeviceType};
+use crate::device::{DeviceEventType, DeviceInfo, DeviceSupportLevel, DeviceType};
 
 type Callback = Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>;
 
@@ -140,6 +140,7 @@ impl VirtualKeyboard {
                                 .to_string(),
                             1,
                             state.device_type.clone(),
+                            DeviceSupportLevel::Limited,
                         );
                         t_device.lock().unwrap().replace(dev);
                     }

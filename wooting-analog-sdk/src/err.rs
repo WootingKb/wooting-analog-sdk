@@ -1,3 +1,5 @@
+//! Errors management.
+
 use enum_primitive_derive::Primitive;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -6,6 +8,7 @@ use thiserror::Error;
 
 use crate::{device::DeviceID, keycode::KeycodeType};
 
+/// Delegating from the distributable dll to the system dll.
 #[derive(Error, Debug)]
 pub enum DelegateError {
     #[error("dll not found")]
@@ -44,11 +47,10 @@ pub enum PluginError {
     ZeroPlugins,
 }
 
-// TODO: refine this more after we've refactored the SDK struct
-// the uninit error will most likely go away
+/// A more general purpose error for anything related to reading data from devices.
 #[derive(Error, Debug)]
 pub enum ReadError {
-    #[error("SDK was not initialized")]
+    #[error("the SDK or plugin was not initialized")]
     Uninitialized,
 
     #[error("keycode {keycode} does not map to any type using {mode:?} mode")]
@@ -74,8 +76,15 @@ pub enum DeviceErrorKind {
 
     #[error("unable to fetch devices")]
     ZeroDevices,
+
+    #[error("hid error")]
+    HidError {
+        #[source]
+        source: hidapi::HidError,
+    }
 }
 
+/// An opaque device error that could include which device the error originated from.
 #[derive(Error, Debug)]
 pub struct DeviceError {
     pub(crate) kind: DeviceErrorKind,
@@ -83,7 +92,7 @@ pub struct DeviceError {
 }
 
 impl DeviceError {
-    pub fn disconnected(id: Option<DeviceID>) -> Self {
+    pub(crate) fn disconnected(id: Option<DeviceID>) -> Self {
         Self {
             kind: DeviceErrorKind::Disconnected,
             device_id: id,
@@ -94,9 +103,16 @@ impl DeviceError {
         matches!(self.kind, DeviceErrorKind::Disconnected)
     }
 
-    pub fn zero_devices() -> Self {
+    pub(crate) fn zero_devices() -> Self {
         Self {
             kind: DeviceErrorKind::ZeroDevices,
+            device_id: None,
+        }
+    }
+
+    pub(crate) fn hid_err(err: hidapi::HidError) -> Self {
+        Self {
+            kind: DeviceErrorKind::HidError { source: err },
             device_id: None,
         }
     }
@@ -105,8 +121,8 @@ impl DeviceError {
         &self.kind
     }
 
-    pub fn device_id(&self) -> Option<&DeviceID> {
-        self.device_id.as_ref()
+    pub fn device_id(&self) -> Option<DeviceID> {
+        self.device_id
     }
 }
 
@@ -119,7 +135,7 @@ impl std::fmt::Display for DeviceError {
     }
 }
 
-// TODO: format errors (remove capitalization)
+/// FFI-safe error conversions. 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Default, PartialEq, Clone, Primitive, Error, Copy)]
 #[repr(C)]
@@ -219,6 +235,7 @@ impl From<DeviceError> for WootingAnalogResult {
     fn from(err: DeviceError) -> Self {
         match err.kind {
             DeviceErrorKind::Disconnected => Self::DeviceDisconnected,
+            DeviceErrorKind::HidError { .. } => Self::Failure,
             DeviceErrorKind::ZeroDevices => Self::NoDevices,
         }
     }

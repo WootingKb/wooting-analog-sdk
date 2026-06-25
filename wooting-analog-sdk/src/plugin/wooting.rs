@@ -33,9 +33,11 @@ pub(crate) const ANALOG_MAX_SIZE: usize = 40;
 pub(crate) const WOOTING_VID: u16 = 0x31e3;
 pub(crate) const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
 
+type DeviceEvents = Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>>>;
+
 pub struct WootingPlugin {
     initialised: Arc<AtomicBool>,
-    device_event_cb: Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>>>,
+    device_event_cb: DeviceEvents,
     devices: Arc<Mutex<HashMap<DeviceID, Device>>>,
     #[cfg(feature = "virtual-input")]
     virtual_keyboard: VirtualKeyboard,
@@ -61,9 +63,7 @@ impl WootingPlugin {
         let init_device_closure =
             |hid: &HidApi,
              devices: &Arc<Mutex<HashMap<DeviceID, Device>>>,
-             device_event_cb: &Arc<
-                Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>>,
-            >,
+             device_event_cb: &DeviceEvents,
              device_impls: &Vec<Box<dyn DeviceImplementation>>| {
                 let device_infos: Vec<&DeviceInfoHID> = hid.device_list().collect();
 
@@ -76,7 +76,7 @@ impl WootingPlugin {
                                 .contains_key(&device_impl.get_device_id(device_info))
                         {
                             // info!("Found device impl match: {:?}", device_info);
-                            match device_info.open_device(&hid) {
+                            match device_info.open_device(hid) {
                                 Ok(dev) => {
                                     let (id, device) =
                                         Device::new(device_info, dev, device_impl.clone());
@@ -89,7 +89,7 @@ impl WootingPlugin {
                                         device_info.product_string()
                                     );
 
-                                    device_event_cb.lock().unwrap().as_ref().and_then(|cb| {
+                                    device_event_cb.lock().unwrap().as_ref().map(|cb| {
                                         cb(
                                             DeviceEventType::Connected,
                                             devices
@@ -165,7 +165,7 @@ impl WootingPlugin {
 
                         for id in disconnected.iter() {
                             let device = t_devices.lock().unwrap().remove(id).unwrap();
-                            t_device_event_cb.lock().unwrap().as_ref().and_then(|cb| {
+                            t_device_event_cb.lock().unwrap().as_ref().map(|cb| {
                                 cb(DeviceEventType::Disconnected, &device.device_info);
                                 Some(0)
                             });
@@ -236,7 +236,7 @@ impl Plugin for WootingPlugin {
     }
 
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> Result<f32, ReadError> {
-        self.read_keycode(KeyCode::from(code), device_id)
+        self.read_keycode(KeyCode::with_namespace(code), device_id)
             .map(|v| v.inner)
     }
 
@@ -289,7 +289,7 @@ impl Plugin for WootingPlugin {
                 let pk = device.read_position(position);
 
                 for i in 0..pk.active_key_count {
-                    result.push_state(pk.states[i as usize]);
+                    result.push_state(pk.state[i as usize]);
                 }
             }
 
@@ -417,7 +417,7 @@ impl Plugin for WootingPlugin {
             self.virtual_keyboard.iter_over(|iter| {
                 for (key, value) in iter {
                     self.analog_data
-                        .insert_keycode(KeyCode::from(*key), AnalogValue::from(*value));
+                        .insert_keycode(KeyCode::with_namespace(*key), AnalogValue::from(*value));
                 }
             });
 
@@ -551,7 +551,11 @@ impl AnalogData {
 
     pub fn merge(&mut self, keys: Vec<Key>) {
         for key in keys {
-            if let ValueMetadata::Basic { pos, actuated } = key.value.metadata {
+            if let ValueMetadata::Basic {
+                position: pos,
+                actuated,
+            } = key.value.metadata
+            {
                 let key_state = KeyState {
                     value: key.value.inner,
                     keycode: key.code,

@@ -74,12 +74,14 @@ macro_rules! lib_wrap_option {
     };
 }
 
+type DataPtr = Option<*mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>;
+
 const CPLUGIN_ABI_VERSION: u32 = 1;
 
 #[derive(Debug)]
 pub struct DynamicPlugin {
     lib: Library,
-    cb_data_ptr: Option<*mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>,
+    cb_data_ptr: DataPtr,
     //funcs: HashMap<&'static str, Option<Symbol>>
     code_buffer: Vec<u16>,
     value_buffer: Vec<f32>,
@@ -97,7 +99,7 @@ unsafe impl Send for DynamicPlugin {}
 unsafe impl Sync for DynamicPlugin {}
 
 impl DynamicPlugin {
-    pub fn new(lib: Library) -> Result<DynamicPlugin, PluginError> {
+    pub(crate) fn new(lib: Library) -> Result<DynamicPlugin, PluginError> {
         unsafe {
             if let Ok(ver) = lib.get::<*mut u32>(b"ANALOG_SDK_PLUGIN_ABI_VERSION") {
                 let v = **ver;
@@ -188,7 +190,7 @@ extern "C" fn call_closure(
         (*callback_ptr)(event, &device_info);
 
         //Throw it back into raw to prevent it being dropped so the callback can be called multiple times
-        Box::into_raw(callback_ptr);
+        let _ = Box::into_raw(callback_ptr);
     }
 }
 
