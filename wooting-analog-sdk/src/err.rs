@@ -77,6 +77,9 @@ pub enum DeviceErrorKind {
     #[error("unable to fetch devices")]
     ZeroDevices,
 
+    #[error("unknown device: {0}")]
+    Unknown(DeviceID),
+
     #[error("hid error")]
     HidError {
         #[source]
@@ -114,6 +117,13 @@ impl DeviceError {
         Self {
             kind: DeviceErrorKind::HidError { source: err },
             device_id: None,
+        }
+    }
+
+    pub(crate) fn unknown_device(device_id: DeviceID) -> Self {
+        Self {
+            kind: DeviceErrorKind::Unknown(device_id),
+            device_id: Some(device_id),
         }
     }
 
@@ -235,6 +245,7 @@ impl From<DeviceError> for WootingAnalogResult {
     fn from(err: DeviceError) -> Self {
         match err.kind {
             DeviceErrorKind::Disconnected => Self::DeviceDisconnected,
+            DeviceErrorKind::Unknown(_) => Self::Failure,
             DeviceErrorKind::HidError { .. } => Self::Failure,
             DeviceErrorKind::ZeroDevices => Self::NoDevices,
         }

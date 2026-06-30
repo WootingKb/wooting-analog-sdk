@@ -8,10 +8,37 @@
 - [wixtoolset](https://wixtoolset.org/releases/) If you want to build the windows installer for the
   sdk **[Windows]**
 
+For tests you will need `cmake`:
+- [cmake](https://cmake.org/download/)
+
 ### How to Build
 
-Everything can be built using this command. All the outputs will be under `target/debug`
+When developing an app, you would develop against the `_dist` version and ship it alongside your
+app. The user can independently choose to install the system version. The only difference this makes
+is that the distributed dll can delegate calls to the system dll to get the benefit of bug
+fixes/patches. If they are imcompatible then calls won't be delegated and your app keeps using the
+packaged distributable dll.
 
+#### Distributed DLL
+All of the following command aliases can be found in [`.cargo/config.toml`](../.cargo/config.toml)
+```bash
+# Windows release build
+cargo dist-win
+# Windows debug build
+cargo dist-win-dev
+
+# Linux release build
+cargo dist-linux
+# Linux debug build
+cargo dist-linux-dev
+
+# iOS release build
+cargo dist-mac
+# iOS debug build
+cargo dist-mac-dev
+```
+
+#### System DLL
 ```bash
 # Normal debug build without any extra features
 cargo build
@@ -36,9 +63,10 @@ cbindgen --crate wooting-analog-sdk --output ./includes/wooting-analog-sdk.h
 cbindgen --crate wooting-analog-sdk --output ./includes/wooting-analog-sdk.h --verify
 ```
 
-To run the virtual keyboard (The Analog SDK must be running for this to work):
+To run the virtual keyboard:
 
 ```bash
+# The Analog SDK must be running for this to work and have the `virtual-keyboard` feature enabled. This feature is enabled by default on debug builds of the Analog SDK
 cargo run -p wooting-analog-virtual-control
 ```
 

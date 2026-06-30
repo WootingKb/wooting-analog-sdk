@@ -40,17 +40,20 @@ use std::collections::HashMap;
 use crate::{AnalogValue, KeyCode, KeyPosition, PhysicalKey};
 
 /// Configure [`Ctx`] to contain poll results based on keycodes and analog values.
+#[derive(Debug)]
 pub struct KeyCodeFormat<'ctx> {
     data: &'ctx mut HashMap<KeyCode, AnalogValue>,
 }
 
 /// Configure [`Ctx`] to contain poll results based on matrix position and physical keys.
+#[derive(Debug)]
 pub struct PositionFormat<'ctx> {
     data: &'ctx mut HashMap<KeyPosition, PhysicalKey>,
 }
 
 /// An analog data collection with a specific set of filters to poll analog data with different
 /// formats.
+#[derive(Debug)]
 pub struct Ctx<F> {
     // Use generic type parameters for formats instead of explicit standalone types to prevent a
     // breaking change when formats might need to share state. These generics give no extra

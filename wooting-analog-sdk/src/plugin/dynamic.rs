@@ -218,11 +218,12 @@ impl Plugin for DynamicPlugin {
         result
     }
 
-    fn read_analog(&mut self, code: u16, device: DeviceID) -> Result<f32, ReadError> {
-        if !self.has_device(device) {
-            return Err(ReadError::Device(DeviceError::zero_devices()));
+    fn read_analog(&mut self, code: u16, device_id: DeviceID) -> Result<f32, ReadError> {
+        if !self.has_device(device_id) {
+            return Err(ReadError::Device(DeviceError::unknown_device(device_id)));
         }
-        self.read_analog(code, device)
+
+        self.read_analog(code, device_id)
             .map_err(|_| ReadError::function_unavailable("read_analog"))
     }
 
@@ -232,8 +233,9 @@ impl Plugin for DynamicPlugin {
         device_id: DeviceID,
     ) -> Result<AnalogValue, ReadError> {
         if !self.has_device(device_id) {
-            return Err(ReadError::Device(DeviceError::zero_devices()));
+            return Err(ReadError::Device(DeviceError::unknown_device(device_id)));
         }
+
         self.read_analog(u16::from(code), device_id)
             .map(AnalogValue::from)
             .map_err(|_| ReadError::function_unavailable("read_keycode"))
@@ -251,10 +253,10 @@ impl Plugin for DynamicPlugin {
 
     fn read_full_buffer(
         &mut self,
-        device: DeviceID,
+        device_id: DeviceID,
     ) -> Result<HashMap<c_ushort, c_float>, ReadError> {
-        if !self.has_device(device) {
-            return Err(ReadError::Device(DeviceError::zero_devices()));
+        if !self.has_device(device_id) {
+            return Err(ReadError::Device(DeviceError::unknown_device(device_id)));
         }
 
         let count: usize = {
@@ -263,7 +265,7 @@ impl Plugin for DynamicPlugin {
                     self.code_buffer.as_ptr(),
                     self.value_buffer.as_ptr(),
                     ANALOG_MAX_SIZE as c_uint,
-                    device,
+                    device_id,
                 )
                 .map_err(|_| ReadError::function_unavailable("read_full_buffer"))?;
             ANALOG_MAX_SIZE.min(write_count as usize)
@@ -285,7 +287,7 @@ impl Plugin for DynamicPlugin {
         device_id: DeviceID,
     ) -> Result<HashMap<KeyCode, AnalogValue>, ReadError> {
         if !self.has_device(device_id) {
-            return Err(ReadError::Device(DeviceError::zero_devices()));
+            return Err(ReadError::Device(DeviceError::unknown_device(device_id)));
         }
 
         Ok(Plugin::read_full_buffer(self, device_id)?

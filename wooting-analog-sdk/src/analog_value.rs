@@ -27,6 +27,7 @@ pub enum ValueMetadata {
     // Reserve 8 bytes to ensure we can avoid shifting the memory layout of the union a litte while
     // longer. As soon as this type does shift a new enum should be created and used instead, while
     // also keeping this one around for backwards compatibility.
+    #[cfg_attr(feature = "serde", serde(skip))]
     #[doc(hidden)]
     _Reserved([u8; 8]) = 255,
 }

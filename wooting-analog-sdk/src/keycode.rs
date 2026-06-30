@@ -352,6 +352,7 @@ pub enum KeycodeType {
 }
 
 /// A group of Wooting key namespaces.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(C)]
 pub enum KeyNamespace {
@@ -380,6 +381,7 @@ impl From<u8> for KeyNamespace {
 }
 
 /// Any additional information a [`KeyCode`] can contain.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C, u8)]
 pub enum KeyMetadata {
@@ -392,6 +394,7 @@ pub enum KeyMetadata {
     // Reserve 8 bytes to ensure we can avoid shifting the memory layout of the union a litte while
     // longer. As soon as this type does shift a new enum should be created and used instead, while
     // also keeping this one around for backwards compatibility.
+    #[cfg_attr(feature = "serde", serde(skip))]
     #[doc(hidden)]
     _Reserved([u8; 8]) = 255,
 }
@@ -401,6 +404,7 @@ pub enum KeyMetadata {
 /// The metadata is only present if the device supplying the data has support for it in the analog
 /// protocol. Some plugins or devices might run older firmware or simply don’t have the extra data
 /// associated with a key press yielding no valuable extra data, other than the key code.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 pub struct KeyCode {

@@ -29,6 +29,7 @@ impl std::fmt::Display for KeyPosition {
 }
 
 /// State for each key bind that is active on a [`PhysicalKey`].
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug, Default)]
 #[repr(C)]
 pub struct KeyState {
@@ -38,6 +39,7 @@ pub struct KeyState {
 }
 
 /// A physical key on the keyboard with all active key binds, actuation state and press depth.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
 #[repr(C)]
 pub struct PhysicalKey {

@@ -47,31 +47,34 @@ pub trait Plugin: Send + Sync {
     /// If `device` is 0 then no specific device is specified and the value should be read from all devices and combined
     fn read_analog(&mut self, code: u16, device_id: DeviceID) -> Result<f32, ReadError>;
 
+    /// Read the single highest analog value from a specific device by keycode.
     fn read_keycode(
         &mut self,
         code: KeyCode,
         device_id: DeviceID,
     ) -> Result<AnalogValue, ReadError>;
 
+    /// Read all properties of a single physical key from a specific device by matrix position.
     fn read_position(
         &mut self,
         position: KeyPosition,
         device_id: DeviceID,
     ) -> Result<PhysicalKey, ReadError>;
 
-    /// Function called to get the full analog read buffer for a particular device with ID `device`. `max_length` is the maximum amount
-    /// of keys that can be accepted, any more beyond this will be ignored by the SDK.
+    /// Function called to get the full analog read buffer for a particular device with ID `device`.
     /// If `device` is 0 then no specific device is specified and the data should be read from all devices and combined
     fn read_full_buffer(
         &mut self,
         device: DeviceID,
     ) -> Result<HashMap<c_ushort, c_float>, ReadError>;
 
+    /// Read all highest analog values from a specific device, formatted by keycode.
     fn read_keycodes(
         &mut self,
         device_id: DeviceID,
     ) -> Result<HashMap<KeyCode, AnalogValue>, ReadError>;
 
+    /// Read all pressed physical keys for a specific device, formatted by matrix position.
     fn read_positions(
         &mut self,
         device_id: DeviceID,

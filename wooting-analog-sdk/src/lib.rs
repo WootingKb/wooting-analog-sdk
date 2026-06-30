@@ -27,7 +27,6 @@
 //!                 physical_key.state(),
 //!             );
 //!         }
-
 //!     })?;
 //!     # break; // otherwise we will never get out of our doc test run
 //! }
