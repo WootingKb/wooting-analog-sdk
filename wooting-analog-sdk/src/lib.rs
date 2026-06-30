@@ -2,6 +2,17 @@
 //! The Wooting Analog SDK is the open driver for Analog keyboards. It's goal is to create native
 //! support for Analog keyboards in any game or application.
 //!
+//! ## Documentation
+#![doc = concat!("- [SDK Usage](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/SDK_USAGE.md) on how to use the SDK")]
+#![doc = concat!("- [Installation Guide](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/INSTALL.md) on how to use and install the distributable and the system SDK.")]
+//!
+//! ### Developers
+#![doc = concat!("- [Contributing Guide](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/CONTRIBUTING.md) to help you with your first contribution.")]
+#![doc = concat!("- [Build Instructions](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/BUILD.md) on how to build the SDK using Rust.")]
+#![doc = concat!("- [Migration Guide](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/MIGRATION_GUIDE.md) on how to upgrade to the latest version of the SDK.")]
+#![doc = concat!("- [Virtual Keyboard](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/VIRTUAL_KEYBOARD.md) on how to setup and use the virtual keyboard for development without any hardware required.")]
+#![doc = concat!("- [Plugin Introduction](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/PLUGINS.md) for information on creating plugins.")]
+//!
 //! ## Example
 //! ```no_run
 //! use wooting_analog_sdk::{AnalogSdk, Initialised};
@@ -33,6 +44,9 @@
 //! # Ok(())
 //! # }
 //! ```
+
+// Add feature badges to show what feature something is gated behind
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 pub mod analog_value;
 pub mod ctx;

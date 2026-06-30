@@ -50,3 +50,7 @@ assets = [
 ]
 depends = "libhidapi-hidraw0, libudev1, $auto"
 priority = "optional"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
