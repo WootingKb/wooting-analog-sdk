@@ -30,8 +30,12 @@ pub(crate) const ANALOG_BUFFER_SIZE_V2: usize = 64;
 pub(crate) const ANALOG_INTERFACE_V1: u16 = 0xFF54;
 pub(crate) const ANALOG_INTERFACE_V2: u16 = 0xFF53;
 pub(crate) const ANALOG_MAX_SIZE: usize = 40;
-pub(crate) const WOOTING_VID: u16 = 0x31e3;
 pub(crate) const WOOTING_PID_MODE_MASK: u16 = 0xFFF0;
+
+/// The legacy Wooting Vendor ID
+pub(crate) const LEGACY_WOOTING_VID: u16 = 0x03EB;
+/// The most-recent Wooting Vendor ID
+pub const WOOTING_VID: u16 = 0x31e3;
 
 type DeviceEvents = Arc<Mutex<Option<Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>>>;
 
@@ -203,8 +207,6 @@ impl Plugin for WootingPlugin {
             warn!("Unable to initialize Env Logger: {}", e);
         }
 
-        let ret = self.init_worker()?;
-
         #[cfg(feature = "virtual-input")]
         {
             let cb = Arc::new(Mutex::new(Some(callback)));
@@ -218,7 +220,14 @@ impl Plugin for WootingPlugin {
         }
 
         self.initialised.store(true, Ordering::Relaxed);
-        Ok(ret)
+
+        match self.init_worker() {
+            Ok(ret) => Ok(ret),
+            Err(err) => {
+                self.initialised.store(false, Ordering::Relaxed);
+                Err(err.into())
+            }
+        }
     }
 
     fn is_initialised(&mut self) -> bool {

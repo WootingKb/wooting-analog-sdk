@@ -8,7 +8,10 @@
 #include <stdlib.h>
 
 /// Maximum number of active binds per physical key
-#define WootingAnalog_MAX_KEY_STATES 5
+#define WootingAnalog_MAX_KEY_STATES 10
+
+/// The most-recent Wooting Vendor ID
+#define WootingAnalog_WOOTING_VID 12771
 
 /// FFI-safe error conversions.
 typedef enum WootingAnalogResult {
@@ -38,14 +41,15 @@ typedef enum WootingAnalogResult {
 } WootingAnalogResult;
 
 /// A group of Wooting key namespaces.
-typedef enum WootingAnalog_KeyNamespace {
-  WootingAnalog_KeyNamespace_HidNormal = 0,
-  WootingAnalog_KeyNamespace_HidFunction = 3,
-  WootingAnalog_KeyNamespace_CustomFunction = 4,
-  WootingAnalog_KeyNamespace_GamepadBinding = 5,
-  WootingAnalog_KeyNamespace_AdvancedKey = 6,
-  WootingAnalog_KeyNamespace_Unknown = 255,
-} WootingAnalog_KeyNamespace;
+typedef enum WootingAnalog_WootingKeyNamespace {
+  WootingAnalog_WootingKeyNamespace_HidNormal = 0,
+  /// Currently only supports ConsumerControl, SystemControl and Mouse.
+  WootingAnalog_WootingKeyNamespace_HidFunction = 3,
+  WootingAnalog_WootingKeyNamespace_CustomFunction = 4,
+  WootingAnalog_WootingKeyNamespace_GamepadBinding = 5,
+  WootingAnalog_WootingKeyNamespace_AdvancedKey = 6,
+  WootingAnalog_WootingKeyNamespace_Unknown = 255,
+} WootingAnalog_WootingKeyNamespace;
 
 typedef enum WootingAnalog_DeviceEventType {
   /// Device has been connected
@@ -90,8 +94,8 @@ typedef uint64_t WootingAnalog_DeviceID;
 
 /// A matrix position for a key on the keyboard.
 typedef struct WootingAnalog_KeyPosition {
-  uint8_t x;
-  uint8_t y;
+  uint8_t row;
+  uint8_t col;
 } WootingAnalog_KeyPosition;
 
 /// Any additional information an [`AnalogValue`] can contain.
@@ -150,7 +154,7 @@ typedef uint8_t WootingAnalog_KeyMetadata_Tag;
 #endif // __cplusplus
 
 typedef struct WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body {
-  enum WootingAnalog_KeyNamespace namespace_;
+  enum WootingAnalog_WootingKeyNamespace namespace_;
 } WootingAnalog_KeyMetadata_WootingAnalog_Basic_Body;
 
 typedef struct WootingAnalog_KeyMetadata {
@@ -290,11 +294,36 @@ float wooting_analog_read_analog(unsigned short code);
 float wooting_analog_read_analog_device(unsigned short code,
                                         WootingAnalog_DeviceID device_id);
 
+/// Reads the AnalogValue of the key with identifier `keycode` from the device with id `device_id`. The set of key identifiers that is used
+/// depends on the Keycode mode set using `wooting_analog_set_mode`.
+///
+/// An AnalogValue can contain additional context via the metadata field if the firmware on your keyboard supports it.
+///
+/// The `device_id` can be found through calling `wooting_analog_device_info` and getting the DeviceID from one of the DeviceInfo structs
+///
+/// # Expected Returns
+/// When the result is < 0 then it should be mapped to a WootingAnalogResult error variant. You should cast it as WootingAnalogResult to see what the error is.
+/// * `WootingAnalogResult::NoMapping`: No keycode mapping was found from the selected mode (set by wooting_analog_set_mode) and HID.
+/// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
+/// * `WootingAnalogResult::NoDevices`: There are no connected devices with id `device_id`
 enum WootingAnalogResult wooting_analog_read_keycode_device(unsigned short keycode,
                                                             struct WootingAnalog_AnalogValue *value,
                                                             WootingAnalog_DeviceID device_id);
 
-enum WootingAnalogResult wooting_analog_read_position_device(struct WootingAnalog_KeyPosition *position,
+/// Reads the PhysicalKey with identifier `position` from the device with id `device_id`.
+///
+/// Based on the matrix position of the key you will get all active binds and additional context per
+/// key, such as actuation state.
+///
+/// The `device_id` can either be 0 or found through calling `wooting_analog_device_info` and getting the DeviceID from one of the DeviceInfo structs
+/// If you pass device_id = 0 then you will get all values merged from all available devices and plugins.
+///
+/// # Expected Returns
+/// When the result is < 0 then it should be mapped to a WootingAnalogResult error variant. You should cast it as WootingAnalogResult to see what the error is.
+/// * `WootingAnalogResult::NoMapping`: No keycode mapping was found from the selected mode (set by wooting_analog_set_mode) and HID.
+/// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
+/// * `WootingAnalogResult::NoDevices`: There are no connected devices with id `device_id`
+enum WootingAnalogResult wooting_analog_read_position_device(const struct WootingAnalog_KeyPosition *position,
                                                              struct WootingAnalog_PhysicalKey *physical_key,
                                                              WootingAnalog_DeviceID device_id);
 
@@ -372,15 +401,52 @@ int wooting_analog_read_full_buffer_device(unsigned short *code_buffer,
                                            unsigned int len,
                                            WootingAnalog_DeviceID device_id);
 
-int wooting_analog_read_keycodes_device(struct WootingAnalog_KeyCode *code_buffer,
-                                        struct WootingAnalog_AnalogValue *analog_buffer,
-                                        unsigned int len,
-                                        WootingAnalog_DeviceID device_id);
+/// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
+/// `KeyCode` identifying the pressed key and fills up `analog_buffer` with the corresponding `AnalogValue`s. i.e. The analog
+/// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
+///
+/// # Notes
+/// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+///   key & analog value pairs that can be filled in.
+/// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_keycodes call after the key has been released
+///
+/// # Expected Returns
+/// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
+/// Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
+/// * `>=0` means the value indicates how many keys & analog values have been read into the buffers
+/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+/// * `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
+int wooting_analog_read_full_buffer_v2_device(struct WootingAnalog_KeyCode *code_buffer,
+                                              struct WootingAnalog_AnalogValue *analog_buffer,
+                                              unsigned int len,
+                                              WootingAnalog_DeviceID device_id);
 
+/// Reads all pressed keys based on matrix position for the device with id `device_id`, filling up `physical_keys` with the
+/// `PhysicalKey` identifying the pressed key and its position, including actuation state and the
+/// analog value.
+///
+/// # Notes
+/// * Since this function requires the firmware to support matrix positions it will not include results
+///   for keyboards where the firmware is outdated. C Plugins also cannot supply this data, only the
+///   Wooting plugin will have the ability to poll in this data format!
+/// * `len` is the length of physical_keys.
+/// * A position can have multiple active binds on it. Advanced keys are the most common example
+///   where a ToggleKey bind will have the underlying keybind and the ToggleKey identifier as
+///   another key. These states are stored as `KeyState` inside the physical keys.
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_positions call after the key has been released
+///
+/// # Expected Returns
+/// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
+/// Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
+/// * `>=0` means the value indicates how many physical keys have been read into the buffers
+/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+/// * `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
 int wooting_analog_read_positions_device(struct WootingAnalog_PhysicalKey *physical_keys,
                                          unsigned int len,
                                          WootingAnalog_DeviceID device_id);
 
+/// Checks if FFI calls are being delegated to the system installed Analog SDK.
 bool wooting_analog_using_sys(void);
 
 #ifdef __cplusplus

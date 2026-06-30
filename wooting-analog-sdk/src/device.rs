@@ -23,8 +23,8 @@ use crate::{
     err::DeviceError,
     key::{Key, KeyState},
     plugin::wooting::{
-        self, ANALOG_BUFFER_SIZE_V1, ANALOG_BUFFER_SIZE_V2, ANALOG_MAX_SIZE, WOOTING_PID_MODE_MASK,
-        WOOTING_VID,
+        self, ANALOG_BUFFER_SIZE_V1, ANALOG_BUFFER_SIZE_V2, ANALOG_MAX_SIZE, LEGACY_WOOTING_VID,
+        WOOTING_PID_MODE_MASK, WOOTING_VID,
     },
 };
 
@@ -81,11 +81,11 @@ pub struct DeviceInfo {
     pub device_id: DeviceID,
     /// Hardware type of the Device
     pub device_type: DeviceType,
-    /// The supported features for the analog protocol on this device 
+    /// The supported features for the analog protocol on this device
     pub support_level: DeviceSupportLevel,
 }
 
-/// The supported features for the analog protocol on this device 
+/// The supported features for the analog protocol on this device
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -115,7 +115,7 @@ pub(crate) struct DeviceInfo_FFI {
     pub device_id: DeviceID,
     /// Hardware type of the Device see `DeviceType` enum
     pub device_type: DeviceType_FFI,
-    /// The supported features for the analog protocol on this device 
+    /// The supported features for the analog protocol on this device
     pub support_level: DeviceSupportLevel,
 }
 
@@ -163,16 +163,20 @@ impl DeviceInfo_FFI {
             vendor_id: self.vendor_id,
             product_id: self.product_id,
             manufacturer_name: unsafe {
-                CStr::from_ptr(self.manufacturer_name)
-                    .to_str()
-                    .unwrap()
-                    .to_owned()
+                if self.manufacturer_name.is_null() {
+                    String::new()
+                } else {
+                    CStr::from_ptr(self.manufacturer_name)
+                        .to_string_lossy()
+                        .into()
+                }
             },
             device_name: unsafe {
-                CStr::from_ptr(self.device_name)
-                    .to_str()
-                    .unwrap()
-                    .to_owned()
+                if self.device_name.is_null() {
+                    String::new()
+                } else {
+                    CStr::from_ptr(self.device_name).to_string_lossy().into()
+                }
             },
             device_id: self.device_id,
             device_type: device_type.unwrap_or(DeviceType::Other),
@@ -324,7 +328,7 @@ pub(crate) struct WootingOne;
 impl DeviceImplementation for WootingOne {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
-            vid: 0x03EB,
+            vid: LEGACY_WOOTING_VID,
             pid: Some(0xFF01),
             usage_page: 0xFF54,
             has_modes: false,
@@ -342,7 +346,7 @@ pub(crate) struct WootingTwo;
 impl DeviceImplementation for WootingTwo {
     fn device_hardware_id(&self) -> DeviceHardwareID {
         DeviceHardwareID {
-            vid: 0x03EB,
+            vid: LEGACY_WOOTING_VID,
             pid: Some(0xFF02),
             usage_page: 0xFF54,
             has_modes: false,
@@ -451,7 +455,7 @@ impl DeviceImplementation for WootingAnalogProtocolV2 {
                         ),
                         value: AnalogValue::from(self.analog_value_to_float(value)).with_metadata(
                             ValueMetadata::Basic {
-                                position: KeyPosition { x: row, y: col },
+                                position: KeyPosition { row, col },
                                 actuated,
                             },
                         ),

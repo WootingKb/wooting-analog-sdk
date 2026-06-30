@@ -14,6 +14,7 @@ include = [
     "WootingAnalogResult",
     "KeycodeType",
     "DeviceType",
+    "WOOTING_VID",
 ]
 prefix = "WootingAnalog_"
 renaming_overrides_prefixing = true

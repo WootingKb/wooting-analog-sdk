@@ -84,7 +84,7 @@ use std::{
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock, mpsc},
     thread,
 };
 
@@ -119,7 +119,6 @@ pub struct Uninitialised {
     nested: bool,
     plugin_dir: Option<PathBuf>,
     include_wooting_plugin: bool,
-    device_events: Option<Arc<dyn Fn(DeviceEventType, DeviceInfo) + Send + Sync>>,
 }
 
 impl Default for Uninitialised {
@@ -128,7 +127,6 @@ impl Default for Uninitialised {
             nested: true,
             plugin_dir: None,
             include_wooting_plugin: true,
-            device_events: None,
         }
     }
 }
@@ -190,14 +188,28 @@ impl Uninitialised {
     }
 }
 
+type SharedDeviceCallback =
+    Arc<RwLock<Option<Arc<dyn Fn(DeviceEventType, DeviceInfo) + Send + Sync>>>>;
+
 /// The main way to poll data from registered analog devices.
-#[derive(Default)]
 pub struct AnalogSdk<S = Uninitialised> {
     pub(crate) keycode_mode: KeycodeType,
-    device_events: Option<Arc<dyn Fn(DeviceEventType, DeviceInfo) + Send + Sync>>,
+    device_events: SharedDeviceCallback,
     keycodes: Mutex<HashMap<KeyCode, AnalogValue>>,
     positions: Mutex<HashMap<KeyPosition, PhysicalKey>>,
     state: S,
+}
+
+impl Default for AnalogSdk<Uninitialised> {
+    fn default() -> Self {
+        Self {
+            keycode_mode: KeycodeType::default(),
+            device_events: Arc::new(RwLock::new(None)),
+            keycodes: Mutex::new(HashMap::new()),
+            positions: Mutex::new(HashMap::new()),
+            state: Uninitialised::default(),
+        }
+    }
 }
 
 impl AnalogSdk<Uninitialised> {
@@ -256,17 +268,15 @@ impl AnalogSdk<Uninitialised> {
     where
         F: Fn(DeviceEventType, DeviceInfo) + 'static + Send + Sync,
     {
-        Self {
-            state: Uninitialised {
-                device_events: Some(Arc::new(f)),
-                ..self.state
-            },
-            ..self
-        }
+        *self
+            .device_events
+            .write()
+            .expect("rwlock should not be poisoned") = Some(Arc::new(f));
+        self
     }
 
     pub fn initialise(self) -> Result<AnalogSdk<Initialised>, PluginError> {
-        let mut plugins = match self.state.load_plugins_from_dir() {
+        let mut uninit_plugins = match self.state.load_plugins_from_dir() {
             Ok(plugins) => plugins,
             Err(PluginError::InvalidDirectory(path)) => {
                 warn!("plugin directory \"{path:?}\" invalid");
@@ -276,30 +286,44 @@ impl AnalogSdk<Uninitialised> {
         };
 
         if self.state.include_wooting_plugin {
-            plugins.push(Box::new(WootingPlugin::new()));
+            uninit_plugins.push(Box::new(WootingPlugin::new()));
         }
 
-        let mut plugins_initialised = 0;
-        let mut device_count: u32 = 0;
-        for p in plugins.iter_mut() {
-            let arc_cb = self.state.device_events.clone();
-            let ret = p.initialise(Box::new(
-                move |event: DeviceEventType, device_ref: &DeviceInfo| {
-                    let opt_cb = arc_cb.clone();
-                    let device = device_ref.clone();
-                    thread::spawn(move || {
-                        debug!("device event cb thread running");
+        // Create channel and spawn worker thread for device events
+        let (tx, rx) = mpsc::channel();
+        let worker_cb = self.device_events.clone();
+        thread::spawn(move || {
+            while let Ok((event, device)) = rx.recv() {
+                if let Some(cb) = worker_cb
+                    .read()
+                    .expect("rwlock should not be poisoned")
+                    .as_ref()
+                {
+                    cb(event, device);
+                }
+            }
+        });
 
-                        if let Some(cb) = opt_cb {
-                            cb(event, device)
-                        }
-                    });
+        let mut plugins = Vec::with_capacity(uninit_plugins.len());
+        let mut device_count: u32 = 0;
+
+        for mut p in uninit_plugins.into_iter() {
+            let event_tx = tx.clone();
+            match p.initialise(Box::new(
+                move |event: DeviceEventType, device_ref: &DeviceInfo| {
+                    let _ = event_tx.send((event, device_ref.clone()));
                 },
-            ));
-            debug!("{:?}", ret);
-            if let Ok(num) = ret {
-                plugins_initialised += 1;
-                device_count += num;
+            )) {
+                Ok(num) => {
+                    plugins.push(p);
+                    device_count += num;
+                }
+                Err(e) => {
+                    error!(
+                        "plugin {} failed to initialise with error: {e}",
+                        p.name().unwrap_or("UNKNOWN_PLUGIN")
+                    );
+                }
             }
         }
 
@@ -307,7 +331,7 @@ impl AnalogSdk<Uninitialised> {
             return Err(PluginError::ZeroPlugins);
         }
 
-        info!("{} plugins successfully initialised", plugins_initialised);
+        info!("{} plugins successfully initialised", plugins.len());
 
         Ok(AnalogSdk {
             keycode_mode: self.keycode_mode,
@@ -608,11 +632,17 @@ impl AnalogSdk<Initialised> {
     where
         F: Fn(DeviceEventType, DeviceInfo) + 'static + Send + Sync,
     {
-        self.device_events.replace(Arc::new(f));
+        *self
+            .device_events
+            .write()
+            .expect("rwlock should not be poisoned") = Some(Arc::new(f));
     }
 
     pub fn clear_device_event_cb(&mut self) {
-        self.device_events = None;
+        *self
+            .device_events
+            .write()
+            .expect("rwlock should not be poisoned") = None;
     }
 
     pub fn insert_plugin<P: Plugin + 'static>(&mut self, plugin: P) {
@@ -643,6 +673,8 @@ impl<S> AnalogSdk<S> {
     }
 }
 
+// Will only return a list of valid plugins. Any plugins that are not compatible with the defined
+// ABI version are logged and ignored.
 fn load_plugins(path: &Path) -> Result<Vec<DynamicPlugin>, PluginError> {
     if !path.is_dir() {
         return Err(PluginError::InvalidDirectory(path.to_path_buf()));

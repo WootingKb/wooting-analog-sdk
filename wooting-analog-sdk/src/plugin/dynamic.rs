@@ -74,9 +74,15 @@ macro_rules! lib_wrap_option {
     };
 }
 
+type DeviceCallback = dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync + 'static;
+
+struct CallbackState {
+    callback: std::sync::Arc<DeviceCallback>,
+}
+
 type DataPtr = Option<*mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>>;
 
-const CPLUGIN_ABI_VERSION: u32 = 1;
+const CPLUGIN_ABI_VERSION: u32 = 2;
 
 #[derive(Debug)]
 pub struct DynamicPlugin {
@@ -133,7 +139,7 @@ impl DynamicPlugin {
         fn name() -> FfiStr<'static>;
 
         fn read_analog(code: u16, device: DeviceID) -> f32;
-        fn read_full_buffer(code_buffer: *const c_ushort, analog_buffer: *const c_float, len: c_uint, device: DeviceID) -> c_int;
+        fn read_full_buffer(code_buffer: *mut c_ushort, analog_buffer: *mut c_float, len: c_uint, device: DeviceID) -> c_int;
         fn device_info(buffer: *mut *const DeviceInfo_FFI, len: c_uint) -> c_int;
     }
 
@@ -156,6 +162,7 @@ impl DynamicPlugin {
             .device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
             .map(|no| no as usize)
         {
+            let num = num.min(device_infos.len());
             device_infos.truncate(num);
             self.device_ids = unsafe {
                 device_infos
@@ -181,16 +188,18 @@ extern "C" fn call_closure(
             return;
         }
 
+        if device_raw.is_null() {
+            error!("We got a null device_raw pointer in call_closure!");
+            return;
+        }
+
         // Use to_device_info() to borrow and copy the data without freeing the C-owned memory
         let device_info = device_raw.as_ref().unwrap().to_device_info();
 
-        let callback_ptr =
-            Box::from_raw(data as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>);
+        let state = &*(data as *const CallbackState);
+        let callback = std::sync::Arc::clone(&state.callback);
 
-        (*callback_ptr)(event, &device_info);
-
-        //Throw it back into raw to prevent it being dropped so the callback can be called multiple times
-        let _ = Box::into_raw(callback_ptr);
+        callback(event, &device_info);
     }
 }
 
@@ -205,12 +214,25 @@ impl Plugin for DynamicPlugin {
         &mut self,
         callback: Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>,
     ) -> Result<u32, ReadError> {
-        let data = Box::into_raw(Box::new(callback));
-        self.cb_data_ptr = Some(data);
+        let state = Box::new(CallbackState {
+            callback: std::sync::Arc::from(callback),
+        });
+
+        let data = Box::into_raw(state);
+        self.cb_data_ptr = Some(data as *mut _);
+
         let result = self
             .initialise(data as *const _, call_closure)
             .map(|res| res as u32)
             .map_err(|_| ReadError::function_unavailable("initialise"));
+
+        if result.is_err()
+            && let Some(ptr) = self.cb_data_ptr.take()
+        {
+            unsafe {
+                drop(Box::from_raw(ptr as *mut CallbackState));
+            }
+        }
 
         // Cache the device IDs this plugin owns
         self.refresh_device_ids();
@@ -236,9 +258,16 @@ impl Plugin for DynamicPlugin {
             return Err(ReadError::Device(DeviceError::unknown_device(device_id)));
         }
 
-        self.read_analog(u16::from(code), device_id)
-            .map(AnalogValue::from)
-            .map_err(|_| ReadError::function_unavailable("read_keycode"))
+        match self.read_analog(u16::from(code), device_id) {
+            Ok(v) => {
+                if v >= 0.0 {
+                    Ok(AnalogValue::from(v))
+                } else {
+                    Err(ReadError::Plugin(PluginError::InvalidRead(device_id)))
+                }
+            }
+            Err(_) => Err(ReadError::function_unavailable("read_keycode")),
+        }
     }
 
     fn read_position(
@@ -260,14 +289,17 @@ impl Plugin for DynamicPlugin {
         }
 
         let count: usize = {
+            let code_ptr = self.code_buffer.as_mut_ptr();
+            let value_ptr = self.value_buffer.as_mut_ptr();
+
             let write_count = self
-                .read_full_buffer(
-                    self.code_buffer.as_ptr(),
-                    self.value_buffer.as_ptr(),
-                    ANALOG_MAX_SIZE as c_uint,
-                    device_id,
-                )
+                .read_full_buffer(code_ptr, value_ptr, ANALOG_MAX_SIZE as c_uint, device_id)
                 .map_err(|_| ReadError::function_unavailable("read_full_buffer"))?;
+
+            if write_count < 0 {
+                return Err(ReadError::Plugin(PluginError::InvalidRead(device_id)));
+            }
+
             ANALOG_MAX_SIZE.min(write_count as usize)
         };
 
@@ -308,9 +340,10 @@ impl Plugin for DynamicPlugin {
 
         match self
             .device_info(device_infos.as_mut_ptr(), device_infos.len() as c_uint)
-            .map(|no| no as u32)
+            .map(|no| no as usize)
         {
             Ok(num) => unsafe {
+                let num = num.min(device_infos.len());
                 device_infos.truncate(num as usize);
                 let devices = device_infos
                     .drain(..)
@@ -329,12 +362,11 @@ impl Plugin for DynamicPlugin {
 
     fn unload(&mut self) {
         self.unload();
-        // Drop cb_data_ptr
-        if let Some(ptr) = self.cb_data_ptr {
+
+        // Take and drop cb_data_ptr
+        if let Some(ptr) = self.cb_data_ptr.take() {
             unsafe {
-                drop(Box::from_raw(
-                    ptr as *mut Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>,
-                ));
+                drop(Box::from_raw(ptr as *mut CallbackState));
             }
         }
     }

@@ -28,6 +28,9 @@ pub enum PluginError {
     )]
     VersionMismatch { version: u32, expected: u32 },
 
+    #[error("dynamic plugin read failed for device: {0}")]
+    InvalidRead(DeviceID),
+
     #[error("file \"{0:?}\" is not a valid plugin")]
     InvalidPlugin(PathBuf),
 
@@ -84,7 +87,7 @@ pub enum DeviceErrorKind {
     HidError {
         #[source]
         source: hidapi::HidError,
-    }
+    },
 }
 
 /// An opaque device error that could include which device the error originated from.
@@ -145,7 +148,7 @@ impl std::fmt::Display for DeviceError {
     }
 }
 
-/// FFI-safe error conversions. 
+/// FFI-safe error conversions.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Default, PartialEq, Clone, Primitive, Error, Copy)]
 #[repr(C)]
@@ -232,6 +235,7 @@ impl From<PluginError> for WootingAnalogResult {
         match err {
             PluginError::FunctionUnavailable(_) => Self::FunctionNotFound,
             PluginError::VersionMismatch { .. } => Self::IncompatibleVersion,
+            PluginError::InvalidRead(_) => Self::Failure,
             PluginError::InvalidPlugin(_)
             | PluginError::InvalidDirectory(_)
             | PluginError::IoError(_)

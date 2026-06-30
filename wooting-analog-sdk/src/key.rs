@@ -4,7 +4,7 @@ use crate::{AnalogValue, KeyCode};
 use serde::{Deserialize, Serialize};
 
 /// Maximum number of active binds per physical key
-pub const MAX_KEY_STATES: usize = 5;
+pub const MAX_KEY_STATES: usize = 10;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug, Default)]
 #[repr(C)]
@@ -18,13 +18,13 @@ pub(crate) struct Key {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(C)]
 pub struct KeyPosition {
-    pub x: u8,
-    pub y: u8,
+    pub row: u8,
+    pub col: u8,
 }
 
 impl std::fmt::Display for KeyPosition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(x: {}, y: {})", self.x, self.y)
+        write!(f, "(row: {}, col: {})", self.row, self.col)
     }
 }
 
@@ -61,7 +61,7 @@ impl Default for PhysicalKey {
 impl std::fmt::Debug for PhysicalKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PhysicalKey")
-            .field("pos", &self.position)
+            .field("position", &self.position)
             .field("active_key_count", &self.active_key_count)
             .field("states", &&self.state[..self.active_key_count as usize])
             .finish()

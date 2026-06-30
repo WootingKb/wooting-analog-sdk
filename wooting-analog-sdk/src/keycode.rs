@@ -355,8 +355,9 @@ pub enum KeycodeType {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(C)]
-pub enum KeyNamespace {
+pub enum WootingKeyNamespace {
     HidNormal = 0,
+    /// Currently only supports ConsumerControl, SystemControl and Mouse.
     HidFunction = 3,
     CustomFunction = 4,
     GamepadBinding = 5,
@@ -364,17 +365,17 @@ pub enum KeyNamespace {
     Unknown = 255,
 }
 
-impl From<u8> for KeyNamespace {
+impl From<u8> for WootingKeyNamespace {
     fn from(value: u8) -> Self {
         match value {
-            0 => KeyNamespace::HidNormal,
-            3 => KeyNamespace::HidFunction,
-            4 => KeyNamespace::CustomFunction,
-            5 => KeyNamespace::GamepadBinding,
-            6 => KeyNamespace::AdvancedKey,
+            0 => WootingKeyNamespace::HidNormal,
+            3 => WootingKeyNamespace::HidFunction,
+            4 => WootingKeyNamespace::CustomFunction,
+            5 => WootingKeyNamespace::GamepadBinding,
+            6 => WootingKeyNamespace::AdvancedKey,
             other => {
                 warn!("missing or invalid key namespace: {other}");
-                KeyNamespace::Unknown
+                WootingKeyNamespace::Unknown
             }
         }
     }
@@ -388,7 +389,7 @@ pub enum KeyMetadata {
     #[default]
     None,
     Basic {
-        namespace: KeyNamespace,
+        namespace: WootingKeyNamespace,
     },
 
     // Reserve 8 bytes to ensure we can avoid shifting the memory layout of the union a litte while
@@ -414,7 +415,7 @@ pub struct KeyCode {
 
 impl KeyCode {
     pub(crate) fn with_namespace(raw: u16) -> Self {
-        let namespace = KeyNamespace::from((raw >> 8) as u8);
+        let namespace = WootingKeyNamespace::from((raw >> 8) as u8);
 
         Self {
             inner: raw,
@@ -430,7 +431,7 @@ impl KeyCode {
         matches!(
             self.metadata,
             KeyMetadata::Basic {
-                namespace: KeyNamespace::AdvancedKey,
+                namespace: WootingKeyNamespace::AdvancedKey,
                 ..
             }
         )

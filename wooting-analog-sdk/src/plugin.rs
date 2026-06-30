@@ -6,7 +6,7 @@ use std::os::raw::{c_float, c_ushort};
 
 use crate::device::{DeviceEventType, DeviceInfo};
 use crate::err::{PluginError, ReadError};
-use crate::{AnalogValue, device::DeviceID, KeyCode, KeyPosition, PhysicalKey};
+use crate::{AnalogValue, KeyCode, KeyPosition, PhysicalKey, device::DeviceID};
 
 #[cfg(target_os = "macos")]
 pub const DEFAULT_PLUGIN_DIR: &str = "/usr/local/share/WootingAnalogPlugins";
@@ -23,10 +23,7 @@ pub trait Plugin: Send + Sync {
     fn name(&mut self) -> Result<&'static str, PluginError>;
 
     /// Initialise the plugin with the given function for device events. Returns an int indicating the number of connected devices
-    fn initialise(
-        &mut self,
-        callback: Callback,
-    ) -> Result<u32, ReadError>;
+    fn initialise(&mut self, callback: Callback) -> Result<u32, ReadError>;
 
     /// A function fired to check if the plugin is currently initialised
     fn is_initialised(&mut self) -> bool;

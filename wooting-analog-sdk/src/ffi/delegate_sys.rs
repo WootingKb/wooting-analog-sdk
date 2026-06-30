@@ -145,7 +145,7 @@ delegate_sys! {
         device_id: DeviceID
     ) -> WootingAnalogResult;
     wooting_analog_read_position_device(
-        position: *mut KeyPosition,
+        position: *const KeyPosition,
         physical_key: *mut PhysicalKey,
         device_id: DeviceID
     ) -> WootingAnalogResult;
@@ -163,7 +163,7 @@ delegate_sys! {
         len: c_uint,
         device_id: DeviceID
     ) -> c_int;
-    wooting_analog_read_keycodes_device(
+    wooting_analog_read_full_buffer_v2_device(
         code_buffer: *mut KeyCode,
         analog_buffer: *mut AnalogValue,
         len: c_uint,
