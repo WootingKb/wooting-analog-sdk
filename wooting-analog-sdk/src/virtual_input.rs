@@ -11,9 +11,9 @@ use std::{
 use log::{error, info, warn};
 use shared_memory::ShmemConf;
 
-use crate::{DeviceEventType, DeviceInfo, DeviceType};
+use crate::device::{DeviceEventType, DeviceInfo, DeviceSupportLevel, DeviceType};
 
-type Callback = Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send>;
+type Callback = Box<dyn Fn(DeviceEventType, &DeviceInfo) + Send + Sync>;
 
 #[derive(Debug, PartialEq)]
 pub struct SharedState {
@@ -140,6 +140,7 @@ impl VirtualKeyboard {
                                 .to_string(),
                             1,
                             state.device_type.clone(),
+                            DeviceSupportLevel::Limited,
                         );
                         t_device.lock().unwrap().replace(dev);
                     }

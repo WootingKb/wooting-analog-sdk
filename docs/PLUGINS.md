@@ -26,19 +26,15 @@ If your device has keys which are not defined in the HID standard keys, then you
 
 ### Rust
 
-Rust Plugins are fairly straight forward to get started with, have a look at the [wooting plugin](https://github.com/simon-wh/wooting-analog-sdk-plugin) for a reference implementation:
-
-- Rust library with crate-type `cdylib`
-- Add a dependency to [`wooting-analog-plugin-dev` (crates.io)](https://crates.io/crates/wooting-analog-plugin-dev)
-- Import all relevant items through `use wooting_analog_plugin_dev::` and `use wooting_analog_plugin_dev::wooting_analog_common::`
-- A struct that implements the `Plugin` trait from `wooting-analog-plugin-dev`
-- Declare the plugin using the `declare_plugin!` macro. e.g. `declare_plugin!(ExamplePlugin, ExamplePlugin::new)`
+You can implement the `Plugin` trait for your struct and supply the plugin with the appropriate
+data. Afterwards you can simply insert your plugin into `AnalogSdk<Initialised>` by calling
+`insert_plugin()`.
 
 ### C
 
 Have a look at the [example c plugin](https://github.com/simon-wh/analog-sdk-plugin-examples) for a reference of what should be done.
 
 - The library must define the functions from `includes/plugin.h`, use it as the header for your source file
-- The library should statically link to `wooting_analog_common`, using `wooting-analog-plugin-dev.h`(which is included in `plugin.h`) to call shared functions such as `generate_device_id`.
+- The library should statically link to `wooting_analog_sdk`, using `wooting-analog-sdk.h` to call shared functions.
 
 An important thing to note with c plugins, is that for functions like `read_analog`, which returns only a float, errors in the form of WootingAnalogResult should be returned, cast as a float. The same as how the errors are passed through from the SDK to the developer.

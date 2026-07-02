@@ -1,712 +1,732 @@
+//! # Wooting Analog SDK
+//! The Wooting Analog SDK is the open driver for Analog keyboards. It's goal is to create native
+//! support for Analog keyboards in any game or application.
+//!
+//! ## Documentation
+#![doc = concat!("- [SDK Usage](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/SDK_USAGE.md) on how to use the SDK")]
+#![doc = concat!("- [Installation Guide](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/INSTALL.md) on how to use and install the distributable and the system SDK.")]
+//!
+//! ### Developers
+#![doc = concat!("- [Contributing Guide](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/CONTRIBUTING.md) to help you with your first contribution.")]
+#![doc = concat!("- [Build Instructions](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/BUILD.md) on how to build the SDK using Rust.")]
+#![doc = concat!("- [Migration Guide](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/MIGRATION_GUIDE.md) on how to upgrade to the latest version of the SDK.")]
+#![doc = concat!("- [Virtual Keyboard](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/VIRTUAL_KEYBOARD.md) on how to setup and use the virtual keyboard for development without any hardware required.")]
+#![doc = concat!("- [Plugin Introduction](https://github.com/WootingKb/wooting-analog-sdk/blob/v", env!("CARGO_PKG_VERSION"), "/docs/PLUGINS.md) for information on creating plugins.")]
+//!
+//! ## Example
+//! ```no_run
+//! use wooting_analog_sdk::{AnalogSdk, Initialised};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Configure and initialise the Analog SDK
+//! let analog_sdk: AnalogSdk<Initialised> = AnalogSdk::new().initialise()?;
+//!
+//! loop {
+//!     // Poll all available plugins for values by keycode
+//!     analog_sdk.read_keycodes(|ctx| {
+//!         for (keycode, value) in ctx.iter() {
+//!             println!("read keycode: {keycode} with value: {value}");
+//!         }
+//!     })?;
+//!
+//!     // Poll all available plugins for values by their matrix position
+//!     analog_sdk.read_positions(|ctx| {
+//!         for physical_key in ctx.iter() {
+//!             println!(
+//!                 "read from position: {} with values: {:?}",
+//!                 physical_key.position,
+//!                 physical_key.state(),
+//!             );
+//!         }
+//!     })?;
+//!     # break; // otherwise we will never get out of our doc test run
+//! }
+//! # Ok(())
+//! # }
+//! ```
+
+// Add feature badges to show what feature something is gated behind
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+pub mod analog_value;
+pub mod ctx;
+pub mod device;
+pub mod err;
 #[cfg(feature = "ffi")]
-pub mod ffi;
+mod ffi;
+mod key;
 pub mod keycode;
 mod plugin;
 #[cfg(feature = "virtual-input")]
 mod virtual_input;
-pub mod sdk;
 
-pub use crate::plugin::Plugin;
-use enum_primitive_derive::Primitive;
-use ffi_support::FfiStr;
-pub use num_traits::{FromPrimitive, ToPrimitive};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-use std::ffi::{CStr, CString};
-use std::hash::Hasher;
-use std::ops::Deref;
-use std::os::raw::{c_char, c_int};
-use thiserror::Error;
+#[doc(inline)]
+pub use crate::{analog_value::AnalogValue, keycode::KeyCode};
+pub use crate::{
+    key::{KeyPosition, KeyState, PhysicalKey},
+    plugin::Plugin,
+};
 
-/// The core `DeviceInfo` struct which contains all the interesting information
-/// for a particular device. This is for use internally and should be ignored if you're
-/// trying to use it when trying to interact with the SDK using the wrapper
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug)]
-pub struct DeviceInfo {
-    /// Device Vendor ID `vid`
-    pub vendor_id: u16,
-    /// Device Product ID `pid`
-    pub product_id: u16,
-    /// Device Manufacturer name
-    pub manufacturer_name: String,
-    /// Device name
-    pub device_name: String,
-    /// Unique device ID, which should be generated using `generate_device_id`
-    pub device_id: DeviceID,
-    /// Hardware type of the Device
-    pub device_type: DeviceType,
+use crate::{
+    analog_value::ValueMetadata,
+    ctx::{Ctx, KeyCodeFormat, PositionFormat},
+    device::DeviceID,
+    device::{DeviceEventType, DeviceInfo},
+    err::{PluginError, ReadError},
+    keycode::KeycodeType,
+    plugin::{DEFAULT_PLUGIN_DIR, dynamic::DynamicPlugin, wooting::WootingPlugin},
+};
+use libloading::Library;
+use log::{debug, error, info, trace, warn};
+use std::{
+    collections::HashMap,
+    env::consts::DLL_EXTENSION,
+    ffi::OsStr,
+    fs,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex, MutexGuard, RwLock, mpsc},
+    thread,
+};
+
+/// A typestate marker for the state of the [`AnalogSdk`].
+pub struct Initialised {
+    device_count: u32,
+    plugins: Mutex<Vec<Box<dyn Plugin>>>,
 }
 
-/// The core `DeviceInfo` struct which contains all the interesting information
-/// for a particular device. This is the version which the consumer of the SDK will receive
-/// through the wrapper. This is not for use in the Internal workings of the SDK, that is what
-/// DeviceInfo is for
-#[repr(C)]
-pub struct DeviceInfo_FFI {
-    /// Device Vendor ID `vid`
-    pub vendor_id: u16,
-    /// Device Product ID `pid`
-    pub product_id: u16,
-    /// Device Manufacturer name
-    pub manufacturer_name: *mut c_char,
-    /// Device name
-    pub device_name: *mut c_char,
-    /// Unique device ID, which should be generated using `generate_device_id`
-    pub device_id: DeviceID,
-    /// Hardware type of the Device see `DeviceType` enum
-    pub device_type: DeviceType_FFI,
-}
-
-impl From<DeviceInfo> for DeviceInfo_FFI {
-    fn from(device: DeviceInfo) -> Self {
-        DeviceInfo_FFI {
-            vendor_id: device.vendor_id,
-            product_id: device.product_id,
-            manufacturer_name: CString::new(device.manufacturer_name).unwrap().into_raw(),
-            device_name: CString::new(device.device_name).unwrap().into_raw(),
-            device_id: device.device_id,
-            device_type: device.device_type as c_int,
-        }
+impl Initialised {
+    pub(crate) fn lock_plugins(&self) -> MutexGuard<'_, Vec<Box<dyn Plugin + 'static>>> {
+        self.plugins.lock().expect("mutex should not be poisoned")
     }
 }
 
-impl Drop for DeviceInfo_FFI {
+impl Drop for Initialised {
     fn drop(&mut self) {
-        //Ensure we properly drop the memory for the char pointers
-        unsafe {
-            let _c_string = CString::from_raw(self.manufacturer_name);
-            let _c_string = CString::from_raw(self.device_name);
+        debug!("Unloading plugins");
+        for mut plugin in self.lock_plugins().drain(..) {
+            let name = plugin.name();
+            trace!("Firing on_plugin_unload for {:?}", name);
+            plugin.unload();
+            debug!("Unload successful for {:?}", name);
+        }
+
+        debug!("Finished Analog SDK Uninit");
+    }
+}
+
+/// A typestate marker for the state of the [`AnalogSdk`].
+pub struct Uninitialised {
+    nested: bool,
+    plugin_dir: Option<PathBuf>,
+    include_wooting_plugin: bool,
+}
+
+impl Default for Uninitialised {
+    fn default() -> Self {
+        Self {
+            nested: true,
+            plugin_dir: None,
+            include_wooting_plugin: true,
         }
     }
 }
 
-impl DeviceInfo_FFI {
-    pub fn into_device_info(&self) -> DeviceInfo {
-        let device_type = DeviceType::from_i32(self.device_type);
-        if device_type.is_none() {
-            log::error!(
-                "Invalid Device Type when converting DeviceInfo_FFI into DeviceInfo: {}",
-                self.device_type
-            );
+impl Uninitialised {
+    fn load_plugins_from_dir(&self) -> Result<Vec<Box<dyn Plugin>>, PluginError> {
+        let plugin_dir = self.plugin_dir.clone().unwrap_or_else(|| {
+            PathBuf::from(
+                option_env!("WOOTING_ANALOG_SDK_PLUGINS_PATH").unwrap_or(DEFAULT_PLUGIN_DIR),
+            )
+        });
+
+        if !plugin_dir.is_dir() {
+            return Err(PluginError::InvalidDirectory(plugin_dir.to_path_buf()));
         }
 
-        DeviceInfo {
-            vendor_id: self.vendor_id.clone(),
-            product_id: self.product_id.clone(),
-            // In this case we use CStr rather than CString as we don't want the memory to be dropped here which may cause a double free
-            // We leave it up to ffi interface to drop the memory
-            manufacturer_name: unsafe {
-                CStr::from_ptr(self.manufacturer_name)
-                    .to_str()
-                    .unwrap()
-                    .to_owned()
-            },
-            device_name: unsafe {
-                CStr::from_ptr(self.device_name)
-                    .to_str()
-                    .unwrap()
-                    .to_owned()
-            },
-            device_id: self.device_id.clone(),
-            device_type: device_type.unwrap_or(DeviceType::Other),
+        let mut plugins = Vec::new();
+
+        let mut on_load_plugins = |dir: &Path| match load_plugins(dir) {
+            Ok(loaded_plugins) => {
+                if loaded_plugins.is_empty() {
+                    info!("No plugins found in {:?}", dir);
+                    return;
+                } else {
+                    debug!("Loaded {} plugins from {:?}", loaded_plugins.len(), dir);
+                }
+
+                plugins.extend(
+                    loaded_plugins
+                        .into_iter()
+                        .map(|p| -> Box<dyn Plugin> { Box::new(p) }),
+                );
+            }
+            Err(e) => {
+                error!("Error: {:?}", e);
+            }
+        };
+
+        on_load_plugins(&plugin_dir);
+
+        if self.nested {
+            for dir in plugin_dir.read_dir()? {
+                match dir {
+                    Ok(dir) => {
+                        if dir.path().is_file() {
+                            continue;
+                        }
+
+                        on_load_plugins(&dir.path());
+                    }
+                    Err(e) => {
+                        error!("Error reading directory: {}", e);
+                    }
+                }
+            }
+        }
+
+        Ok(plugins)
+    }
+}
+
+type SharedDeviceCallback =
+    Arc<RwLock<Option<Arc<dyn Fn(DeviceEventType, DeviceInfo) + Send + Sync>>>>;
+
+/// The main way to poll data from registered analog devices.
+pub struct AnalogSdk<S = Uninitialised> {
+    pub(crate) keycode_mode: KeycodeType,
+    device_events: SharedDeviceCallback,
+    keycodes: Mutex<HashMap<KeyCode, AnalogValue>>,
+    positions: Mutex<HashMap<KeyPosition, PhysicalKey>>,
+    state: S,
+}
+
+impl Default for AnalogSdk<Uninitialised> {
+    fn default() -> Self {
+        Self {
+            keycode_mode: KeycodeType::default(),
+            device_events: Arc::new(RwLock::new(None)),
+            keycodes: Mutex::new(HashMap::new()),
+            positions: Mutex::new(HashMap::new()),
+            state: Uninitialised::default(),
         }
     }
 }
 
-impl DeviceInfo {
-    //    pub fn new(
-    //        vendor_id: u16,
-    //        product_id: u16,
-    //        manufacturer_name: &str,
-    //        device_name: &str,
-    //        serial_number: &str,
-    //        device_type: DeviceType,
-    //    ) -> Self {
-    //        DeviceInfo {
-    //            vendor_id,
-    //            product_id,
-    //            manufacturer_name,
-    //            device_name,
-    //            device_id: generate_device_id(serial_number, vendor_id, product_id),
-    //            device_type
-    //        }
-    //    }
+impl AnalogSdk<Uninitialised> {
+    /// A builder to mark and configure any plugins it needs to load on initialisation.
+    ///
+    /// ```
+    /// use wooting_analog_sdk::{AnalogSdk, keycode::KeycodeType};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Configure the SDK before initialising using a builder pattern
+    /// let analog_sdk = AnalogSdk::new()
+    ///     .with_plugin_directory("/path/to/plugins", true)
+    ///     .with_device_events(|event, info| {
+    ///         println!("received event: {event:?} for device: {}", info.device_id);
+    ///      })
+    ///     .with_keycode_mode(KeycodeType::VirtualKey)
+    ///     .initialise()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub fn new_with_id(
-        vendor_id: u16,
-        product_id: u16,
-        manufacturer_name: String,
-        device_name: String,
+    pub fn with_plugin_directory<P: AsRef<Path>>(self, path: P, nested: bool) -> Self {
+        let path = path.as_ref();
+
+        Self {
+            state: Uninitialised {
+                nested,
+                plugin_dir: Some(path.to_path_buf()),
+                ..self.state
+            },
+            ..self
+        }
+    }
+
+    /// Wooting devices are loaded by default. Only use this when you want to operate over
+    /// third-party devices and do not want to include Wooting devices in your results.
+    pub fn without_wooting_plugin(self) -> Self {
+        Self {
+            state: Uninitialised {
+                include_wooting_plugin: false,
+                ..self.state
+            },
+            ..self
+        }
+    }
+
+    pub fn with_keycode_mode(mut self, keycode_type: KeycodeType) -> Self {
+        self.keycode_mode = keycode_type;
+        self
+    }
+
+    pub fn with_device_events<F>(self, f: F) -> Self
+    where
+        F: Fn(DeviceEventType, DeviceInfo) + 'static + Send + Sync,
+    {
+        *self
+            .device_events
+            .write()
+            .expect("rwlock should not be poisoned") = Some(Arc::new(f));
+        self
+    }
+
+    pub fn initialise(self) -> Result<AnalogSdk<Initialised>, PluginError> {
+        let mut uninit_plugins = match self.state.load_plugins_from_dir() {
+            Ok(plugins) => plugins,
+            Err(PluginError::InvalidDirectory(path)) => {
+                warn!("plugin directory \"{path:?}\" invalid");
+                Vec::new()
+            }
+            Err(e) => return Err(e),
+        };
+
+        if self.state.include_wooting_plugin {
+            uninit_plugins.push(Box::new(WootingPlugin::new()));
+        }
+
+        // Create channel and spawn worker thread for device events
+        let (tx, rx) = mpsc::channel();
+        let worker_cb = self.device_events.clone();
+        thread::spawn(move || {
+            while let Ok((event, device)) = rx.recv() {
+                if let Some(cb) = worker_cb
+                    .read()
+                    .expect("rwlock should not be poisoned")
+                    .as_ref()
+                {
+                    cb(event, device);
+                }
+            }
+        });
+
+        let mut plugins = Vec::with_capacity(uninit_plugins.len());
+        let mut device_count: u32 = 0;
+
+        for mut p in uninit_plugins.into_iter() {
+            let event_tx = tx.clone();
+            match p.initialise(Box::new(
+                move |event: DeviceEventType, device_ref: &DeviceInfo| {
+                    let _ = event_tx.send((event, device_ref.clone()));
+                },
+            )) {
+                Ok(num) => {
+                    plugins.push(p);
+                    device_count += num;
+                }
+                Err(e) => {
+                    error!(
+                        "plugin {} failed to initialise with error: {e}",
+                        p.name().unwrap_or("UNKNOWN_PLUGIN")
+                    );
+                }
+            }
+        }
+
+        if plugins.is_empty() {
+            return Err(PluginError::ZeroPlugins);
+        }
+
+        info!("{} plugins successfully initialised", plugins.len());
+
+        Ok(AnalogSdk {
+            keycode_mode: self.keycode_mode,
+            device_events: self.device_events,
+            keycodes: self.keycodes,
+            positions: self.positions,
+            state: Initialised {
+                device_count,
+                plugins: Mutex::new(plugins),
+            },
+        })
+    }
+}
+
+impl AnalogSdk<Initialised> {
+    /// Read the single highest analog value across any connected devices by keycode.
+    pub fn read_keycode<T>(&self, code: T) -> Result<AnalogValue, ReadError>
+    where
+        T: Into<u16>,
+    {
+        self.read_keycode_from(0, code)
+    }
+
+    /// Read the single highest analog value from a specific device by keycode.
+    pub fn read_keycode_from<T>(
+        &self,
         device_id: DeviceID,
-        device_type: DeviceType,
-    ) -> Self {
-        DeviceInfo {
-            vendor_id,
-            product_id,
-            manufacturer_name,
-            device_name,
-            device_id,
-            device_type,
+        code: T,
+    ) -> Result<AnalogValue, ReadError>
+    where
+        T: Into<u16>,
+    {
+        let code = code.into();
+
+        // Since the compiler monomorphizes entire functions for every concrete type that fits the
+        // bounds of the generic type paremeters, it can be quite costly to have it do so for larger
+        // functions. These inner functions reduce compile times and binary size. The outer function
+        // will be monomorphized and this inner will be reused for each one.
+        fn inner_read_keycode(
+            sdk: &AnalogSdk<Initialised>,
+            device_id: DeviceID,
+            code: u16,
+        ) -> Result<AnalogValue, ReadError> {
+            let Some(hid_code) = crate::keycode::code_to_hid(code, &sdk.keycode_mode) else {
+                return Err(ReadError::NoMapping {
+                    keycode: code,
+                    mode: sdk.keycode_mode.clone(),
+                });
+            };
+
+            let mut value = AnalogValue::from(-1.0);
+            let mut error = None;
+
+            for p in sdk.state.lock_plugins().iter_mut() {
+                match p.read_keycode(KeyCode::from(hid_code), device_id) {
+                    Ok(x) => {
+                        value = value.max(x);
+                        if device_id != 0 {
+                            break;
+                        }
+                    }
+                    Err(e) => error = Some(e),
+                }
+            }
+
+            if let Some(err) = error
+                && value < 0.0
+            {
+                return Err(err);
+            }
+
+            Ok(value)
+        }
+
+        inner_read_keycode(self, device_id, code)
+    }
+
+    /// Read all properties of a single physical key across any connected devices by matrix position.
+    pub fn read_position(&self, position: KeyPosition) -> Result<PhysicalKey, ReadError> {
+        self.read_position_from(0, position)
+    }
+
+    /// Read all properties of a single physical key from a specific device by matrix position.
+    pub fn read_position_from(
+        &self,
+        device_id: DeviceID,
+        position: KeyPosition,
+    ) -> Result<PhysicalKey, ReadError> {
+        let mut physical_key = PhysicalKey::new(position);
+        let mut error = None;
+        let mut any_success = false;
+
+        for p in self.state.lock_plugins().iter_mut() {
+            match p.read_position(position, device_id) {
+                Ok(pk) => {
+                    for i in 0..pk.active_key_count {
+                        physical_key.push_state(pk.state[i as usize]);
+                    }
+
+                    any_success = true;
+
+                    if device_id != 0 {
+                        break;
+                    }
+                }
+                Err(e) => error = Some(e),
+            }
+        }
+
+        if let Some(err) = error
+            && !any_success
+        {
+            return Err(err);
+        }
+
+        Ok(physical_key)
+    }
+
+    /// Read all highest analog values across any connected devices, formatted by keycode.
+    pub fn read_keycodes<F, R>(&self, ctx: F) -> Result<R, ReadError>
+    where
+        F: FnOnce(Ctx<KeyCodeFormat<'_>>) -> R,
+    {
+        self.read_keycodes_from(0, ctx)
+    }
+
+    /// Read all highest analog values from a specific device, formatted by keycode.
+    pub fn read_keycodes_from<F, R>(&self, device_id: DeviceID, ctx: F) -> Result<R, ReadError>
+    where
+        F: FnOnce(Ctx<KeyCodeFormat<'_>>) -> R,
+    {
+        let mut guard = self.lock_keycodes();
+
+        // Since the compiler monomorphizes entire functions for every concrete type that fits the
+        // bounds of the generic type paremeters, it can be quite costly to have it do so for larger
+        // functions. These inner functions reduce compile times and binary size. The outer function
+        // will be monomorphized and this inner will be reused for each one.
+        fn inner_read_keycodes_from(
+            sdk: &AnalogSdk<Initialised>,
+            device_id: DeviceID,
+            guard: &mut MutexGuard<'_, HashMap<KeyCode, AnalogValue>>,
+        ) -> Result<(), ReadError> {
+            let mut error = None;
+            let mut any_success = false;
+
+            for p in sdk.state.lock_plugins().iter_mut() {
+                match p.read_keycodes(device_id) {
+                    Ok(plugin_data) => {
+                        for (mut k, v) in plugin_data {
+                            if let Some(code) = crate::keycode::hid_to_code(k, &sdk.keycode_mode) {
+                                k.inner = code;
+                            }
+
+                            guard
+                                .entry(k)
+                                .and_modify(|existing| {
+                                    if &v > existing {
+                                        *existing = v;
+                                    }
+                                })
+                                .or_insert(v);
+                        }
+
+                        any_success = true;
+                    }
+                    Err(e) => {
+                        error = Some(e);
+                    }
+                }
+
+                // If looking for a specific device, break after first successful read
+                if device_id != 0 && any_success {
+                    break;
+                }
+            }
+
+            if let Some(err) = error
+                && !any_success
+            {
+                return Err(err);
+            }
+
+            Ok(())
+        }
+
+        inner_read_keycodes_from(self, device_id, &mut guard)?;
+
+        let result = ctx(Ctx::with_keycodes(&mut guard));
+        guard.clear();
+
+        Ok(result)
+    }
+
+    /// Read all pressed physical keys across any connected devices, formatted by matrix position.
+    pub fn read_positions<F, R>(&self, ctx: F) -> Result<R, ReadError>
+    where
+        F: FnOnce(Ctx<PositionFormat>) -> R,
+    {
+        self.read_positions_from(0, ctx)
+    }
+
+    /// Read all pressed physical keys for a specific device, formatted by matrix position.
+    pub fn read_positions_from<F, R>(&self, device_id: DeviceID, ctx: F) -> Result<R, ReadError>
+    where
+        F: FnOnce(Ctx<PositionFormat>) -> R,
+    {
+        let mut guard = self.lock_positions();
+
+        // Since the compiler monomorphizes entire functions for every concrete type that fits the
+        // bounds of the generic type paremeters, it can be quite costly to have it do so for larger
+        // functions. These inner functions reduce compile times and binary size. The outer function
+        // will be monomorphized and this inner will be reused for each one.
+        fn inner_read_positions_from(
+            sdk: &AnalogSdk<Initialised>,
+            device_id: DeviceID,
+            guard: &mut MutexGuard<'_, HashMap<KeyPosition, PhysicalKey>>,
+        ) -> Result<(), ReadError> {
+            let mut error = None;
+            let mut any_success = false;
+
+            for p in sdk.state.lock_plugins().iter_mut() {
+                match p.read_positions(device_id) {
+                    Ok(plugin_data) => {
+                        for (_, physical_key) in plugin_data {
+                            guard
+                                .entry(physical_key.position)
+                                .and_modify(|existing: &mut PhysicalKey| {
+                                    if physical_key.max_value() > existing.max_value() {
+                                        *existing = physical_key;
+                                    }
+                                })
+                                .or_insert(physical_key);
+                        }
+
+                        any_success = true;
+                    }
+                    Err(e) => {
+                        error = Some(e);
+                    }
+                }
+
+                // If looking for a specific device, break after first successful read
+                if device_id != 0 && any_success {
+                    break;
+                }
+            }
+
+            if let Some(err) = error
+                && !any_success
+            {
+                return Err(err);
+            }
+            Ok(())
+        }
+
+        inner_read_positions_from(self, device_id, &mut guard)?;
+
+        let result = ctx(Ctx::with_positions(&mut guard));
+        guard.clear();
+
+        Ok(result)
+    }
+
+    pub fn connected_devices(&self) -> Result<Vec<DeviceInfo>, ReadError> {
+        let mut devices: Vec<DeviceInfo> = vec![];
+        let mut error = None;
+        for p in self.state.lock_plugins().iter_mut() {
+            if !p.is_initialised() {
+                continue;
+            }
+
+            //Give a reference to the buffer at the point where there is free space
+            match p.device_info() {
+                Ok(mut p_devices) => {
+                    devices.append(&mut p_devices);
+                }
+                Err(e) => {
+                    error!(
+                        "Plugin {:?} failed to fetch devices with error {:?}",
+                        p.name(),
+                        e
+                    );
+                    error = Some(e);
+                }
+            }
+        }
+
+        if let Some(err) = error
+            && devices.is_empty()
+        {
+            return Err(err);
+        }
+
+        Ok(devices)
+    }
+
+    pub fn set_device_events<F>(&mut self, f: F)
+    where
+        F: Fn(DeviceEventType, DeviceInfo) + 'static + Send + Sync,
+    {
+        *self
+            .device_events
+            .write()
+            .expect("rwlock should not be poisoned") = Some(Arc::new(f));
+    }
+
+    pub fn clear_device_event_cb(&mut self) {
+        *self
+            .device_events
+            .write()
+            .expect("rwlock should not be poisoned") = None;
+    }
+
+    pub fn insert_plugin<P: Plugin + 'static>(&mut self, plugin: P) {
+        self.state.lock_plugins().push(Box::new(plugin));
+    }
+
+    /// Uninitialises all plugins and then falls back to the default uninitialised state.
+    pub fn uninitialise(self) -> AnalogSdk<Uninitialised> {
+        AnalogSdk::default()
+    }
+
+    pub fn keycode_mode(&self) -> &KeycodeType {
+        &self.keycode_mode
+    }
+
+    pub fn device_count(&self) -> u32 {
+        self.state.device_count
+    }
+}
+
+impl<S> AnalogSdk<S> {
+    pub(crate) fn lock_keycodes(&self) -> MutexGuard<'_, HashMap<KeyCode, AnalogValue>> {
+        self.keycodes.lock().expect("mutex should not be poisoned")
+    }
+
+    pub(crate) fn lock_positions(&self) -> MutexGuard<'_, HashMap<KeyPosition, PhysicalKey>> {
+        self.positions.lock().expect("mutex should not be poisoned")
+    }
+}
+
+// Will only return a list of valid plugins. Any plugins that are not compatible with the defined
+// ABI version are logged and ignored.
+fn load_plugins(path: &Path) -> Result<Vec<DynamicPlugin>, PluginError> {
+    if !path.is_dir() {
+        return Err(PluginError::InvalidDirectory(path.to_path_buf()));
+    }
+
+    let mut plugins = Vec::new();
+
+    for entry in fs::read_dir(path)? {
+        let path = entry?.path();
+
+        if let Some(ext) = path.extension().and_then(OsStr::to_str)
+            && ext == DLL_EXTENSION
+        {
+            info!("Loading plugin: \"{}\"", path.display());
+
+            match load_plugin(&path) {
+                Ok(plugin) => plugins.push(plugin),
+                Err(e) => error!("failed to load plugin: {e}"),
+            }
         }
     }
+
+    Ok(plugins)
 }
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive)]
-#[repr(C)]
-pub enum KeycodeType {
-    /// USB HID Keycodes https://www.usb.org/document-library/hid-usage-tables-112 pg53
-    HID = 0,
-    /// Scan code set 1
-    ScanCode1 = 1,
-    /// Windows Virtual Keys
-    VirtualKey = 2,
-    /// Windows Virtual Keys which are translated to the current keyboard locale
-    VirtualKeyTranslate = 3,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub enum KeyMetadata {
-    #[default]
-    None,
-    Basic {
-        namespace: u8,
-    },
-}
-
-#[derive(Copy, Clone, Eq, Debug, Default)]
-pub struct KeyCode {
-    inner: u16,
-    metadata: KeyMetadata,
-}
-
-impl KeyCode {
-    pub fn as_u16(&self) -> u16 {
-        self.inner
+fn load_plugin(path: &Path) -> Result<DynamicPlugin, PluginError> {
+    if path.is_dir() {
+        return Err(PluginError::InvalidPlugin(path.to_path_buf()));
     }
 
-    pub fn with_metadata(mut self, meta: KeyMetadata) -> Self {
-        self.metadata = meta;
-        self
-    }
+    let mut plugin = DynamicPlugin::new(
+        unsafe { Library::new(path) }
+            .map_err(|e| PluginError::DynamicLibraryError { source: e })?,
+    )?;
+
+    plugin
+        .name()
+        .inspect(|name| info!("Loaded plugin: {:?}", name))?;
+
+    Ok(plugin)
 }
 
-impl std::hash::Hash for KeyCode {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.inner.hash(state);
-    }
-}
-
-impl PartialEq for KeyCode {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
-impl PartialOrd for KeyCode {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.inner.cmp(&other.inner))
-    }
-}
-
-impl Ord for KeyCode {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.inner.cmp(&other.inner)
-    }
-}
-
-impl From<u8> for KeyCode {
-    fn from(value: u8) -> Self {
-        KeyCode {
-            inner: u16::from(value),
-            metadata: KeyMetadata::None,
-        }
-    }
-}
-
-impl From<u16> for KeyCode {
-    fn from(value: u16) -> Self {
-        KeyCode {
-            inner: value,
-            metadata: KeyMetadata::None,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub enum ValueMetadata {
-    #[default]
-    None,
-    Basic {
-        pos: Position,
-        actuated: bool,
-    },
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct Position {
-    x: u8,
-    y: u8,
-}
-
-impl Position {
-    pub fn new(x: u8, y: u8) -> Self {
-        Self { x, y }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Default)]
-pub struct AnalogValue {
-    inner: f32,
-    metadata: ValueMetadata,
-}
-
-impl AnalogValue {
-    pub fn max(self, other: AnalogValue) -> AnalogValue {
-        if self.inner > other.inner {
-            self
-        } else {
-            other
-        }
-    }
-
-    pub fn as_f32(&self) -> f32 {
-        self.inner
-    }
-
-    pub fn with_metadata(mut self, meta: ValueMetadata) -> Self {
-        self.metadata = meta;
-        self
-    }
-}
-
-impl PartialEq for AnalogValue {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
-impl Eq for AnalogValue {}
-
-impl PartialOrd for AnalogValue {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for AnalogValue {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.inner.total_cmp(&other.inner)
-    }
-}
-
-impl From<f32> for AnalogValue {
-    fn from(value: f32) -> Self {
-        AnalogValue {
-            inner: value,
-            metadata: ValueMetadata::None,
-        }
-    }
-}
-
-pub type DeviceID = u64;
-
-// We do this little alias so that we can force cbindgen to rename it to point to the DeviceType enum.
-// For the rust side, we want to have it as a c_int so we can ensure it's valid and within bounds.
-// As just taking it as the enum straight up can cause undefined behaviour if an invalid value is provided
-/// cbindgen:ignore
-type DeviceType_FFI = c_int;
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive)]
-#[repr(C)]
-pub enum DeviceType {
-    /// Device is of type Keyboard
-    Keyboard = 1,
-    /// Device is of type Keypad
-    Keypad = 2,
-    /// Device
-    Other = 3,
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive)]
-#[repr(C)]
-pub enum DeviceEventType {
-    /// Device has been connected
-    Connected = 1,
-    /// Device has been disconnected
-    Disconnected = 2,
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Primitive, Error, Copy)]
-#[repr(C)]
-pub enum WootingAnalogResult {
-    #[error("All OK")]
-    Ok = 1,
-    /// Item hasn't been initialized
-    #[error("SDK has not been initialized")]
-    UnInitialized = -2000isize,
-    /// No Devices are connected
-    #[error("No Devices are connected")]
-    NoDevices = -1999isize,
-    /// Device has been disconnected
-    #[error("Device has been disconnected")]
-    DeviceDisconnected = -1998isize,
-    /// Generic Failure
-    #[error("Generic Failure")]
-    Failure = -1997isize,
-    /// A given parameter was invalid
-    #[error("A given parameter was invalid")]
-    InvalidArgument = -1996isize,
-    /// No Plugins were found
-    #[error("No Plugins were found")]
-    NoPlugins = -1995isize,
-    /// The specified function was not found in the library
-    #[error("The specified function was not found in the library")]
-    FunctionNotFound = -1994isize,
-    /// No Keycode mapping to HID was found for the given Keycode
-    #[error("No Keycode mapping to HID was found for the given Keycode")]
-    NoMapping = -1993isize,
-    /// Indicates that it isn't available on this platform
-    #[error("Unavailable on this platform")]
-    NotAvailable = -1992isize,
-    /// Indicates that the operation that is trying to be used is for an older version
-    #[error("Incompatible SDK Version")]
-    IncompatibleVersion = -1991isize,
-    /// Indicates that the Analog SDK could not be found on the system
-    #[error("The Wooting Analog SDK could not be found on the system")]
-    DLLNotFound = -1990isize,
-}
-
-impl WootingAnalogResult {
-    pub fn is_ok(&self) -> bool {
-        *self == WootingAnalogResult::Ok
-    }
-
-    pub fn is_ok_or_no_device(&self) -> bool {
-        *self == WootingAnalogResult::Ok || *self == WootingAnalogResult::NoDevices
-    }
-}
-
-impl Default for WootingAnalogResult {
-    fn default() -> Self {
-        WootingAnalogResult::FunctionNotFound
-    }
-}
-
-#[derive(Debug)]
-pub struct SDKResult<T>(pub std::result::Result<T, WootingAnalogResult>);
-
-impl<T> Default for SDKResult<T> {
-    fn default() -> Self {
-        Err(Default::default()).into()
-    }
-}
-
-impl<T> Deref for SDKResult<T> {
-    type Target = std::result::Result<T, WootingAnalogResult>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> From<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn from(ptr: std::result::Result<T, WootingAnalogResult>) -> Self {
-        SDKResult(ptr)
-    }
-}
-
-impl<T> Into<std::result::Result<T, WootingAnalogResult>> for SDKResult<T> {
-    fn into(self) -> std::result::Result<T, WootingAnalogResult> {
-        self.0
-    }
-}
-
-//TODO: Figure out a way to not have to use this for the lib_wrap_option in the sdk
-impl<'a> From<FfiStr<'a>> for SDKResult<FfiStr<'a>> {
-    fn from(res: FfiStr<'a>) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl From<c_int> for SDKResult<c_int> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
-impl From<c_int> for SDKResult<u32> {
-    fn from(res: c_int) -> Self {
-        if res >= 0 {
-            Ok(res as u32).into()
-        } else {
-            Err(WootingAnalogResult::from_i32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
-impl Into<c_int> for WootingAnalogResult {
-    fn into(self) -> c_int {
-        self as c_int
-    }
-}
-
-impl From<u32> for SDKResult<u32> {
-    fn from(res: u32) -> Self {
-        Ok(res).into()
-    }
-}
-
-impl Into<i32> for SDKResult<u32> {
-    fn into(self) -> i32 {
-        match self.0 {
-            Ok(v) => v as i32,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<c_int> for SDKResult<c_int> {
-    fn into(self) -> c_int {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl From<f32> for SDKResult<f32> {
-    fn from(res: f32) -> Self {
-        if res >= 0.0 {
-            Ok(res).into()
-        } else {
-            Err(WootingAnalogResult::from_f32(res).unwrap_or(WootingAnalogResult::Failure)).into()
-        }
-    }
-}
-
-impl Into<f32> for WootingAnalogResult {
-    fn into(self) -> f32 {
-        (self as i32) as f32
-    }
-}
-
-impl Into<f32> for SDKResult<f32> {
-    fn into(self) -> f32 {
-        match self.0 {
-            Ok(v) => v,
-            Err(e) => e.into(),
-        }
-    }
-}
-
-impl Into<WootingAnalogResult> for SDKResult<()> {
-    fn into(self) -> WootingAnalogResult {
-        match self.0 {
-            Ok(_) => WootingAnalogResult::Ok,
-            Err(e) => e,
-        }
-    }
-}
-
-impl From<WootingAnalogResult> for SDKResult<()> {
-    fn from(res: WootingAnalogResult) -> Self {
-        if res.is_ok() {
-            Ok(()).into()
-        } else {
-            Err(res).into()
-        }
-    }
-}
-
-impl Into<bool> for WootingAnalogResult {
-    fn into(self) -> bool {
-        self == WootingAnalogResult::Ok
-    }
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Debug, PartialEq, Clone, Hash, Eq, Primitive)]
-#[repr(C)]
-pub enum HIDCodes {
-    A = 0x04,
-    B = 0x05, //US_B
-    C = 0x06, //US_C
-    D = 0x07, //US_D
-
-    E = 0x08, //US_E
-    F = 0x09, //US_F
-    G = 0x0a, //US_G
-    H = 0x0b, //US_H
-    I = 0x0c, //US_I
-    J = 0x0d, //US_J
-    K = 0x0e, //US_K
-    L = 0x0f, //US_L
-
-    M = 0x10, //US_M
-    N = 0x11, //US_N
-    O = 0x12, //US_O
-    P = 0x13, //US_P
-    Q = 0x14, //US_Q
-    R = 0x15, //US_R
-    S = 0x16, //US_S
-    T = 0x17, //US_T
-
-    U = 0x18,  //US_U
-    V = 0x19,  //US_V
-    W = 0x1a,  //US_W
-    X = 0x1b,  //US_X
-    Y = 0x1c,  //US_Y
-    Z = 0x1d,  //US_Z
-    N1 = 0x1e, //DIGIT1
-    N2 = 0x1f, //DIGIT2
-
-    N3 = 0x20, //DIGIT3
-    N4 = 0x21, //DIGIT4
-    N5 = 0x22, //DIGIT5
-    N6 = 0x23, //DIGIT6
-    N7 = 0x24, //DIGIT7
-    N8 = 0x25, //DIGIT8
-    N9 = 0x26, //DIGIT9
-    N0 = 0x27, //DIGIT0
-
-    Enter = 0x28,       //ENTER
-    Escape = 0x29,      //ESCAPE
-    Backspace = 0x2a,   //BACKSPACE
-    Tab = 0x2b,         //TAB
-    Space = 0x2c,       //SPACE
-    Minus = 0x2d,       //MINUS
-    Equal = 0x2e,       //EQUAL
-    BracketLeft = 0x2f, //BRACKET_LEFT
-
-    BracketRight = 0x30, //BRACKET_RIGHT
-    Backslash = 0x31,    //BACKSLASH
-
-    // = 0x32, //INTL_HASH
-    Semicolon = 0x33, //SEMICOLON
-    Quote = 0x34,     //QUOTE
-    Backquote = 0x35, //BACKQUOTE
-    Comma = 0x36,     //COMMA
-    Period = 0x37,    //PERIOD
-
-    Slash = 0x38,    //SLASH
-    CapsLock = 0x39, //CAPS_LOCK
-    F1 = 0x3a,       //F1
-    F2 = 0x3b,       //F2
-    F3 = 0x3c,       //F3
-    F4 = 0x3d,       //F4
-    F5 = 0x3e,       //F5
-    F6 = 0x3f,       //F6
-
-    F7 = 0x40,          //F7
-    F8 = 0x41,          //F8
-    F9 = 0x42,          //F9
-    F10 = 0x43,         //F10
-    F11 = 0x44,         //F11
-    F12 = 0x45,         //F12
-    PrintScreen = 0x46, //PRINT_SCREEN
-    ScrollLock = 0x47,  //SCROLL_LOCK
-
-    PauseBreak = 0x48, //PAUSE
-    Insert = 0x49,     //INSERT
-    Home = 0x4a,       //HOME
-    PageUp = 0x4b,     //PAGE_UP
-    Delete = 0x4c,     //DEL
-    End = 0x4d,        //END
-    PageDown = 0x4e,   //PAGE_DOWN
-    ArrowRight = 0x4f, //ARROW_RIGHT
-
-    ArrowLeft = 0x50,      //ARROW_LEFT
-    ArrowDown = 0x51,      //ARROW_DOWN
-    ArrowUp = 0x52,        //ARROW_UP
-    NumLock = 0x53,        //NUM_LOCK
-    NumpadDivide = 0x54,   //NUMPAD_DIVIDE
-    NumpadMultiply = 0x55, //NUMPAD_MULTIPLY
-    NumpadSubtract = 0x56, //NUMPAD_SUBTRACT
-    NumpadAdd = 0x57,      //NUMPAD_ADD
-
-    NumpadEnter = 0x58, //NUMPAD_ENTER
-    Numpad1 = 0x59,     //NUMPAD1
-    Numpad2 = 0x5a,     //NUMPAD2
-    Numpad3 = 0x5b,     //NUMPAD3
-    Numpad4 = 0x5c,     //NUMPAD4
-    Numpad5 = 0x5d,     //NUMPAD5
-    Numpad6 = 0x5e,     //NUMPAD6
-    Numpad7 = 0x5f,     //NUMPAD7
-
-    Numpad8 = 0x60,                //NUMPAD8
-    Numpad9 = 0x61,                //NUMPAD9
-    Numpad0 = 0x62,                //NUMPAD0
-    NumpadDecimal = 0x63,          //NUMPAD_DECIMAL
-    InternationalBackslash = 0x64, //INTL_BACKSLASH
-    ContextMenu = 0x65,            //CONTEXT_MENU
-    Power = 0x66,                  //POWER
-    NumpadEqual = 0x67,            //NUMPAD_EQUAL
-
-    F13 = 0x68, //F13
-    F14 = 0x69, //F14
-    F15 = 0x6a, //F15
-    F16 = 0x6b, //F16
-    F17 = 0x6c, //F17
-    F18 = 0x6d, //F18
-    F19 = 0x6e, //F19
-    F20 = 0x6f, //F20
-
-    F21 = 0x70, //F21
-    F22 = 0x71, //F22
-    F23 = 0x72, //F23
-
-    F24 = 0x73,  //F24
-    Open = 0x74, //OPEN
-
-    Help = 0x75, //HELP
-
-    // = 0x77, //SELECT
-    Again = 0x79,      //AGAIN
-    Undo = 0x7a,       //UNDO
-    Cut = 0x7b,        //CUT
-    Copy = 0x7c,       //COPY
-    Paste = 0x7d,      //PASTE
-    Find = 0x7e,       //FIND
-    VolumeMute = 0x7f, //VOLUME_MUTE
-
-    VolumeUp = 0x80,    //VOLUME_UP
-    VolumeDown = 0x81,  //VOLUME_DOWN
-    NumpadComma = 0x85, //NUMPAD_COMMA
-
-    InternationalRO = 0x87,  //INTL_RO
-    KanaMode = 0x88,         //KANA_MODE
-    InternationalYen = 0x89, //INTL_YEN
-    Convert = 0x8a,          //CONVERT
-    NonConvert = 0x8b,       //NON_CONVERT
-    Lang1 = 0x90,            //LANG1
-    Lang2 = 0x91,            //LANG2
-    Lang3 = 0x92,            //LANG3
-    Lang4 = 0x93,            //LANG4
-
-    LeftCtrl = 0xe0,   //CONTROL_LEFT
-    LeftShift = 0xe1,  //SHIFT_LEFT
-    LeftAlt = 0xe2,    //ALT_LEFT
-    LeftMeta = 0xe3,   //META_LEFT
-    RightCtrl = 0xe4,  //CONTROL_RIGHT
-    RightShift = 0xe5, //SHIFT_RIGHT
-    RightAlt = 0xe6,   //ALT_RIGHT
-    RightMeta = 0xe7,  //META_RIGHT
-}
-
-pub fn generate_device_id(serial_number: &str, vendor_id: u16, product_id: u16) -> DeviceID {
-    use std::collections::hash_map::DefaultHasher;
-    let mut s = DefaultHasher::new();
-    s.write_u16(vendor_id);
-    s.write_u16(product_id);
-    s.write(serial_number.as_bytes());
-    s.finish()
+#[test]
+fn test_sendsync() {
+    // Validate all types remain Send + Sync
+    fn assert_types<T: Send + Sync>() {}
+
+    assert_types::<AnalogSdk>();
+    assert_types::<Initialised>();
+    assert_types::<Uninitialised>();
+    assert_types::<AnalogSdk<Uninitialised>>();
+    assert_types::<AnalogSdk<Initialised>>();
+    assert_types::<fn(DeviceEventType, DeviceInfo)>();
+    assert_types::<Box<dyn Fn(DeviceEventType, DeviceInfo) + Send + Sync>>();
 }

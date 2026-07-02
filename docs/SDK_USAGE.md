@@ -17,7 +17,7 @@ release](https://github.com/WootingKb/wooting-analog-sdk/releases).
 
 ### Rust
 
-The updated Rust crate is coming soon!
+You can read the documentation for the Rust API on [docs.rs](https://docs.rs/wooting-analog-sdk/latest/wooting_analog_sdk)
 
 ## Keycodes
 

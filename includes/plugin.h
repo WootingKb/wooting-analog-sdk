@@ -19,7 +19,7 @@
 #define ANALOGSDK_API ANALOGSDK_EXPORT
 #endif
 
-ANALOGSDK_API const uint32_t ANALOG_SDK_PLUGIN_ABI_VERSION = 1;
+ANALOGSDK_API const uint32_t ANALOG_SDK_PLUGIN_ABI_VERSION = 2;
 
 typedef void (*device_event)(void const *, WootingAnalog_DeviceEventType,
                              const WootingAnalog_DeviceInfo_FFI *);

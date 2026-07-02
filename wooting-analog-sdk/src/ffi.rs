@@ -2,19 +2,23 @@
 mod delegate_sys;
 
 use crate::{
-    DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI, KeycodeType, SDKResult,
-    WootingAnalogResult, sdk::*,
+    AnalogSdk, AnalogValue, Initialised, KeyCode, KeyPosition, PhysicalKey,
+    device::{DeviceEventType, DeviceID, DeviceInfo, DeviceInfo_FFI},
+    err::WootingAnalogResult,
+    keycode::KeycodeType,
 };
 #[cfg(feature = "dist")]
 use delegate_sys::USE_SYS_DLL;
 use log::{error, trace};
 use num_traits::FromPrimitive;
-use std::cell::RefCell;
-use std::os::raw::{c_char, c_float, c_int, c_uint, c_ushort};
-use std::sync::{LazyLock, Mutex};
-use std::{env, panic, slice};
+use std::{
+    cell::RefCell,
+    os::raw::{c_char, c_float, c_int, c_uint, c_ushort},
+    panic, slice,
+    sync::{LazyLock, Mutex},
+};
 
-static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
+static ANALOG_SDK: LazyLock<Mutex<Option<AnalogSdk<Initialised>>>> = LazyLock::new(|| {
     // Initialising logger with default "off".
     // If the library user wants logging, they can set the RUST_LOG environment variable, e.g. to "info".
     // TODO: Consider using file logging or allowing the user to set a custom log callback.
@@ -24,7 +28,7 @@ static ANALOG_SDK: LazyLock<Mutex<AnalogSDK>> = LazyLock::new(|| {
         println!("ERROR: Could not initialise logging. '{:?}'", e);
     }
 
-    Mutex::new(AnalogSDK::new())
+    Mutex::new(None)
 });
 
 /// Initialises the Analog SDK, this needs to be successfully called before any other functions
@@ -42,11 +46,27 @@ pub extern "C" fn wooting_analog_initialise() -> c_int {
 
     let result = panic::catch_unwind(|| {
         trace!("wooting_analog_initialise called");
-        ANALOG_SDK.lock().unwrap().initialise().into()
+
+        let mut guard = ANALOG_SDK.lock().unwrap();
+
+        // Already initialised - return current device count
+        if let Some(sdk) = guard.as_ref() {
+            return Ok(sdk.device_count() as c_int);
+        }
+
+        match AnalogSdk::new().initialise() {
+            Ok(sdk) => {
+                let count = sdk.device_count() as c_int;
+                *guard = Some(sdk);
+                Ok(count)
+            }
+            Err(e) => Err(e),
+        }
     });
-    trace!("catch unwind result: {:?}", result);
+
     match result {
-        Ok(c) => c,
+        Ok(Ok(count)) => count,
+        Ok(Err(e)) => WootingAnalogResult::from(e).into(),
         Err(e) => {
             error!("An error occurred in wooting_analog_initialise: {:?}", e);
             WootingAnalogResult::Failure.into()
@@ -91,7 +111,7 @@ pub extern "C" fn wooting_analog_is_initialised() -> bool {
         return delegate_sys::wooting_analog_is_initialised();
     }
 
-    ANALOG_SDK.lock().unwrap().initialised
+    ANALOG_SDK.lock().unwrap().is_some()
 }
 
 /// Uninitialises the SDK, returning it to an empty state, similar to how it would be before first initialisation
@@ -105,8 +125,8 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
     }
 
     trace!("wooting_analog_uninitialise called");
-    let result = panic::catch_unwind(|| {
-        //Drop the memory that was being kept for the connected devices info call
+    match panic::catch_unwind(|| {
+        // Drop the memory that was being kept for the connected devices info call
         CONNECTED_DEVICES.with(|devs| {
             let old = (*devs.borrow_mut()).take();
             if let Some(mut old_devices) = old {
@@ -117,12 +137,15 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
                 }
             }
         });
-        ANALOG_SDK.lock().unwrap().unload();
-    });
 
-    trace!("catch unwind result {:?}", result);
-
-    WootingAnalogResult::Ok
+        ANALOG_SDK.lock().unwrap().take();
+    }) {
+        Ok(()) => WootingAnalogResult::Ok,
+        Err(e) => {
+            error!("catch unwind result {:?}", e);
+            WootingAnalogResult::Failure
+        }
+    }
 }
 
 /// Sets the type of Keycodes the Analog SDK will receive (in `read_analog`) and output (in `read_full_buffer`).
@@ -146,23 +169,22 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
         return delegate_sys::wooting_analog_set_keycode_mode(mode);
     }
 
-    if !ANALOG_SDK.lock().unwrap().initialised {
-        return WootingAnalogResult::UnInitialized;
+    let Some(key_mode) = KeycodeType::from_u32(mode) else {
+        return WootingAnalogResult::InvalidArgument;
+    };
+
+    #[cfg(not(windows))]
+    if key_mode == KeycodeType::VirtualKeyTranslate {
+        return WootingAnalogResult::NotAvailable;
     }
 
-    //TODO: Make it return invalid argument when attempting to use VirtualKeyTranslate on platforms other than win
-    if let Some(key_mode) = KeycodeType::from_u32(mode) {
-        #[cfg(not(windows))]
-        {
-            if key_mode == KeycodeType::VirtualKeyTranslate {
-                return WootingAnalogResult::NotAvailable;
-            }
-        }
-        ANALOG_SDK.lock().unwrap().keycode_mode = key_mode;
-        WootingAnalogResult::Ok
-    } else {
-        WootingAnalogResult::InvalidArgument
-    }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    sdk.keycode_mode = key_mode;
+    WootingAnalogResult::Ok
 }
 
 /// Reads the Analog value of the key with identifier `code` from any connected device. The set of key identifiers that is used
@@ -191,7 +213,7 @@ pub extern "C" fn wooting_analog_set_keycode_mode(mode: c_uint) -> WootingAnalog
 pub extern "C" fn wooting_analog_read_analog(code: c_ushort) -> c_float {
     #[cfg(feature = "dist")]
     if *USE_SYS_DLL {
-        return delegate_sys::wooting_analog_read_analog(code);
+        return delegate_sys::wooting_analog_read_analog_device(code, 0);
     }
 
     wooting_analog_read_analog_device(code, 0)
@@ -219,11 +241,104 @@ pub extern "C" fn wooting_analog_read_analog_device(
         return delegate_sys::wooting_analog_read_analog_device(code, device_id);
     }
 
-    ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_analog(code, device_id)
-        .into()
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
+
+    match sdk.read_keycode_from(device_id, code) {
+        Ok(v) => f32::from(v),
+        Err(e) => WootingAnalogResult::from(e).into(),
+    }
+}
+
+/// Reads the AnalogValue of the key with identifier `keycode` from the device with id `device_id`. The set of key identifiers that is used
+/// depends on the Keycode mode set using `wooting_analog_set_mode`.
+///
+/// An AnalogValue can contain additional context via the metadata field if the firmware on your keyboard supports it.
+///
+/// The `device_id` can be found through calling `wooting_analog_device_info` and getting the DeviceID from one of the DeviceInfo structs
+///
+/// # Expected Returns
+/// When the result is < 0 then it should be mapped to a WootingAnalogResult error variant. You should cast it as WootingAnalogResult to see what the error is.
+/// * `WootingAnalogResult::NoMapping`: No keycode mapping was found from the selected mode (set by wooting_analog_set_mode) and HID.
+/// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
+/// * `WootingAnalogResult::NoDevices`: There are no connected devices with id `device_id`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_keycode_device(
+    keycode: c_ushort,
+    value: *mut AnalogValue,
+    device_id: DeviceID,
+) -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_keycode_device(keycode, value, device_id);
+    }
+
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    match sdk.read_keycode_from(device_id, keycode) {
+        Ok(v) => {
+            let Some(out) = (unsafe { value.as_mut() }) else {
+                return WootingAnalogResult::InvalidArgument;
+            };
+            *out = v;
+            WootingAnalogResult::Ok
+        }
+        Err(e) => WootingAnalogResult::from(e),
+    }
+}
+
+/// Reads the PhysicalKey with identifier `position` from the device with id `device_id`.
+///
+/// Based on the matrix position of the key you will get all active binds and additional context per
+/// key, such as actuation state.
+///
+/// The `device_id` can either be 0 or found through calling `wooting_analog_device_info` and getting the DeviceID from one of the DeviceInfo structs
+/// If you pass device_id = 0 then you will get all values merged from all available devices and plugins.
+///
+/// # Expected Returns
+/// When the result is < 0 then it should be mapped to a WootingAnalogResult error variant. You should cast it as WootingAnalogResult to see what the error is.
+/// * `WootingAnalogResult::NoMapping`: No keycode mapping was found from the selected mode (set by wooting_analog_set_mode) and HID.
+/// * `WootingAnalogResult::UnInitialized`: The SDK is not initialised
+/// * `WootingAnalogResult::NoDevices`: There are no connected devices with id `device_id`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_position_device(
+    position: *const KeyPosition,
+    physical_key: *mut PhysicalKey,
+    device_id: DeviceID,
+) -> WootingAnalogResult {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_position_device(
+            position,
+            physical_key,
+            device_id,
+        );
+    }
+
+    let Some(pos) = (unsafe { position.as_ref() }) else {
+        return WootingAnalogResult::InvalidArgument;
+    };
+
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    match sdk.read_position_from(device_id, *pos) {
+        Ok(pk) => {
+            let Some(out) = (unsafe { physical_key.as_mut() }) else {
+                return WootingAnalogResult::InvalidArgument;
+            };
+            *out = pk;
+            WootingAnalogResult::Ok
+        }
+        Err(e) => WootingAnalogResult::from(e),
+    }
 }
 
 /// Set the callback which is called when there is a DeviceEvent. Currently these events can either be Disconnected or Connected(Currently not properly implemented).
@@ -245,20 +360,23 @@ pub extern "C" fn wooting_analog_set_device_event_cb(
         return delegate_sys::wooting_analog_set_device_event_cb(cb);
     }
 
-    ANALOG_SDK
-        .lock()
-        .unwrap()
-        .set_device_event_cb(move |event, device: DeviceInfo| {
-            // Create pointer to the C version of Device Info to pass to the callback
-            let device_box: Box<DeviceInfo_FFI> = Box::new(device.into());
-            let device_raw = Box::into_raw(device_box);
-            cb(event, device_raw);
-            //We need to box up the pointer again to ensure it is properly dropped
-            unsafe {
-                drop(Box::from_raw(device_raw));
-            }
-        })
-        .into()
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    sdk.set_device_events(move |event, device: DeviceInfo| {
+        // Create pointer to the C version of Device Info to pass to the callback
+        let device_box: Box<DeviceInfo_FFI> = Box::new(device.into());
+        let device_raw = Box::into_raw(device_box);
+        cb(event, device_raw);
+        // We need to box up the pointer again to ensure it is properly dropped
+        unsafe {
+            drop(Box::from_raw(device_raw));
+        }
+    });
+
+    WootingAnalogResult::Ok
 }
 
 /// Clears the device event callback that has been set
@@ -273,10 +391,16 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
         return delegate_sys::wooting_analog_clear_device_event_cb();
     }
 
-    ANALOG_SDK.lock().unwrap().clear_device_event_cb().into()
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized;
+    };
+
+    sdk.clear_device_event_cb();
+    WootingAnalogResult::Ok
 }
 
-thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = RefCell::new(None));
+thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = const { RefCell::new(None) });
 
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
 ///
@@ -297,8 +421,12 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
         return delegate_sys::wooting_analog_get_connected_devices_info(buffer, len);
     }
 
-    let result: SDKResult<Vec<DeviceInfo>> = ANALOG_SDK.lock().unwrap().get_device_info();
-    match result.0 {
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
+
+    match sdk.connected_devices() {
         Ok(mut devices) => {
             let device_no = (len as usize).min(devices.len());
 
@@ -316,8 +444,8 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
                 .collect();
 
             buff.swap_with_slice(c_devices.clone().as_mut());
-            //We want to keep track of the structs that we've allocated and free up the last set that had been
-            //given
+            // We want to keep track of the structs that we've allocated and free up the last set that had been
+            // given
             CONNECTED_DEVICES.with(|devs| {
                 let old = (*devs.borrow_mut()).replace(c_devices);
                 if let Some(mut old_devices) = old {
@@ -330,7 +458,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
             });
             device_no as i32
         }
-        Err(e) => e.into(),
+        Err(e) => WootingAnalogResult::from(e).into(),
     }
 }
 
@@ -340,7 +468,7 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
 ///
 /// # Notes
 /// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
-/// key & analog value pairs that can be filled in.
+///   key & analog value pairs that can be filled in.
 /// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
 /// * If two devices have the same key pressed, the greater value will be given
 /// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
@@ -376,7 +504,7 @@ pub extern "C" fn wooting_analog_read_full_buffer(
 ///
 /// # Notes
 /// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
-/// key & analog value pairs that can be filled in.
+///   key & analog value pairs that can be filled in.
 /// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
 /// * When a key is released it will be returned with an analog value of 0.0f in the first read_full_buffer call after the key has been released
 ///
@@ -415,35 +543,172 @@ pub extern "C" fn wooting_analog_read_full_buffer_device(
         slice::from_raw_parts_mut(analog_buffer, len as usize)
     };
 
-    match ANALOG_SDK
-        .lock()
-        .unwrap()
-        .read_full_buffer(len as usize, device_id)
-        .0
-    {
-        Ok(analog_data) => {
-            //Fill up given slices
-            let mut count: usize = 0;
-            for (code, val) in analog_data.iter() {
-                if count >= codes.len() {
-                    break;
-                }
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
 
-                codes[count] = *code;
-                analog[count] = *val;
-                count += 1;
+    match sdk.read_keycodes_from(device_id, |ctx| {
+        let mut count: usize = 0;
+
+        for (code, val) in ctx.iter().map(|(k, v)| (u16::from(k), f32::from(v))) {
+            if count >= codes.len() {
+                break;
             }
-            count as c_int
+
+            codes[count] = code;
+            analog[count] = val;
+            count += 1;
         }
-        Err(e) => e as c_int,
+
+        count
+    }) {
+        Ok(count) => count as c_int,
+        Err(e) => WootingAnalogResult::from(e) as c_int,
     }
 }
 
+/// Reads all the analog values for pressed keys for the device with id `device_id`, filling up `code_buffer` with the
+/// `KeyCode` identifying the pressed key and fills up `analog_buffer` with the corresponding `AnalogValue`s. i.e. The analog
+/// value for they key at index 0 of code_buffer, is at index 0 of analog_buffer.
+///
+/// # Notes
+/// * `len` is the length of code_buffer & analog_buffer, if the buffers are of unequal length, then pass the lower of the two, as it is the max amount of
+///   key & analog value pairs that can be filled in.
+/// * The codes that are filled into the `code_buffer` are of the KeycodeType set with wooting_analog_set_mode
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_keycodes call after the key has been released
+///
+/// # Expected Returns
+/// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
+/// Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
+/// * `>=0` means the value indicates how many keys & analog values have been read into the buffers
+/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+/// * `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_full_buffer_v2_device(
+    code_buffer: *mut KeyCode,
+    analog_buffer: *mut AnalogValue,
+    len: c_uint,
+    device_id: DeviceID,
+) -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_full_buffer_v2_device(
+            code_buffer,
+            analog_buffer,
+            len,
+            device_id,
+        );
+    }
+
+    let codes = unsafe {
+        assert!(!code_buffer.is_null());
+
+        slice::from_raw_parts_mut(code_buffer, len as usize)
+    };
+
+    let analog = unsafe {
+        assert!(!analog_buffer.is_null());
+
+        slice::from_raw_parts_mut(analog_buffer, len as usize)
+    };
+
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
+
+    match sdk.read_keycodes_from(device_id, |ctx| {
+        let mut count: usize = 0;
+
+        for (k, v) in ctx.iter() {
+            if count >= codes.len() {
+                break;
+            }
+
+            codes[count] = *k;
+            analog[count] = *v;
+            count += 1;
+        }
+
+        count
+    }) {
+        Ok(count) => count as c_int,
+        Err(e) => WootingAnalogResult::from(e) as c_int,
+    }
+}
+
+/// Reads all pressed keys based on matrix position for the device with id `device_id`, filling up `physical_keys` with the
+/// `PhysicalKey` identifying the pressed key and its position, including actuation state and the
+/// analog value.
+///
+/// # Notes
+/// * Since this function requires the firmware to support matrix positions it will not include results
+///   for keyboards where the firmware is outdated. C Plugins also cannot supply this data, only the
+///   Wooting plugin will have the ability to poll in this data format!
+/// * `len` is the length of physical_keys.
+/// * A position can have multiple active binds on it. Advanced keys are the most common example
+///   where a ToggleKey bind will have the underlying keybind and the ToggleKey identifier as
+///   another key. These states are stored as `KeyState` inside the physical keys.
+/// * When a key is released it will be returned with an analog value of 0.0f in the first read_positions call after the key has been released
+///
+/// # Expected Returns
+/// Similar to other functions like `wooting_analog_device_info`, the return value encodes both errors and the return value we want.
+/// Where >=0 is the actual return, and <0 should be cast as WootingAnalogResult to find the error.
+/// * `>=0` means the value indicates how many physical keys have been read into the buffers
+/// * `WootingAnalogResult::UnInitialized`: Indicates that the AnalogSDK hasn't been initialised
+/// * `WootingAnalogResult::NoDevices`: Indicates the device with id `device_id` is not connected
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wooting_analog_read_positions_device(
+    physical_keys: *mut PhysicalKey,
+    len: c_uint,
+    device_id: DeviceID,
+) -> c_int {
+    #[cfg(feature = "dist")]
+    if *USE_SYS_DLL {
+        return delegate_sys::wooting_analog_read_positions_device(physical_keys, len, device_id);
+    }
+
+    let keys = unsafe {
+        assert!(!physical_keys.is_null());
+
+        slice::from_raw_parts_mut(physical_keys, len as usize)
+    };
+
+    let mut guard = ANALOG_SDK.lock().unwrap();
+    let Some(sdk) = guard.as_mut() else {
+        return WootingAnalogResult::UnInitialized.into();
+    };
+
+    match sdk.read_positions_from(device_id, |ctx| {
+        let mut count: usize = 0;
+
+        for physical_key in ctx.iter() {
+            if count >= keys.len() {
+                break;
+            }
+
+            keys[count] = *physical_key;
+            count += 1;
+        }
+
+        count
+    }) {
+        Ok(count) => count as c_int,
+        Err(e) => WootingAnalogResult::from(e) as c_int,
+    }
+}
+
+/// Checks if FFI calls are being delegated to the system installed Analog SDK.
 #[unsafe(no_mangle)]
 pub extern "C" fn wooting_analog_using_sys() -> bool {
     #[cfg(feature = "dist")]
-    { *USE_SYS_DLL }
+    {
+        *USE_SYS_DLL
+    }
 
     #[cfg(not(feature = "dist"))]
-    { true }
+    {
+        true
+    }
 }
