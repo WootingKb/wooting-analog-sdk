@@ -11,6 +11,7 @@ use std::{
     collections::HashMap,
     ffi::{CStr, CString, c_char, c_float, c_int, c_ushort},
     hash::Hasher,
+    mem::replace,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -531,9 +532,7 @@ impl Device {
                             match device_impl.get_analog_buffer_with_ctx(&device, ANALOG_MAX_SIZE) {
                                 Ok(data) => {
                                     if let Some(data) = data {
-                                        let mut map = t_buffer.lock().unwrap();
-                                        map.clear();
-                                        map.extend(data);
+                                        *t_buffer.lock().unwrap() = data;
                                     }
                                 }
                                 Err(e) => {
@@ -626,14 +625,12 @@ impl Device {
             buffer.iter().map(|k| k.code).collect();
 
         // Add old pressed keys that are no longer pressed (for key release detection)
-        for key in self.pressed_keys.drain(..) {
+        // And store only the currently pressed keys for the next call into `self.pressed_keys`
+        for key in replace(&mut self.pressed_keys, new_pressed_keys) {
             if !current_codes.contains(&key.code) {
                 buffer.push(key)
             }
         }
-
-        // Store only the currently pressed keys for the next call
-        self.pressed_keys = new_pressed_keys;
 
         Ok(buffer)
     }

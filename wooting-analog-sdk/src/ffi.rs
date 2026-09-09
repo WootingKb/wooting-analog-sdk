@@ -13,6 +13,7 @@ use log::{error, trace};
 use num_traits::FromPrimitive;
 use std::{
     cell::RefCell,
+    mem::{replace, take},
     os::raw::{c_char, c_float, c_int, c_uint, c_ushort},
     panic, slice,
     sync::{LazyLock, Mutex},
@@ -85,8 +86,7 @@ pub extern "C" fn wooting_analog_version() -> c_int {
 
     env!("CARGO_PKG_VERSION")
         .split('.')
-        .collect::<Vec<&str>>()
-        .first()
+        .next()
         .and_then(|v| v.parse().ok())
         .expect("crate must have correct package semver format")
 }
@@ -128,12 +128,9 @@ pub extern "C" fn wooting_analog_uninitialise() -> WootingAnalogResult {
     match panic::catch_unwind(|| {
         // Drop the memory that was being kept for the connected devices info call
         CONNECTED_DEVICES.with(|devs| {
-            let old = (*devs.borrow_mut()).take();
-            if let Some(mut old_devices) = old {
-                for dev in old_devices.drain(..) {
-                    unsafe {
-                        drop(Box::from_raw(dev));
-                    }
+            for dev in take(&mut *devs.borrow_mut()) {
+                unsafe {
+                    drop(Box::from_raw(dev));
                 }
             }
         });
@@ -400,7 +397,7 @@ pub extern "C" fn wooting_analog_clear_device_event_cb() -> WootingAnalogResult 
     WootingAnalogResult::Ok
 }
 
-thread_local!(static CONNECTED_DEVICES: RefCell<Option<Vec<*mut DeviceInfo_FFI>>> = const { RefCell::new(None) });
+thread_local!(static CONNECTED_DEVICES: RefCell<Vec<*mut DeviceInfo_FFI>> = const { RefCell::new(Vec::new()) });
 
 /// Fills up the given `buffer`(that has length `len`) with pointers to the DeviceInfo structs for all connected devices (as many that can fit in the buffer)
 ///
@@ -439,20 +436,17 @@ pub extern "C" fn wooting_analog_get_connected_devices_info(
             devices.truncate(device_no);
             // Convert all the DeviceInfo's into DeviceInfo_C pointers
             let c_devices: Vec<*mut DeviceInfo_FFI> = devices
-                .drain(..)
+                .into_iter()
                 .map(|dev| Box::into_raw(Box::new(dev.into())))
                 .collect();
 
-            buff.swap_with_slice(c_devices.clone().as_mut());
+            buff.copy_from_slice(&c_devices[..]);
             // We want to keep track of the structs that we've allocated and free up the last set that had been
             // given
             CONNECTED_DEVICES.with(|devs| {
-                let old = (*devs.borrow_mut()).replace(c_devices);
-                if let Some(mut old_devices) = old {
-                    for dev in old_devices.drain(..) {
-                        unsafe {
-                            drop(Box::from_raw(dev));
-                        }
+                for dev in replace(&mut *devs.borrow_mut(), c_devices) {
+                    unsafe {
+                        drop(Box::from_raw(dev));
                     }
                 }
             });
