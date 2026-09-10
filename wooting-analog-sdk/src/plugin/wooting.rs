@@ -71,8 +71,8 @@ impl WootingPlugin {
              device_impls: &Vec<Box<dyn DeviceImplementation>>| {
                 let device_infos: Vec<&DeviceInfoHID> = hid.device_list().collect();
 
-                for device_info in device_infos.iter() {
-                    for device_impl in device_impls.iter() {
+                for device_info in &device_infos {
+                    for device_impl in device_impls {
                         if device_impl.matches(device_info)
                             && !devices
                                 .lock()
@@ -161,13 +161,13 @@ impl WootingPlugin {
                     //Check if any of the devices have disconnected and get rid of them if they have
                     {
                         let mut disconnected: Vec<u64> = vec![];
-                        for (&id, device) in t_devices.lock().unwrap().iter() {
+                        for (&id, device) in &*t_devices.lock().unwrap() {
                             if !device.connected.load(Ordering::Relaxed) {
                                 disconnected.push(id);
                             }
                         }
 
-                        for id in disconnected.iter() {
+                        for id in &disconnected {
                             let device = t_devices.lock().unwrap().remove(id).unwrap();
                             t_device_event_cb.lock().unwrap().as_ref().map(|cb| {
                                 cb(DeviceEventType::Disconnected, &device.device_info);
@@ -265,7 +265,7 @@ impl Plugin for WootingPlugin {
         if device_id == 0 {
             let mut analog = AnalogValue::from(-1.0);
 
-            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+            for device in self.devices.lock().unwrap().values_mut() {
                 analog = analog.max(device.read_keycode(code));
             }
 
@@ -294,7 +294,7 @@ impl Plugin for WootingPlugin {
         if device_id == 0 {
             let mut result = PhysicalKey::new(position);
 
-            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+            for device in self.devices.lock().unwrap().values_mut() {
                 let pk = device.read_position(position);
 
                 for i in 0..pk.active_key_count {
@@ -329,7 +329,7 @@ impl Plugin for WootingPlugin {
             let mut analog: HashMap<c_ushort, c_float> = HashMap::new();
             let mut any_read = false;
             let mut error = None;
-            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+            for device in self.devices.lock().unwrap().values_mut() {
                 match device.read_full_with_ctx() {
                     Ok(val) => {
                         for (k, v) in val.iter().map(|k| (u16::from(k.code), f32::from(k.value))) {
@@ -403,7 +403,7 @@ impl Plugin for WootingPlugin {
             let mut any_read = false;
             let mut error = None;
 
-            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+            for device in self.devices.lock().unwrap().values_mut() {
                 match device.read_full_with_ctx() {
                     Ok(keys) => {
                         self.analog_data.merge(keys);
@@ -464,7 +464,7 @@ impl Plugin for WootingPlugin {
             let mut any_read = false;
             let mut error = None;
 
-            for (_id, device) in self.devices.lock().unwrap().iter_mut() {
+            for device in self.devices.lock().unwrap().values_mut() {
                 match device.read_full_with_ctx() {
                     Ok(keys) => {
                         self.analog_data.merge(keys);
@@ -514,12 +514,13 @@ impl Plugin for WootingPlugin {
             return Err(ReadError::Uninitialized);
         }
 
-        let mut devices = vec![];
-        for (_id, device) in self.devices.lock().unwrap().iter() {
-            devices.push(device.device_info.clone());
-        }
-
-        Ok(devices)
+        Ok(self
+            .devices
+            .lock()
+            .unwrap()
+            .values()
+            .map(|device| device.device_info.clone())
+            .collect())
     }
 }
 
