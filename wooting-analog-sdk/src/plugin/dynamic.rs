@@ -344,9 +344,9 @@ impl Plugin for DynamicPlugin {
         {
             Ok(num) => unsafe {
                 let num = num.min(device_infos.len());
-                device_infos.truncate(num as usize);
                 let devices = device_infos
-                    .drain(..)
+                    .into_iter()
+                    .take(num as usize)
                     .filter_map(|dev| dev.as_ref())
                     .map(|dev| dev.to_device_info())
                     .collect();
