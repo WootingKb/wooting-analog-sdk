@@ -1,10 +1,6 @@
 //! Inspect analog values, associated metadata and helper functions.
 
-use std::{
-    cmp::Ordering,
-    fmt,
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign},
-};
+use std::{cmp::Ordering, fmt, ops};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -128,150 +124,60 @@ impl fmt::Display for AnalogValue {
     }
 }
 
-impl Add for AnalogValue {
-    type Output = Self;
+macro_rules! operator {
+    ($(($trait:ident, $method:ident)),* $(,)?) => {
+        $(
+            impl ops::$trait for AnalogValue {
+                type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::from(self.inner + rhs.inner)
+                fn $method(self, rhs: Self) -> Self::Output {
+                    Self::from(self.inner.$method(rhs.inner))
+                }
+            }
+
+            impl ops::$trait<f32> for AnalogValue {
+                type Output = Self;
+
+                fn $method(self, rhs: f32) -> Self::Output {
+                    Self::from(self.inner.$method(rhs))
+                }
+            }
+        )*
     }
 }
 
-impl Sub for AnalogValue {
-    type Output = Self;
+operator![(Add, add), (Sub, sub), (Mul, mul), (Div, div), (Rem, rem)];
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self::from(self.inner - rhs.inner)
+macro_rules! operator_inplace {
+    ($(($trait:ident, $method:ident)),* $(,)?) => {
+        $(
+            impl ops::$trait for AnalogValue {
+                fn $method(&mut self, rhs: Self) {
+                    self.inner.$method(rhs.inner);
+                }
+            }
+
+            impl ops::$trait<f32> for AnalogValue {
+                fn $method(&mut self, rhs: f32) {
+                    self.inner.$method(rhs);
+                }
+            }
+        )*
     }
 }
 
-impl Mul for AnalogValue {
-    type Output = Self;
+operator_inplace![
+    (AddAssign, add_assign),
+    (SubAssign, sub_assign),
+    (MulAssign, mul_assign),
+    (DivAssign, div_assign),
+    (RemAssign, rem_assign),
+];
 
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self::from(self.inner * rhs.inner)
-    }
-}
-
-impl Div for AnalogValue {
-    type Output = Self;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        Self::from(self.inner / rhs.inner)
-    }
-}
-
-impl Rem for AnalogValue {
-    type Output = Self;
-
-    fn rem(self, rhs: Self) -> Self::Output {
-        Self::from(self.inner % rhs.inner)
-    }
-}
-
-impl Neg for AnalogValue {
+impl ops::Neg for AnalogValue {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
         Self::from(-self.inner)
-    }
-}
-
-impl Add<f32> for AnalogValue {
-    type Output = Self;
-
-    fn add(self, rhs: f32) -> Self::Output {
-        Self::from(self.inner + rhs)
-    }
-}
-
-impl Sub<f32> for AnalogValue {
-    type Output = Self;
-
-    fn sub(self, rhs: f32) -> Self::Output {
-        Self::from(self.inner - rhs)
-    }
-}
-
-impl Mul<f32> for AnalogValue {
-    type Output = Self;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self::from(self.inner * rhs)
-    }
-}
-
-impl Div<f32> for AnalogValue {
-    type Output = Self;
-
-    fn div(self, rhs: f32) -> Self::Output {
-        Self::from(self.inner / rhs)
-    }
-}
-
-impl Rem<f32> for AnalogValue {
-    type Output = Self;
-
-    fn rem(self, rhs: f32) -> Self::Output {
-        Self::from(self.inner % rhs)
-    }
-}
-
-impl AddAssign for AnalogValue {
-    fn add_assign(&mut self, rhs: Self) {
-        self.inner += rhs.inner;
-    }
-}
-
-impl SubAssign for AnalogValue {
-    fn sub_assign(&mut self, rhs: Self) {
-        self.inner -= rhs.inner;
-    }
-}
-
-impl MulAssign for AnalogValue {
-    fn mul_assign(&mut self, rhs: Self) {
-        self.inner *= rhs.inner;
-    }
-}
-
-impl DivAssign for AnalogValue {
-    fn div_assign(&mut self, rhs: Self) {
-        self.inner /= rhs.inner;
-    }
-}
-
-impl RemAssign for AnalogValue {
-    fn rem_assign(&mut self, rhs: Self) {
-        self.inner %= rhs.inner;
-    }
-}
-
-impl AddAssign<f32> for AnalogValue {
-    fn add_assign(&mut self, rhs: f32) {
-        self.inner += rhs;
-    }
-}
-
-impl SubAssign<f32> for AnalogValue {
-    fn sub_assign(&mut self, rhs: f32) {
-        self.inner -= rhs;
-    }
-}
-
-impl MulAssign<f32> for AnalogValue {
-    fn mul_assign(&mut self, rhs: f32) {
-        self.inner *= rhs;
-    }
-}
-
-impl DivAssign<f32> for AnalogValue {
-    fn div_assign(&mut self, rhs: f32) {
-        self.inner /= rhs;
-    }
-}
-
-impl RemAssign<f32> for AnalogValue {
-    fn rem_assign(&mut self, rhs: f32) {
-        self.inner %= rhs;
     }
 }
